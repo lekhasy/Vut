@@ -65,7 +65,7 @@ Implement the complete authentication flow in the Astro.js BFF: Auth0 login redi
    - `picture` -> avatar URL
    - `email` -> email address (may be null — providers don't always return it)
 6. Look up user in read model by providerId: `GET http://{READMODEL_URL}/api/users/by-provider/{providerId}`.
-7. **If user not found (404)** — check for auto-linking:
+7. **If user not found (404)** — check for auto-linking (only if email is present from the provider):
    a. If email is present from the provider, look up: `GET http://{READMODEL_URL}/api/users/by-email/{email}`.
    b. If an existing user is found by email, link the new provider: send `LinkIdentity` command to actor service.
    c. If no existing user found (truly new user), create user via actor service:
@@ -83,6 +83,7 @@ Implement the complete authentication flow in the Astro.js BFF: Auth0 login redi
      "actorId": "pending"
    }
    ```
+   Note: `email` may be `null` if the identity provider did not return one.
 8. Set an HTTP-only, Secure, SameSite=Lax session cookie:
    ```
    Set-Cookie: vut_session={encrypted_payload}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=86400
@@ -191,6 +192,7 @@ POST /commands
   "actorId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 }
 ```
+Note: `email` may be `null` if the identity provider did not return one.
 
 ### Internal: Lookup User (to Read Model API)
 ```
@@ -208,6 +210,7 @@ Response (200):
   "updatedAt": "2026-05-05T14:30:00.000Z"
 }
 ```
+Note: `email` may be `null` if the identity provider did not return one and the user has not completed email verification.
 Response (404):
 ```json
 {

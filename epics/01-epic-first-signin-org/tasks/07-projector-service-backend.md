@@ -62,8 +62,8 @@ Handles events from `vut.user-events` topic:
 
 | Event | Action |
 |-------|--------|
-| `UserCreated` | `INSERT INTO user_projection (user_id, display_name, avatar_url, email, is_email_verified, created_at, updated_at)` |
-| `IdentityLinked` | `INSERT INTO user_identity (user_id, provider_id, provider_name, email, linked_at)` |
+| `UserCreated` | `INSERT INTO user_projection (user_id, display_name, avatar_url, email, is_email_verified, created_at, updated_at)` — `email` may be null |
+| `IdentityLinked` | `INSERT INTO user_identity (user_id, provider_id, provider_name, email, linked_at)` — `email` may be null |
 | `UserProfileUpdated` | `UPDATE user_projection SET display_name = @displayName, avatar_url = @avatarUrl, updated_at = @timestamp WHERE user_id = @userId` |
 | `EmailVerified` | `UPDATE user_projection SET is_email_verified = TRUE, email = @email, updated_at = @timestamp WHERE user_id = @userId` |
 

@@ -27,7 +27,7 @@ public class UserState
     public Guid UserId { get; set; }
     public string DisplayName { get; set; } = string.Empty;
     public string AvatarUrl { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
+    public string? Email { get; set; }
     public bool IsEmailVerified { get; set; }
     public string EmailVerificationToken { get; set; } = string.Empty;
     public DateTime EmailVerificationTokenExpiresAt { get; set; }
@@ -39,7 +39,7 @@ public class IdentityEntry
 {
     public string ProviderId { get; set; } = string.Empty;   // Auth0 subject, e.g., "github|12345678"
     public string ProviderName { get; set; } = string.Empty; // "github", "google", "microsoft"
-    public string Email { get; set; } = string.Empty;
+    public string? Email { get; set; }
     public DateTime LinkedAt { get; set; }
 }
 ```
@@ -51,14 +51,14 @@ public record CreateUserCommand(
     string ProviderName,
     string DisplayName,
     string AvatarUrl,
-    string Email
+    string? Email
 );
 
 public record LinkIdentityCommand(
     Guid UserId,
     string ProviderId,
     string ProviderName,
-    string Email
+    string? Email
 );
 
 public record UpdateProfileCommand(string DisplayName, string AvatarUrl);
@@ -74,7 +74,7 @@ public record UserCreatedEvent(
     Guid UserId,
     string DisplayName,
     string AvatarUrl,
-    string Email,
+    string? Email,
     string ActorId,
     DateTime Timestamp
 ) : IEvent;
@@ -83,7 +83,7 @@ public record IdentityLinkedEvent(
     Guid UserId,
     string ProviderId,
     string ProviderName,
-    string Email,
+    string? Email,
     string ActorId,
     DateTime Timestamp
 ) : IEvent;

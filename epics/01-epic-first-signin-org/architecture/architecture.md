@@ -347,12 +347,12 @@ sequenceDiagram
     FE->>FE: Validate JWT, extract claims
     FE->>FE: Check if user exists (via read model, lookup by providerId)
     alt New User
-        FE->>AS: CreateUserCommand(providerId, providerName, displayName, avatarUrl, email)
+        FE->>AS: CreateUserCommand(providerId, providerName, displayName, avatarUrl, email?)
         AS->>K: Append UserCreated + IdentityLinked events to user-{userId}
         K-->>AS: OK
         AS-->>FE: userId
     else Existing User, New Identity
-        FE->>AS: LinkIdentityCommand(userId, providerId, providerName, email)
+        FE->>AS: LinkIdentityCommand(userId, providerId, providerName, email?)
         AS->>K: Append IdentityLinked event to user-{userId}
         K-->>AS: OK
         AS-->>FE: userId
@@ -369,7 +369,7 @@ Auth0 token includes these claims that Vut extracts:
 - `nickname`: Username (provider-specific)
 - `name`: Display name
 - `picture`: Avatar URL
-- `email`: Email address (if available from provider scope)
+- `email`: Email address (nullable — identity providers do not guarantee this; e.g., GitHub users may have no public email)
 
 The `sub` claim's prefix identifies the provider. Vut uses this as the `providerId` and stores it alongside a `providerName` in the `user_identity` table to support multiple login providers per user.
 
@@ -382,7 +382,7 @@ The BFF validates the JWT on every request:
 4. Look up the Vut `userId` from the read model using `user_identity` table: `SELECT user_id FROM user_identity WHERE provider_id = ?`
 5. Attach `userId` and `providerId` to the request context as the `actorId` for all commands
 
-If a user logs in with a new provider but their email matches an existing user, the BFF auto-links the identity (see Section 8.1).
+If a user logs in with a new provider and the provider returns an email that matches an existing user, the BFF auto-links the identity (see Section 8.1). Auto-linking is only possible when the provider returns an email — it is skipped when email is null.
 
 ## 5. Actor Model Design
 
@@ -422,15 +422,15 @@ stateDiagram-v2
 
 ```
 Commands:
-  CreateUser(providerId, providerName, displayName, avatarUrl, email) -> userId
-  LinkIdentity(userId, providerId, providerName, email)
+  CreateUser(providerId, providerName, displayName, avatarUrl, email?) -> userId
+  LinkIdentity(userId, providerId, providerName, email?)
   UpdateProfile(displayName, avatarUrl)
   RequestEmailVerification(userId, email) -> token
   VerifyEmail(token) -> email
 
 Events:
-  UserCreated(userId, displayName, avatarUrl, email, actorId, timestamp)
-  IdentityLinked(userId, providerId, providerName, email, actorId, timestamp)
+  UserCreated(userId, displayName, avatarUrl, email?, actorId, timestamp)
+  IdentityLinked(userId, providerId, providerName, email?, actorId, timestamp)
   UserProfileUpdated(userId, displayName, avatarUrl, actorId, timestamp)
   EmailVerificationRequested(userId, email, token, actorId, timestamp)
   EmailVerified(userId, email, actorId, timestamp)
@@ -439,7 +439,7 @@ State:
   userId: UUID
   displayName: string
   avatarUrl: string
-  email: string
+  email: string?
   isEmailVerified: bool
   emailVerificationToken: string
   emailVerificationTokenExpiresAt: timestamp
@@ -448,15 +448,15 @@ State:
 IdentityEntry:
   providerId: string (Auth0 subject, e.g., "github|12345678")
   providerName: string (e.g., "github", "google", "microsoft")
-  email: string
+  email: string?
   linkedAt: timestamp
 ```
 
 **Validation Rules:**
-- `CreateUser` is idempotent: if the user already exists, return the existing userId without emitting a duplicate event. `CreateUser` also emits an `IdentityLinked` event for the initial provider. If `email` is provided from the provider, it is stored but marked as unverified (`isEmailVerified = false`).
+- `CreateUser` is idempotent: if the user already exists, return the existing userId without emitting a duplicate event. `CreateUser` also emits an `IdentityLinked` event for the initial provider. If `email` is provided from the provider, it is stored but marked as unverified (`isEmailVerified = false`). Email may be null — identity providers do not guarantee returning an email.
 - `LinkIdentity` validates that the `providerId` is not already linked to a different user. If already linked to this user, it's a no-op.
 - `UpdateProfile` only emits `UserProfileUpdated` if displayName or avatarUrl actually changed.
-- `RequestEmailVerification` generates a time-limited token (e.g., 6-digit code or UUID, expires in 15 minutes). If an email was already provided by the OAuth provider, the user can still re-request verification for a different email. Emits `EmailVerificationRequested`.
+- `RequestEmailVerification` generates a time-limited token (e.g., 6-digit code or UUID, expires in 15 minutes). The user provides an email address on the `/verify-email` page — this is the primary way email is collected, since identity providers may not return one. If an email was already provided by the OAuth provider, the user can still re-request verification for a different email. Emits `EmailVerificationRequested`.
 - `VerifyEmail` validates the token hasn't expired and matches. On success, sets `isEmailVerified = true` and updates `email`. Emits `EmailVerified`.
 
 **Email Verification Gate:**
@@ -509,7 +509,7 @@ InvitationEntry:
 - `CreateOrganization`: name must be non-empty, creator is automatically added as Owner.
 - `RenameOrganization`: only Owners can rename.
 - `InviteMember`: only Owners can invite.
-- `AcceptInvitation`: the email used in the invitation must match the user's verified email from Auth0, or the user must be the one the invitation was sent to.
+- `AcceptInvitation`: the email used in the invitation must match the user's verified email, or the user must be the one the invitation was sent to.
 - `RemoveMember`: only Owners can remove. Cannot remove the last Owner.
 - `ChangeMemberRole`: only Owners can change roles. Cannot demote the last Owner.
 - `OrganizationDeleted` event is defined but the UI action is deferred (not required in Epic 1).
@@ -545,6 +545,7 @@ Every event is wrapped in a consistent envelope:
   }
 }
 ```
+Note: `email` may be `null` if the identity provider did not return one. It is only populated after the user completes email verification.
 
 ### 6.3 Event Serialization
 
@@ -582,7 +583,7 @@ CREATE TABLE user_identity (
     user_id       UUID NOT NULL REFERENCES user_projection(user_id),
     provider_id   TEXT NOT NULL,       -- Auth0 subject (e.g., "github|12345678")
     provider_name TEXT NOT NULL,       -- e.g., "github", "google", "microsoft"
-    email         TEXT,                -- Email from this provider
+    email         TEXT,                -- Email from this provider (nullable — providers may not return email)
     linked_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (user_id, provider_id)
 );
@@ -708,7 +709,7 @@ sequenceDiagram
     IdP->>Auth0: Authorization code
     Auth0->>BFF: Callback /auth/callback?code=xxx
     BFF->>Auth0: Exchange code for tokens
-    Auth0->>BFF: ID token (sub, name, picture, email)
+    Auth0->>BFF: ID token (sub, name, picture, email?)
     BFF->>BFF: Validate JWT, extract sub = providerId
 
     BFF->>RM: GET /api/users/by-provider/{providerId}
@@ -716,12 +717,12 @@ sequenceDiagram
     PG-->>RM: Empty result
     RM-->>BFF: 404 Not Found
 
-    Note over BFF: Check if existing user with same email (auto-link)
+    Note over BFF: Check if existing user with same email (auto-link, only if email returned by provider)
     BFF->>RM: GET /api/users/by-email/{email}
     RM->>PG: SELECT user_id FROM user_identity WHERE email = ? LIMIT 1
     PG-->>RM: Empty result (truly new user)
 
-    BFF->>AS: CreateUserCommand(providerId, providerName, displayName, avatarUrl, email)
+    BFF->>AS: CreateUserCommand(providerId, providerName, displayName, avatarUrl, email?)
     AS->>K: Append UserCreated + IdentityLinked to stream user-{userId}
     K->>RP: Publish events to vut.user-events
     K-->>AS: Append confirmation
@@ -926,7 +927,7 @@ sequenceDiagram
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/auth/login` | Initiates Auth0 login flow (redirect) |
-| GET | `/auth/callback` | Auth0 callback, exchanges code, creates/retrieves user, auto-links identity by email if matched |
+| GET | `/auth/callback` | Auth0 callback, exchanges code, creates/retrieves user, auto-links identity by email if matched (only when provider returns email) |
 | POST | `/auth/logout` | Clears session, redirects to Auth0 logout |
 
 ### 9.2 User Endpoints
@@ -971,7 +972,7 @@ sequenceDiagram
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/users/by-provider/{providerId}` | Look up user by any linked provider identity |
-| GET | `/api/users/by-email/{email}` | Look up user by email (for auto-linking) |
+| GET | `/api/users/by-email/{email}` | Look up user by email (for auto-linking; only usable when provider returns email) |
 
 ## 10. Frontend Architecture
 

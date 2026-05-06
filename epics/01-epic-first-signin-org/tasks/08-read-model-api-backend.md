@@ -61,9 +61,10 @@ src/
   "updatedAt": "2026-05-05T14:30:00.000Z"
 }
 ```
+Note: `email` may be `null` if the identity provider did not return one and the user has not yet completed email verification.
 
 **GET /api/users/by-email/{email}**
-- Looks up user by email via `user_identity` table (for auto-linking).
+- Looks up user by email via `user_identity` table (for auto-linking). Only usable when the identity provider returned an email — the BFF should skip this call when email is null.
 - Query: `SELECT ui.user_id FROM user_identity ui WHERE ui.email = @email LIMIT 1`.
 - Returns `200` with `{ userId }` or `404` if not found.
 
@@ -84,6 +85,7 @@ src/
   }
 ]
 ```
+Note: `email` may be `null` if the identity provider did not return one.
 
 **GET /api/users/{userId}/organizations**
 - Returns all organizations the user belongs to.

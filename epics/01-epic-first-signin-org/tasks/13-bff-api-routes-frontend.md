@@ -186,7 +186,7 @@ POST http://{ACTOR_SERVICE_URL}/commands
 ### Invitation Endpoints
 
 #### GET /api/invitations
-- Get user's email from session (or read model).
+- Get user's email from session (or read model). If the user has no email (not yet verified), return an empty list — invitations are matched by email.
 - Forward to read model: `GET http://{READMODEL_URL}/api/invitations?email={email}`.
 - Return list of pending invitations.
 

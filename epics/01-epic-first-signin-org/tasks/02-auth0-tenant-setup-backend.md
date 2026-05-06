@@ -24,26 +24,26 @@ Configure the Auth0 tenant for Vut: enable GitHub as the sole social connection,
    - **Allowed Callback URLs:** `http://localhost:3000/auth/callback` (dev), production URL (prod).
    - **Allowed Logout URLs:** `http://localhost:3000` (dev), production URL (prod).
    - **Allowed Web Origins:** `http://localhost:3000` (dev).
-   - **Grant Types:** Authorization Code (with PKCE), Refresh Token.
-   - **Token Endpoint Authentication Method:** Post.
+   - **Grant Types:** Authorization Code, Refresh Token.
+   - **Token Endpoint Authentication Method:** Defaults to `client_secret_post` for Regular Web Applications (no configuration needed).
 3. Note the **Client ID** and **Client Secret** -- these go into `vut-auth0-secret` in Kubernetes.
 
 ### GitHub Connection
 1. In Auth0 > Authentication > Social, enable **GitHub**.
-2. Create a GitHub OAuth App (Settings > Developer settings > OAuth Apps) with:
+2. Create a GitHub OAuth App under the organization (Organization > Settings > Developer settings > OAuth Apps) with:
    - Authorization callback URL: `https://{auth0-domain}/login/callback`
 3. Note the GitHub Client ID and Client Secret, enter them in Auth0's GitHub connection settings.
-4. Ensure the GitHub connection requests scopes: `read:user`, `user:email`.
+4. Ensure the GitHub connection requests scopes: `read:user`, `user:email`. Note: `user:email` is requested as best-effort — GitHub users may have no public email, so email from any identity provider must be treated as nullable.
 
 ### API Identifier (Audience)
 1. In Auth0 > Applications > APIs, create an API named "Vut API".
 2. Set the **Identifier** (audience) to something like `https://api.vut.dev` (this is a logical identifier, not a real URL).
 3. Enable "Allow Offline Access" for refresh tokens.
-4. Set token expiration: Access Token 15 min, ID Token 24 hours.
+4. Set token expiration: Access Token 15 min. Note: ID Token lifetime is configured at the Application level, not here.
 
 ### User Profile Claims
-- Ensure the ID token includes: `sub`, `nickname`, `name`, `picture`, `email`.
-- Add Auth0 Rules/Actions if needed to ensure `email` is always included (GitHub requires `user:email` scope).
+- Ensure the ID token includes: `sub`, `nickname`, `name`, `picture`.
+- `email` may or may not be present — identity providers do not guarantee an email address (e.g., GitHub users can have no public email). Treat email as nullable throughout the system.
 
 ### Documentation
 - Create `docs/auth0-setup.md` with step-by-step instructions including screenshots (or clear text steps) so any developer can reproduce the setup.
@@ -61,13 +61,14 @@ Configure the Auth0 tenant for Vut: enable GitHub as the sole social connection,
   "iat": 1714999100
 }
 ```
+Note: `email` is **not guaranteed** — it may be `null` or absent entirely. Users without an email from their identity provider must go through the email verification flow (`/verify-email`) where they provide an email manually.
 
 ## Acceptance Criteria
 
 - [ ] Auth0 application is created with correct callback/logout URLs.
 - [ ] GitHub social connection is enabled and working.
 - [ ] A test user can authenticate via GitHub and receive a valid JWT.
-- [ ] JWT contains all required claims: `sub`, `nickname`, `name`, `picture`, `email`.
+- [ ] JWT contains all required claims: `sub`, `nickname`, `name`, `picture`. The `email` claim is optional and may be absent.
 - [ ] API identifier (audience) is configured and included in tokens.
 - [ ] Setup documentation exists in `docs/auth0-setup.md`.
 - [ ] Client ID, Client Secret, Domain, and Audience are stored in `k8s/secrets/vut-auth0-secret.yaml` (base64-encoded).

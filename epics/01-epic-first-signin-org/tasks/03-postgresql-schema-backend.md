@@ -46,7 +46,7 @@ CREATE TABLE user_identity (
     user_id       UUID NOT NULL REFERENCES user_projection(user_id),
     provider_id   TEXT NOT NULL,       -- Auth0 subject (e.g., "github|12345678")
     provider_name TEXT NOT NULL,       -- e.g., "github", "google", "microsoft"
-    email         TEXT,                -- Email from this provider
+    email         TEXT,                -- Email from this provider (nullable — providers may not return email)
     linked_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (user_id, provider_id)
 );
