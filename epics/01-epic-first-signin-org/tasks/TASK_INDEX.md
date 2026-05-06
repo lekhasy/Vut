@@ -109,7 +109,7 @@ With parallelism: approximately 10-11 days with 2 developers.
 
 | Stream | Events | Created In |
 |--------|--------|-----------|
-| `user-{userId}` | `UserCreated`, `UserProfileUpdated` | Task 05 |
+| `user-{userId}` | `UserCreated`, `IdentityLinked`, `UserProfileUpdated`, `EmailVerificationRequested`, `EmailVerified` | Task 05 |
 | `organization-{orgId}` | `OrganizationCreated`, `OrganizationRenamed`, `MemberInvited`, `MemberJoined`, `MemberRemoved`, `MemberRoleChanged`, `OrganizationDeleted` | Task 06 |
 
 ## Projection Tables Covered
@@ -117,6 +117,7 @@ With parallelism: approximately 10-11 days with 2 developers.
 | Table | Created In | Populated By |
 |-------|-----------|-------------|
 | `user_projection` | Task 03 | Task 07 |
+| `user_identity` | Task 03 | Task 07 |
 | `org_projection` | Task 03 | Task 07 |
 | `org_member_projection` | Task 03 | Task 07 |
 | `org_invitation_projection` | Task 03 | Task 07 |

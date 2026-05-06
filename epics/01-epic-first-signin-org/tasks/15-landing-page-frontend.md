@@ -13,7 +13,8 @@ Build the public-facing landing page (marketing page) and the authenticated dash
 
 ## Architecture Reference
 
-- Architecture doc Section 10.1 (Astro.js SPA Shell - Pages: Landing, Dashboard)
+- Architecture doc Section 10.1 (Astro.js SPA Shell - Pages: Landing, Dashboard, Verify Email)
+- Architecture doc Section 8.2 (Email Verification sequence)
 - PRD Section 6.1 (First-Time User Onboarding flow)
 - PRD Section 7.1 (Design Philosophy - fast and minimal)
 
@@ -43,7 +44,7 @@ Build the public-facing landing page (marketing page) and the authenticated dash
 
 ### Dashboard (`/dashboard`)
 
-**Protected page** (auth required).
+**Protected page** (auth required, email verified required).
 
 **Layout:** AppLayout (with sidebar).
 
@@ -54,6 +55,23 @@ Build the public-facing landing page (marketing page) and the authenticated dash
 3. If user has NO organizations:
    - Show the empty state.
    - Check for pending invitations and show invitation banner if any.
+
+### Email Verification Page (`/verify-email`)
+
+**Protected page** (auth required, email NOT verified — this is the page unverified users see).
+
+**Layout:** AuthLayout (centered, no sidebar).
+
+**Content:**
+- Heading: "Verify your email"
+- Subheading: "Enter your email address to receive a verification code."
+- Email input field (pre-filled if email was provided by OAuth provider).
+- "Send Code" button -> calls `POST /api/users/me/verify-email`.
+- After sending:
+  - Show 6-digit code input.
+  - "Verify" button -> calls `POST /api/users/me/verify-email/confirm`.
+  - "Resend code" link (resends after cooldown).
+- On success: redirect to `/dashboard`.
 
 ### Empty State (no organizations)
 
@@ -79,6 +97,7 @@ src/
   pages/
     index.astro           # Landing page
     dashboard.astro       # Dashboard (redirects or shows empty state)
+    verify-email.astro    # Email verification page
     orgs/
       [orgId]/
         index.astro       # Org dashboard
@@ -91,6 +110,9 @@ src/
       EmptyState.astro
       OrgDashboard.astro
       QuickStats.astro
+    verify-email/
+      EmailForm.astro
+      CodeInput.astro
 ```
 
 ## API Contracts
@@ -102,9 +124,22 @@ src/
   "providerId": "github|12345678",
   "displayName": "Jane Developer",
   "avatarUrl": "https://avatars.githubusercontent.com/u/12345678",
+  "isEmailVerified": false,
   "createdAt": "2026-05-05T14:30:00.000Z",
   "updatedAt": "2026-05-05T14:30:00.000Z"
 }
+```
+
+### POST /api/users/me/verify-email
+```json
+Request: { "email": "jane@example.com" }
+Response: { "success": true }
+```
+
+### POST /api/users/me/verify-email/confirm
+```json
+Request: { "code": "123456" }
+Response: { "success": true }
 ```
 
 ### GET /api/users/{userId}/organizations
@@ -124,6 +159,8 @@ src/
 - [ ] Landing page renders at `/` without authentication.
 - [ ] "Sign in with GitHub" button redirects to `/auth/login`.
 - [ ] Landing page has a clear value proposition about #noestimate.
+- [ ] Email verification page renders at `/verify-email` for authenticated but unverified users.
+- [ ] Email verification sends a code and verifies it, then redirects to `/dashboard`.
 - [ ] Dashboard redirects to org view if the user has organizations.
 - [ ] Dashboard shows empty state if the user has no organizations.
 - [ ] Empty state includes "Create Organization" button that opens the creation modal.

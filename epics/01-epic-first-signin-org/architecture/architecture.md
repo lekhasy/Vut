@@ -9,6 +9,8 @@ graph TB
     subgraph External
         User["User (Browser)"]
         GH["GitHub OAuth"]
+        Google["Google OAuth"]
+        MS["Microsoft OAuth"]
         Auth0["Auth0"]
         SMTP["Email Service (SMTP)"]
     end
@@ -39,6 +41,7 @@ graph TB
 
         subgraph ReadModel["PostgreSQL"]
             UP["user_projection"]
+            UI["user_identity"]
             OP["org_projection"]
             OMP["org_member_projection"]
         end
@@ -53,6 +56,8 @@ graph TB
     UI --> BFF
     BFF --> Auth0
     Auth0 --> GH
+    Auth0 --> Google
+    Auth0 --> MS
     BFF --> UA
     BFF --> OA
     UA --> US
@@ -327,26 +332,31 @@ sequenceDiagram
     participant U as User Browser
     participant FE as Astro.js BFF
     participant A as Auth0
-    participant GH as GitHub OAuth
+    participant IdP as Identity Provider (GitHub/Google/Microsoft)
     participant AS as Actor Service
     participant K as KurrentDB
 
     U->>FE: GET /login
     FE->>U: Redirect to Auth0 /authorize
-    U->>A: Authorize request (connection=github)
-    A->>GH: GitHub OAuth redirect
-    GH->>A: Authorization code
+    U->>A: Authorize request
+    A->>IdP: OAuth redirect
+    IdP->>A: Authorization code
     A->>FE: Callback with authorization code
     FE->>A: Exchange code for tokens
     A->>FE: ID token + access token
     FE->>FE: Validate JWT, extract claims
-    FE->>FE: Check if user exists (via read model)
+    FE->>FE: Check if user exists (via read model, lookup by providerId)
     alt New User
-        FE->>AS: CreateUserCommand(providerId, displayName, avatarUrl)
-        AS->>K: Append UserCreated event to user-{userId}
+        FE->>AS: CreateUserCommand(providerId, providerName, displayName, avatarUrl, email)
+        AS->>K: Append UserCreated + IdentityLinked events to user-{userId}
         K-->>AS: OK
         AS-->>FE: userId
-    else Existing User
+    else Existing User, New Identity
+        FE->>AS: LinkIdentityCommand(userId, providerId, providerName, email)
+        AS->>K: Append IdentityLinked event to user-{userId}
+        K-->>AS: OK
+        AS-->>FE: userId
+    else Existing User, Known Identity
         FE->>FE: User found, continue
     end
     FE->>U: Set session cookie, redirect to dashboard
@@ -355,11 +365,13 @@ sequenceDiagram
 ### 4.2 JWT Claims Used
 
 Auth0 token includes these claims that Vut extracts:
-- `sub`: The Auth0 user ID (format: `github|12345678`)
-- `nickname`: GitHub username
+- `sub`: The Auth0 user ID (format varies by provider: `github|12345678`, `google-oauth2|1234567890`, `windowslive|1234567890`)
+- `nickname`: Username (provider-specific)
 - `name`: Display name
 - `picture`: Avatar URL
-- `email`: Email address (if available from GitHub scope)
+- `email`: Email address (if available from provider scope)
+
+The `sub` claim's prefix identifies the provider. Vut uses this as the `providerId` and stores it alongside a `providerName` in the `user_identity` table to support multiple login providers per user.
 
 ### 4.3 Auth Middleware
 
@@ -367,8 +379,10 @@ The BFF validates the JWT on every request:
 1. Extract Bearer token or session cookie
 2. Validate JWT signature against Auth0 JWKS
 3. Extract `sub` claim as the Vut `providerId`
-4. Look up the Vut `userId` from the read model using `providerId`
+4. Look up the Vut `userId` from the read model using `user_identity` table: `SELECT user_id FROM user_identity WHERE provider_id = ?`
 5. Attach `userId` and `providerId` to the request context as the `actorId` for all commands
+
+If a user logs in with a new provider but their email matches an existing user, the BFF auto-links the identity (see Section 8.1).
 
 ## 5. Actor Model Design
 
@@ -404,27 +418,49 @@ stateDiagram-v2
 ### 5.3 User Actor
 
 **Stream:** `user-{userId}`
-**Responsibility:** Manages the user aggregate root. Creates user on first login, handles profile updates.
+**Responsibility:** Manages the user aggregate root. Creates user on first login, links additional identity providers, handles profile updates, and manages email verification.
 
 ```
 Commands:
-  CreateUser(providerId, displayName, avatarUrl) -> userId
+  CreateUser(providerId, providerName, displayName, avatarUrl, email) -> userId
+  LinkIdentity(userId, providerId, providerName, email)
   UpdateProfile(displayName, avatarUrl)
+  RequestEmailVerification(userId, email) -> token
+  VerifyEmail(token) -> email
 
 Events:
-  UserCreated(userId, providerId, displayName, avatarUrl, actorId, timestamp)
+  UserCreated(userId, displayName, avatarUrl, email, actorId, timestamp)
+  IdentityLinked(userId, providerId, providerName, email, actorId, timestamp)
   UserProfileUpdated(userId, displayName, avatarUrl, actorId, timestamp)
+  EmailVerificationRequested(userId, email, token, actorId, timestamp)
+  EmailVerified(userId, email, actorId, timestamp)
 
 State:
   userId: UUID
-  providerId: string (Auth0 subject)
   displayName: string
   avatarUrl: string
+  email: string
+  isEmailVerified: bool
+  emailVerificationToken: string
+  emailVerificationTokenExpiresAt: timestamp
+  identities: Map<providerId, IdentityEntry>
+
+IdentityEntry:
+  providerId: string (Auth0 subject, e.g., "github|12345678")
+  providerName: string (e.g., "github", "google", "microsoft")
+  email: string
+  linkedAt: timestamp
 ```
 
 **Validation Rules:**
-- `CreateUser` is idempotent: if the user already exists, return the existing userId without emitting a duplicate event.
+- `CreateUser` is idempotent: if the user already exists, return the existing userId without emitting a duplicate event. `CreateUser` also emits an `IdentityLinked` event for the initial provider. If `email` is provided from the provider, it is stored but marked as unverified (`isEmailVerified = false`).
+- `LinkIdentity` validates that the `providerId` is not already linked to a different user. If already linked to this user, it's a no-op.
 - `UpdateProfile` only emits `UserProfileUpdated` if displayName or avatarUrl actually changed.
+- `RequestEmailVerification` generates a time-limited token (e.g., 6-digit code or UUID, expires in 15 minutes). If an email was already provided by the OAuth provider, the user can still re-request verification for a different email. Emits `EmailVerificationRequested`.
+- `VerifyEmail` validates the token hasn't expired and matches. On success, sets `isEmailVerified = true` and updates `email`. Emits `EmailVerified`.
+
+**Email Verification Gate:**
+All platform actions (create organization, invite members, etc.) require `isEmailVerified = true`. The BFF checks this from the read model before forwarding commands. Unverified users are redirected to the email verification page.
 
 ### 5.4 Organization Actor
 
@@ -503,9 +539,9 @@ Every event is wrapped in a consistent envelope:
   "actorId": "user-a1b2c3d4-...",
   "payload": {
     "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "providerId": "github|12345678",
     "displayName": "Jane Developer",
-    "avatarUrl": "https://avatars.githubusercontent.com/u/12345678"
+    "avatarUrl": "https://avatars.githubusercontent.com/u/12345678",
+    "email": "jane@example.com"
   }
 }
 ```
@@ -530,15 +566,31 @@ Partitioning by aggregate ID ensures ordering per entity. The partition count is
 ### 7.1 Projection Views
 
 ```sql
--- User projection
+-- User projection (no provider_id — identities are in user_identity)
 CREATE TABLE user_projection (
-    user_id       UUID PRIMARY KEY,
-    provider_id   TEXT NOT NULL UNIQUE,
-    display_name  TEXT NOT NULL,
-    avatar_url    TEXT,
-    created_at    TIMESTAMPTZ NOT NULL,
-    updated_at    TIMESTAMPTZ NOT NULL
+    user_id           UUID PRIMARY KEY,
+    display_name      TEXT NOT NULL,
+    avatar_url        TEXT,
+    email             TEXT,
+    is_email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at        TIMESTAMPTZ NOT NULL,
+    updated_at        TIMESTAMPTZ NOT NULL
 );
+
+-- User identity table (supports multiple providers per user)
+CREATE TABLE user_identity (
+    user_id       UUID NOT NULL REFERENCES user_projection(user_id),
+    provider_id   TEXT NOT NULL,       -- Auth0 subject (e.g., "github|12345678")
+    provider_name TEXT NOT NULL,       -- e.g., "github", "google", "microsoft"
+    email         TEXT,                -- Email from this provider
+    linked_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, provider_id)
+);
+
+-- Index for looking up a user by any linked provider
+CREATE UNIQUE INDEX idx_user_identity_provider ON user_identity(provider_id);
+-- Index for auto-linking by email (find existing user with same email)
+CREATE INDEX idx_user_identity_email ON user_identity(email) WHERE email IS NOT NULL;
 
 -- Organization projection
 CREATE TABLE org_projection (
@@ -578,7 +630,6 @@ CREATE TABLE user_org_projection (
 );
 
 -- Indexes
-CREATE INDEX idx_user_projection_provider ON user_projection(provider_id);
 CREATE INDEX idx_org_member_projection_user ON org_member_projection(user_id);
 CREATE INDEX idx_org_invitation_projection_email ON org_invitation_projection(email, status);
 ```
@@ -603,6 +654,7 @@ graph LR
 
     subgraph PostgreSQL
         UP["user_projection"]
+        UID["user_identity"]
         ORP["org_projection"]
         OMP["org_member_projection"]
         OIP["org_invitation_projection"]
@@ -610,6 +662,7 @@ graph LR
     end
 
     T1 --> CG1 --> PU --> UP
+    PU --> UID
     T2 --> CG2 --> PO --> ORP
     PO --> OMP
     PO --> OIP
@@ -639,7 +692,7 @@ sequenceDiagram
     participant Browser
     participant BFF as Astro.js BFF
     participant Auth0
-    participant GitHub
+    participant IdP as Identity Provider
     participant RM as Read Model API
     participant AS as Actor Service
     participant K as KurrentDB
@@ -647,38 +700,84 @@ sequenceDiagram
     participant PJ as Projector
     participant PG as PostgreSQL
 
-    User->>Browser: Click "Sign in with GitHub"
+    User->>Browser: Click "Sign in with [Provider]"
     Browser->>BFF: GET /auth/login
-    BFF->>Auth0: Redirect to /authorize?connection=github
-    Auth0->>GitHub: OAuth authorize
-    User->>GitHub: Approve
-    GitHub->>Auth0: Authorization code
+    BFF->>Auth0: Redirect to /authorize
+    Auth0->>IdP: OAuth authorize
+    User->>IdP: Approve
+    IdP->>Auth0: Authorization code
     Auth0->>BFF: Callback /auth/callback?code=xxx
     BFF->>Auth0: Exchange code for tokens
-    Auth0->>BFF: ID token (sub, name, picture)
+    Auth0->>BFF: ID token (sub, name, picture, email)
     BFF->>BFF: Validate JWT, extract sub = providerId
+
     BFF->>RM: GET /api/users/by-provider/{providerId}
-    RM->>PG: SELECT * FROM user_projection WHERE provider_id = ?
+    RM->>PG: SELECT user_id FROM user_identity WHERE provider_id = ?
     PG-->>RM: Empty result
     RM-->>BFF: 404 Not Found
 
-    Note over BFF: New user -- create via actor
+    Note over BFF: Check if existing user with same email (auto-link)
+    BFF->>RM: GET /api/users/by-email/{email}
+    RM->>PG: SELECT user_id FROM user_identity WHERE email = ? LIMIT 1
+    PG-->>RM: Empty result (truly new user)
 
-    BFF->>AS: CreateUserCommand(providerId, displayName, avatarUrl)
-    AS->>K: Append UserCreated to stream user-{userId}
-    K->>RP: Publish event to vut.user-events
+    BFF->>AS: CreateUserCommand(providerId, providerName, displayName, avatarUrl, email)
+    AS->>K: Append UserCreated + IdentityLinked to stream user-{userId}
+    K->>RP: Publish events to vut.user-events
     K-->>AS: Append confirmation
     AS-->>BFF: userId
 
     RP->>PJ: Consume UserCreated event
     PJ->>PG: INSERT INTO user_projection
+    RP->>PJ: Consume IdentityLinked event
+    PJ->>PG: INSERT INTO user_identity
 
     BFF->>BFF: Create session (userId, providerId)
-    BFF->>Browser: Set session cookie, redirect to /dashboard
-    Browser->>User: Dashboard with empty state
+    BFF->>Browser: Set session cookie, redirect to /verify-email
+    Browser->>User: Email verification page (email not yet verified)
 ```
 
-### 8.2 Returning User Sign-In
+### 8.2 Email Verification
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant Browser
+    participant BFF as Astro.js BFF
+    participant AS as Actor Service
+    participant K as KurrentDB
+    participant RP as Redpanda
+    participant PJ as Projector
+    participant PG as PostgreSQL
+    participant SMTP as Email Service
+
+    User->>Browser: Enter email on /verify-email, submit
+    Browser->>BFF: POST /api/users/me/verify-email { email }
+    BFF->>AS: RequestEmailVerification(userId, email)
+    AS->>AS: Generate 6-digit code, set expiry (15 min)
+    AS->>K: Append EmailVerificationRequested to user-{userId}
+    K-->>AS: OK
+    AS-->>BFF: OK
+    K->>RP: Publish EmailVerificationRequested
+    BFF->>SMTP: Send verification email with code
+
+    User->>Browser: Enter code from email
+    Browser->>BFF: POST /api/users/me/verify-email/confirm { code }
+    BFF->>AS: VerifyEmail(userId, code)
+    AS->>AS: Validate code matches and not expired
+    AS->>K: Append EmailVerified to user-{userId}
+    K-->>AS: OK
+    AS-->>BFF: OK
+    K->>RP: Publish EmailVerified
+
+    RP->>PJ: Consume EmailVerified
+    PJ->>PG: UPDATE user_projection SET is_email_verified = TRUE, email = ? WHERE user_id = ?
+
+    BFF->>Browser: 200 OK
+    Browser->>User: Redirect to /dashboard (verified)
+```
+
+### 8.3 Returning User Sign-In
 
 ```mermaid
 sequenceDiagram
@@ -689,13 +788,13 @@ sequenceDiagram
     participant RM as Read Model API
     participant PG as PostgreSQL
 
-    User->>Browser: Click "Sign in with GitHub"
+    User->>Browser: Click "Sign in with [Provider]"
     Browser->>BFF: GET /auth/login
     BFF->>Auth0: Redirect to /authorize
     Auth0->>BFF: Callback with ID token
     BFF->>BFF: Validate JWT, extract providerId
     BFF->>RM: GET /api/users/by-provider/{providerId}
-    RM->>PG: SELECT * FROM user_projection WHERE provider_id = ?
+    RM->>PG: SELECT ui.user_id, up.display_name, up.avatar_url FROM user_identity ui JOIN user_projection up ON ui.user_id = up.user_id WHERE ui.provider_id = ?
     PG-->>RM: User row found
     RM-->>BFF: { userId, displayName, avatarUrl }
     BFF->>BFF: Create session
@@ -706,7 +805,7 @@ sequenceDiagram
     BFF->>Browser: Set session cookie, redirect to /dashboard
 ```
 
-### 8.3 Create Organization
+### 8.4 Create Organization
 
 ```mermaid
 sequenceDiagram
@@ -745,7 +844,7 @@ sequenceDiagram
     Browser->>Owner: Redirect to org dashboard
 ```
 
-### 8.4 Invite and Accept Member
+### 8.5 Invite and Accept Member
 
 ```mermaid
 sequenceDiagram
@@ -798,7 +897,7 @@ sequenceDiagram
     PJ->>PG: UPDATE org_invitation_projection SET status = 'Accepted'
 ```
 
-### 8.5 Organization Switching
+### 8.6 Organization Switching
 
 ```mermaid
 sequenceDiagram
@@ -827,15 +926,24 @@ sequenceDiagram
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/auth/login` | Initiates Auth0 login flow (redirect) |
-| GET | `/auth/callback` | Auth0 callback, exchanges code, creates/retrieves user |
+| GET | `/auth/callback` | Auth0 callback, exchanges code, creates/retrieves user, auto-links identity by email if matched |
 | POST | `/auth/logout` | Clears session, redirects to Auth0 logout |
 
 ### 9.2 User Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/users/me` | Current user profile |
+| GET | `/api/users/me` | Current user profile (includes `isEmailVerified`) |
 | PATCH | `/api/users/me` | Update display name / avatar |
+| GET | `/api/users/me/identities` | List linked identity providers |
+| DELETE | `/api/users/me/identities/{providerId}` | Unlink an identity provider (must keep at least one) |
+
+### 9.3 Email Verification Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/users/me/verify-email` | Request email verification (sends code to given email) |
+| POST | `/api/users/me/verify-email/confirm` | Submit verification code to confirm email |
 
 ### 9.3 Organization Endpoints
 
@@ -858,6 +966,13 @@ sequenceDiagram
 |--------|------|-------------|
 | GET | `/api/invitations` | List pending invitations for current user |
 
+### 9.5 Internal Lookup Endpoints (BFF-to-ReadModel)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/users/by-provider/{providerId}` | Look up user by any linked provider identity |
+| GET | `/api/users/by-email/{email}` | Look up user by email (for auto-linking) |
+
 ## 10. Frontend Architecture
 
 ### 10.1 Astro.js SPA Shell
@@ -867,6 +982,7 @@ graph TD
     subgraph "Astro.js App"
         Router["Client-side Router<br/>(History API)"]
         AuthGuard["Auth Guard<br/>(Session Check)"]
+        EmailGuard["Email Verification Guard<br/>(isEmailVerified check)"]
         Sidebar["Sidebar Component"]
         OrgSelector["Org Selector Dropdown"]
     end
@@ -875,6 +991,7 @@ graph TD
         Landing["/ (Landing Page)"]
         Login["/auth/login"]
         Callback["/auth/callback"]
+        VerifyEmail["/verify-email"]
         Dashboard["/dashboard"]
         OrgDash["/orgs/{orgId}"]
         OrgSettings["/orgs/{orgId}/settings"]
@@ -882,7 +999,9 @@ graph TD
     end
 
     Router --> AuthGuard
-    AuthGuard --> Dashboard
+    AuthGuard --> EmailGuard
+    EmailGuard -->|verified| Dashboard
+    EmailGuard -->|not verified| VerifyEmail
     AuthGuard --> OrgDash
     AuthGuard --> OrgSettings
     AuthGuard --> MembersPage
@@ -892,7 +1011,8 @@ graph TD
 ### 10.2 Client-Side State
 
 The Astro.js frontend maintains a minimal client-side state store:
-- `currentUser`: The logged-in user's profile
+- `currentUser`: The logged-in user's profile (includes `isEmailVerified`)
+- `identities`: List of linked identity providers for the current user
 - `organizations`: List of orgs the user belongs to
 - `currentOrgId`: The currently selected organization
 - `pendingInvitations`: Invitations awaiting response
@@ -906,7 +1026,9 @@ flowchart TD
     Request[API Request] --> CheckSession{Session exists?}
     CheckSession -->|No| Redirect[Redirect to /auth/login]
     CheckSession -->|Yes| ExtractUserId[Extract userId from session]
-    ExtractUserId --> CheckMembership{Belongs to org?}
+    ExtractUserId --> CheckEmail{Email verified?}
+    CheckEmail -->|No| VerifyPage[Redirect to /verify-email]
+    CheckEmail -->|Yes| CheckMembership{Belongs to org?}
     CheckMembership -->|No| Deny[403 Forbidden]
     CheckMembership -->|Yes| CheckRole{Required role?}
     CheckRole -->|Owner only| IsOwner{Is Owner?}

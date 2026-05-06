@@ -79,18 +79,35 @@ The philosophy is simple: count work, track status transitions, let the data spe
 
 ### 4.1 Authentication & Identity
 
-**GitHub SSO Only**
+**Third-Party Identity Provider with Internal Email Verification**
 
 - Authentication is handled by a third-party identity provider (e.g., Auth0) to support multiple login methods now and in the future.
 - **MVP:** GitHub SSO is the only enabled login method. Other providers (Google, Microsoft, etc.) can be enabled later via the identity provider configuration.
 - No username/password registration. No email-based signup. Users must authenticate through a supported third-party provider.
 - On first login, a Vut user profile is created from the provider's profile (display name, avatar).
 - The identity provider handles all credential management; Vut does not store passwords.
+- The system supports multiple identity providers per user (e.g., a user can link both GitHub and Google to the same Vut account). Auto-linking by email is performed when a new provider's email matches an existing user.
+
+**Email Verification (Required Before Platform Access):**
+
+Identity providers may not always return a verified email (e.g., GitHub users can hide their email). Vut cannot rely on third-party providers for email delivery. Therefore:
+
+- After first login (or any login where email is not yet verified), the user is redirected to an email verification page before accessing any platform features.
+- The user must provide their email address on the verification page. If the identity provider supplied an email, it is pre-filled but the user can change it.
+- Vut sends a verification code (6-digit) to the provided email address. The code expires after 15 minutes.
+- The user enters the code on the verification page to confirm ownership.
+- **Email verification is a gate for all platform actions:** creating organizations, joining organizations, creating products, managing tasks — none of these are available until the email is verified.
+- Once verified, the user is not asked again unless they explicitly change their email (a future feature).
 
 **Acceptance Criteria:**
-- A user can sign in with their GitHub account and be redirected to their default organization dashboard.
+- A user can sign in with their GitHub account.
 - A user cannot create an account without a GitHub account.
 - Existing users are recognized on subsequent GitHub logins.
+- After first login, the user is redirected to the email verification page.
+- The user cannot access any platform features (orgs, products, tasks) until their email is verified.
+- A verification code is sent to the email address provided by the user.
+- Entering the correct code within 15 minutes verifies the email and grants platform access.
+- If a user logs in with a different provider and the email matches an existing verified user, the identity is auto-linked.
 
 ---
 
@@ -304,8 +321,11 @@ Every entity in Vut is modeled as an event stream. There are no "tables" in the 
 **User Stream:**
 | Event | Payload |
 |---|---|
-| `UserCreated` | userId, providerId, displayName, avatarUrl, actorId, timestamp |
+| `UserCreated` | userId, displayName, avatarUrl, email, actorId, timestamp |
+| `IdentityLinked` | userId, providerId, providerName, email, actorId, timestamp |
 | `UserProfileUpdated` | userId, displayName, avatarUrl, actorId, timestamp |
+| `EmailVerificationRequested` | userId, email, token, actorId, timestamp |
+| `EmailVerified` | userId, email, actorId, timestamp |
 
 **Organization Stream:**
 Members are part of the organization stream — membership is not a separate entity.
@@ -403,7 +423,7 @@ The read model contains projected views derived from event streams. These are no
 
 **Projection Views (MVP):**
 
-- **User Projection:** Current state of each user (id, provider id, display name, avatar url).
+- **User Projection:** Current state of each user (id, display name, avatar url, email, email verification status). Identity providers are tracked in a separate identity table (one user can have multiple linked providers).
 - **Organization Projection:** Current state of each org, including its member list and roles — projected from the organization stream's member events.
 - **Product Projection:** Current state of each product, including its configured statuses — projected from the product stream's status events.
 - **Task Projection:** Current state of each task, including its tags — projected from the task stream's tag and status events.
@@ -434,10 +454,14 @@ The read model contains projected views derived from event streams. These are no
 
 1. User clicks "Sign in with GitHub" on the Vut landing page.
 2. Auth0 handles the GitHub OAuth flow; user is redirected back to Vut.
-3. Vut creates a user profile from GitHub data (`UserCreated` event).
-4. User sees an empty state with a prompt to create or join an organization.
-5. User creates their first organization (`OrganizationCreated` event).
-6. User is now the owner of the org and can create products.
+3. Vut creates a user profile from GitHub data (`UserCreated` + `IdentityLinked` events).
+4. User is redirected to the email verification page.
+5. User enters their email address (pre-filled if GitHub provided one) and clicks "Send Code."
+6. Vut sends a 6-digit verification code to the email (`EmailVerificationRequested` event).
+7. User enters the code. On success, `EmailVerified` event is emitted.
+8. User sees an empty state with a prompt to create or join an organization.
+9. User creates their first organization (`OrganizationCreated` event).
+10. User is now the owner of the org and can create products.
 
 ### 6.2 Creating a Product and First Tasks
 
@@ -571,6 +595,11 @@ The read model contains projected views derived from event streams. These are no
 4. **Organization deletion semantics:** When an organization is deleted, are events soft-deleted (marked as deleted) or hard-deleted from KurrentDB? This affects data retention and recovery.
 5. **Tag namespace registry:** Should tags be strictly validated against known namespaces, or is any `namespace:value` string accepted? The PRD assumes free-form, but a registry would enable better autocomplete and consistency.
 6. **Minimum data threshold for projections:** How many data points (days of status transitions) are needed before the cumulative flow diagram shows a projected completion date? Too few data points produce misleading projections.
+7. **Email change flow:** Should users be able to change their verified email after the initial verification? If so, what's the flow (re-verify, cool-down period, notification to org owners)?
+
+### Resolved Decisions
+
+- **Email verification strategy:** Vut collects and verifies email internally rather than relying on identity providers. Rationale: providers like GitHub may not return email (user privacy settings), and provider APIs/policies can change without notice. Internal verification ensures Vut always has a verified communication channel for invitations and notifications.
 
 ---
 

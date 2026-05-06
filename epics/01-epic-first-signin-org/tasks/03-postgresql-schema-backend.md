@@ -30,14 +30,28 @@ Create the PostgreSQL read model schema for Epic 1 projections. This includes al
 #### `user_projection`
 ```sql
 CREATE TABLE user_projection (
-    user_id       UUID PRIMARY KEY,
-    provider_id   TEXT NOT NULL UNIQUE,
-    display_name  TEXT NOT NULL,
-    avatar_url    TEXT,
-    created_at    TIMESTAMPTZ NOT NULL,
-    updated_at    TIMESTAMPTZ NOT NULL
+    user_id           UUID PRIMARY KEY,
+    display_name      TEXT NOT NULL,
+    avatar_url        TEXT,
+    email             TEXT,
+    is_email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at        TIMESTAMPTZ NOT NULL,
+    updated_at        TIMESTAMPTZ NOT NULL
 );
-CREATE INDEX idx_user_projection_provider ON user_projection(provider_id);
+```
+
+#### `user_identity`
+```sql
+CREATE TABLE user_identity (
+    user_id       UUID NOT NULL REFERENCES user_projection(user_id),
+    provider_id   TEXT NOT NULL,       -- Auth0 subject (e.g., "github|12345678")
+    provider_name TEXT NOT NULL,       -- e.g., "github", "google", "microsoft"
+    email         TEXT,                -- Email from this provider
+    linked_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, provider_id)
+);
+CREATE UNIQUE INDEX idx_user_identity_provider ON user_identity(provider_id);
+CREATE INDEX idx_user_identity_email ON user_identity(email) WHERE email IS NOT NULL;
 ```
 
 #### `org_projection`
@@ -106,21 +120,22 @@ src/
     Program.cs
     Scripts/
       001_create_user_projection.sql
-      002_create_org_projection.sql
-      003_create_org_member_projection.sql
-      004_create_org_invitation_projection.sql
-      005_create_user_org_projection.sql
-      006_create_projection_checkpoint.sql
+      002_create_user_identity.sql
+      003_create_org_projection.sql
+      004_create_org_member_projection.sql
+      005_create_org_invitation_projection.sql
+      006_create_user_org_projection.sql
+      007_create_projection_checkpoint.sql
     Vut.ReadModel.Migrations.csproj
 ```
 
 ## Acceptance Criteria
 
-- [ ] All 6 tables are created by running migrations against a fresh PostgreSQL database.
+- [ ] All 7 tables are created by running migrations against a fresh PostgreSQL database.
 - [ ] Migrations are idempotent (running twice does not fail).
 - [ ] CHECK constraints on `role` and `status` columns are enforced.
 - [ ] All foreign key relationships are correct.
-- [ ] All required indexes exist.
+- [ ] All required indexes exist, including unique index on `user_identity(provider_id)` and email index for auto-linking.
 - [ ] Migration tool can be run from command line: `dotnet run --connection "Host=...;Database=vut_readmodel;..."`.
 - [ ] `projection_checkpoint` table has the correct composite primary key.
 

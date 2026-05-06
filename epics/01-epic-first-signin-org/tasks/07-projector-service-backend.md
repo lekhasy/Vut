@@ -62,11 +62,14 @@ Handles events from `vut.user-events` topic:
 
 | Event | Action |
 |-------|--------|
-| `UserCreated` | `INSERT INTO user_projection (user_id, provider_id, display_name, avatar_url, created_at, updated_at)` |
+| `UserCreated` | `INSERT INTO user_projection (user_id, display_name, avatar_url, email, is_email_verified, created_at, updated_at)` |
+| `IdentityLinked` | `INSERT INTO user_identity (user_id, provider_id, provider_name, email, linked_at)` |
 | `UserProfileUpdated` | `UPDATE user_projection SET display_name = @displayName, avatar_url = @avatarUrl, updated_at = @timestamp WHERE user_id = @userId` |
+| `EmailVerified` | `UPDATE user_projection SET is_email_verified = TRUE, email = @email, updated_at = @timestamp WHERE user_id = @userId` |
 
 All operations must be idempotent:
-- `INSERT` uses `ON CONFLICT (user_id) DO UPDATE SET ...` pattern.
+- `INSERT INTO user_projection` uses `ON CONFLICT (user_id) DO UPDATE SET ...` pattern.
+- `INSERT INTO user_identity` uses `ON CONFLICT (user_id, provider_id) DO UPDATE SET ...` pattern.
 - `UPDATE` uses `WHERE user_id = @userId` and is naturally idempotent.
 
 ### Org Projector (`OrgProjector`)
@@ -108,6 +111,8 @@ Idempotency rules:
 - [ ] Projector service starts and subscribes to both Redpanda consumer groups.
 - [ ] Consumed events are correctly projected into PostgreSQL tables.
 - [ ] `UserCreated` creates a row in `user_projection`.
+- [ ] `IdentityLinked` creates a row in `user_identity`.
+- [ ] `EmailVerified` updates `is_email_verified` and `email` in `user_projection`.
 - [ ] `OrganizationCreated` creates a row in `org_projection`.
 - [ ] `MemberJoined` creates rows in `org_member_projection`, `user_org_projection`, and updates `org_invitation_projection`.
 - [ ] `MemberRemoved` deletes from both `org_member_projection` and `user_org_projection`.

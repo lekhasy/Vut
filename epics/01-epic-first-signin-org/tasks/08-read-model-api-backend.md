@@ -31,6 +31,7 @@ src/
       UsersController.cs
       OrganizationsController.cs
       InvitationsController.cs
+      IdentitiesController.cs
     Queries/
       UserQueries.cs
       OrgQueries.cs
@@ -46,22 +47,43 @@ src/
 #### Users
 
 **GET /api/users/by-provider/{providerId}**
-- Looks up user by Auth0 provider ID (e.g., `github|12345678`).
+- Looks up user by any linked Auth0 provider ID via `user_identity` table.
+- Query: `SELECT ui.user_id, up.* FROM user_identity ui JOIN user_projection up ON ui.user_id = up.user_id WHERE ui.provider_id = @providerId`.
 - Returns `200` with `UserDto` or `404` if not found.
 ```json
 {
   "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "providerId": "github|12345678",
   "displayName": "Jane Developer",
   "avatarUrl": "https://avatars.githubusercontent.com/u/12345678",
+  "email": "jane@example.com",
+  "isEmailVerified": false,
   "createdAt": "2026-05-05T14:30:00.000Z",
   "updatedAt": "2026-05-05T14:30:00.000Z"
 }
 ```
 
+**GET /api/users/by-email/{email}**
+- Looks up user by email via `user_identity` table (for auto-linking).
+- Query: `SELECT ui.user_id FROM user_identity ui WHERE ui.email = @email LIMIT 1`.
+- Returns `200` with `{ userId }` or `404` if not found.
+
 **GET /api/users/{userId}**
 - Returns user profile by userId.
 - Returns `200` with `UserDto` or `404`.
+
+**GET /api/users/{userId}/identities**
+- Returns all linked identity providers for a user.
+- Query: `SELECT provider_id, provider_name, email, linked_at FROM user_identity WHERE user_id = @userId`.
+```json
+[
+  {
+    "providerId": "github|12345678",
+    "providerName": "github",
+    "email": "jane@example.com",
+    "linkedAt": "2026-05-05T14:30:00.000Z"
+  }
+]
+```
 
 **GET /api/users/{userId}/organizations**
 - Returns all organizations the user belongs to.
@@ -146,6 +168,8 @@ src/
 
 - [ ] All endpoints return correct data from PostgreSQL projections.
 - [ ] `GET /api/users/by-provider/{providerId}` returns `404` for unknown users.
+- [ ] `GET /api/users/by-email/{email}` returns `404` for unknown emails.
+- [ ] `GET /api/users/{userId}/identities` returns all linked providers for a user.
 - [ ] `GET /api/users/{userId}/organizations` returns the correct list of org memberships.
 - [ ] `GET /api/organizations/{orgId}/members` returns members with their display names and roles.
 - [ ] `GET /api/invitations?email=...` returns only pending invitations for that email.

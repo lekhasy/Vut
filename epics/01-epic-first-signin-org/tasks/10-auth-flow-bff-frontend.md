@@ -17,7 +17,8 @@ Implement the complete authentication flow in the Astro.js BFF: Auth0 login redi
 - Architecture doc Section 4.1 (Auth flow sequence diagram)
 - Architecture doc Section 4.3 (Auth Middleware)
 - Architecture doc Section 8.1 (First-Time User Sign-In)
-- Architecture doc Section 8.2 (Returning User Sign-In)
+- Architecture doc Section 8.2 (Email Verification)
+- Architecture doc Section 8.3 (Returning User Sign-In)
 
 ## Technical Requirements
 
@@ -58,21 +59,26 @@ Implement the complete authentication flow in the Astro.js BFF: Auth0 login redi
    - Verify `aud` matches the client ID.
    - Verify `exp` is in the future.
 5. Extract claims from the ID token:
-   - `sub` -> `providerId` (e.g., `github|12345678`)
-   - `nickname` -> GitHub username
+   - `sub` -> `providerId` (e.g., `github|12345678`, `google-oauth2|12345`, `windowslive|12345`)
+   - `nickname` -> username
    - `name` -> display name
    - `picture` -> avatar URL
-   - `email` -> email address
-6. Look up user in read model: `GET http://{READMODEL_URL}/api/users/by-provider/{providerId}`.
-7. If user not found (404), create user via actor service:
+   - `email` -> email address (may be null — providers don't always return it)
+6. Look up user in read model by providerId: `GET http://{READMODEL_URL}/api/users/by-provider/{providerId}`.
+7. **If user not found (404)** — check for auto-linking:
+   a. If email is present from the provider, look up: `GET http://{READMODEL_URL}/api/users/by-email/{email}`.
+   b. If an existing user is found by email, link the new provider: send `LinkIdentity` command to actor service.
+   c. If no existing user found (truly new user), create user via actor service:
    ```
    POST http://{ACTOR_SERVICE_URL}/commands
    {
      "commandType": "CreateUser",
      "payload": {
        "providerId": "github|12345678",
+       "providerName": "github",
        "displayName": "Jane Developer",
-       "avatarUrl": "https://avatars.githubusercontent.com/u/12345678"
+       "avatarUrl": "https://avatars.githubusercontent.com/u/12345678",
+       "email": "jane@example.com"
      },
      "actorId": "pending"
    }
@@ -81,8 +87,8 @@ Implement the complete authentication flow in the Astro.js BFF: Auth0 login redi
    ```
    Set-Cookie: vut_session={encrypted_payload}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=86400
    ```
-   The cookie payload should contain: `{ userId, providerId, displayName, avatarUrl }` encrypted with a server-side secret.
-9. Redirect to `/dashboard`.
+   The cookie payload should contain: `{ userId, providerId, displayName, avatarUrl, isEmailVerified }` encrypted with a server-side secret.
+9. If `isEmailVerified` is false, redirect to `/verify-email`. Otherwise, redirect to `/dashboard`.
 
 #### POST /auth/logout
 1. Clear the `vut_session` cookie.
@@ -94,18 +100,19 @@ Implement the complete authentication flow in the Astro.js BFF: Auth0 login redi
 ### Auth Middleware (Astro Middleware)
 Create `src/middleware.ts` (or `src/middleware/index.ts`) that runs on every request:
 
-1. **Public paths** (skip auth check): `/`, `/auth/login`, `/auth/callback`, public assets.
+1. **Public paths** (skip auth check): `/`, `/auth/login`, `/auth/callback`, `/verify-email`, public assets.
 2. **Protected paths** (all others):
    - Extract `vut_session` cookie.
    - Decrypt and parse the cookie payload.
    - If invalid or missing, redirect to `/auth/login`.
-   - If valid, attach `userId`, `providerId`, `displayName`, `avatarUrl` to `Astro.locals` (the request context).
-3. Attach `userId` as `actorId` for all downstream API calls.
+   - If valid, attach `userId`, `providerId`, `displayName`, `avatarUrl`, `isEmailVerified` to `Astro.locals` (the request context).
+3. **Email verification guard**: If `isEmailVerified` is false and the path is not `/verify-email` or `/auth/*`, redirect to `/verify-email`.
+4. Attach `userId` as `actorId` for all downstream API calls.
 
 ### Session Cookie Encryption
 - Use `crypto` (Node.js built-in) with AES-256-GCM.
 - Encryption key from environment variable `SESSION_SECRET` (32 bytes, base64-encoded).
-- Cookie payload: `{ userId, providerId, displayName, avatarUrl, iat }`.
+- Cookie payload: `{ userId, providerId, displayName, avatarUrl, isEmailVerified, iat }`.
 
 ### Environment Variables
 ```
@@ -154,8 +161,10 @@ POST /commands
   "commandType": "CreateUser",
   "payload": {
     "providerId": "github|12345678",
+    "providerName": "github",
     "displayName": "Jane Developer",
-    "avatarUrl": "https://avatars.githubusercontent.com/u/12345678"
+    "avatarUrl": "https://avatars.githubusercontent.com/u/12345678",
+    "email": "jane@example.com"
   },
   "actorId": "pending"
 }
@@ -168,6 +177,21 @@ Response:
 }
 ```
 
+### Internal: Link Identity Command (to Actor Service)
+```json
+POST /commands
+{
+  "commandType": "LinkIdentity",
+  "payload": {
+    "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "providerId": "google-oauth2|1234567890",
+    "providerName": "google",
+    "email": "jane@example.com"
+  },
+  "actorId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+}
+```
+
 ### Internal: Lookup User (to Read Model API)
 ```
 GET /api/users/by-provider/github%7C12345678
@@ -176,9 +200,10 @@ Response (200):
 ```json
 {
   "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "providerId": "github|12345678",
   "displayName": "Jane Developer",
   "avatarUrl": "https://avatars.githubusercontent.com/u/12345678",
+  "email": "jane@example.com",
+  "isEmailVerified": false,
   "createdAt": "2026-05-05T14:30:00.000Z",
   "updatedAt": "2026-05-05T14:30:00.000Z"
 }
@@ -198,10 +223,13 @@ Response (404):
 - [ ] JWT is validated against Auth0 JWKS (signature, issuer, audience, expiry).
 - [ ] First-time users are created in the system (via actor service) and a session is set.
 - [ ] Returning users are recognized and a session is set without creating a duplicate.
+- [ ] Auto-linking: if a new provider's email matches an existing user, the identity is linked automatically.
+- [ ] Unverified users are redirected to `/verify-email` after login.
 - [ ] Session cookie is HTTP-only, Secure, SameSite=Lax, and encrypted.
 - [ ] Auth middleware protects all non-public routes and redirects to login if no session.
+- [ ] Email verification guard redirects unverified users to `/verify-email` from any protected route.
 - [ ] Logout clears the session and redirects to Auth0 logout.
-- [ ] `Astro.locals` contains `userId`, `providerId`, `displayName`, `avatarUrl` on all authenticated requests.
+- [ ] `Astro.locals` contains `userId`, `providerId`, `displayName`, `avatarUrl`, `isEmailVerified` on all authenticated requests.
 - [ ] No email/password sign-up path exists anywhere in the product.
 
 ## Dependencies

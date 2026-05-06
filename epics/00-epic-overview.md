@@ -14,7 +14,7 @@ The Epics are ordered by dependency: earlier Epics establish the foundation that
 
 | Epic | Title | User Value |
 |------|-------|------------|
-| 1 | [First Sign-In & Organization](./01-epic-first-signin-org.md) | A user can authenticate via GitHub, create an organization, and invite team members. |
+| 1 | [First Sign-In & Organization](./01-epic-first-signin-org.md) | A user can authenticate via GitHub, verify their email (required gate), create an organization, and invite team members. |
 | 2 | [Product Setup with Configurable Workflow](./02-epic-product-setup.md) | An organization member can create a product with custom statuses, establishing the container where work will live. |
 | 3 | [Task Management & Backlog](./03-epic-task-management-backlog.md) | Users can create, edit, tag, and filter tasks in a searchable backlog -- the core data-entry experience. |
 | 4 | [Kanban Board with Drag-and-Drop](./04-epic-kanban-board.md) | Users can move tasks through workflow columns via drag-and-drop, watching work flow in real time. |
@@ -56,7 +56,9 @@ These concerns are not Epics themselves but are established progressively as par
 | Event sourcing infrastructure (KurrentDB, streams, projections) | Epic 1 |
 | Proto.Actor actors for aggregate roots | Epic 1 |
 | Redpanda event publishing + PostgreSQL read model projectors | Epic 1 |
-| Auth0 integration + GitHub SSO | Epic 1 |
+| Auth0 integration + GitHub SSO (multi-provider identity support) | Epic 1 |
+| Email verification (6-digit code, 15-min expiry, platform access gate) | Epic 1 |
+| Multi-provider identity linking with auto-link by email | Epic 1 |
 | Astro.js SPA shell, routing, Tailwind design system | Epic 1 |
 | Kubernetes deployment manifests | Epic 1 |
 

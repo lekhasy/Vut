@@ -40,6 +40,7 @@ export async function GET({ locals }: APIRoute) {
     providerId: locals.providerId,
     displayName: locals.displayName,
     avatarUrl: locals.avatarUrl,
+    isEmailVerified: locals.isEmailVerified,
   }), { status: 200 });
 }
 ```
@@ -55,6 +56,41 @@ POST http://{ACTOR_SERVICE_URL}/commands
   "actorId": "{userId}"
 }
 ```
+
+#### GET /api/users/me/identities
+- Forward to read model: `GET http://{READMODEL_URL}/api/users/{userId}/identities`.
+- Returns list of linked identity providers.
+
+#### DELETE /api/users/me/identities/{providerId}
+- Validate: user has more than one identity (cannot unlink the last one).
+- Forward to actor service with `UnlinkIdentity` command (if implemented) or mark for future implementation.
+- For Epic 1: return the list of identities. Unlinking can be deferred.
+
+### Email Verification Endpoints
+
+#### POST /api/users/me/verify-email
+- Body: `{ email: string }`.
+- Forward to actor service:
+```json
+{
+  "commandType": "RequestEmailVerification",
+  "payload": { "userId": "...", "email": "user@example.com" },
+  "actorId": "{userId}"
+}
+```
+- The actor service generates a 6-digit code and emits `EmailVerificationRequested`. The backend sends the email via SMTP.
+
+#### POST /api/users/me/verify-email/confirm
+- Body: `{ code: string }`.
+- Forward to actor service:
+```json
+{
+  "commandType": "VerifyEmail",
+  "payload": { "userId": "...", "token": "123456" },
+  "actorId": "{userId}"
+}
+```
+- On success: update the session cookie to set `isEmailVerified = true`.
 
 ### Organization Endpoints
 
@@ -181,6 +217,10 @@ src/
     api/
       users/
         me.ts          # GET, PATCH
+        identities.ts  # GET (list identities)
+        verify-email/
+          index.ts     # POST (request verification)
+          confirm.ts   # POST (submit code)
       organizations/
         index.ts       # POST, GET
         [orgId]/
@@ -245,10 +285,13 @@ Response (200):
 
 ## Acceptance Criteria
 
-- [ ] All 14 API endpoints are implemented as Astro server routes.
+- [ ] All API endpoints are implemented as Astro server routes (including email verification and identity endpoints).
 - [ ] Each endpoint validates the user session before processing.
 - [ ] Write endpoints (POST, PATCH, DELETE) forward commands to the actor service.
 - [ ] Read endpoints (GET) forward queries to the read model API.
+- [ ] `POST /api/users/me/verify-email` sends the email verification request to the actor service.
+- [ ] `POST /api/users/me/verify-email/confirm` verifies the code and updates the session cookie.
+- [ ] `GET /api/users/me/identities` returns the user's linked identity providers.
 - [ ] Authorization checks prevent non-owners from owner-only actions.
 - [ ] Authorization checks prevent non-members from accessing org data.
 - [ ] Error responses from the backend are properly forwarded to the frontend with correct HTTP status codes.
