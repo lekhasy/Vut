@@ -251,7 +251,8 @@ infrastructure/
     start.sh                    # Environment-aware startup
     stop.sh                     # Clean shutdown
     health-check.sh             # Verify all services
-    init-db.sql                 # PostgreSQL schema init
+    # No SQL init scripts — read model schema is managed by the application
+    # via code-first migrations (EF Core)
   k8s/                          # Kubernetes manifests
     namespace.yaml              # vut namespace
     ingress.yaml                # NGINX ingress routing

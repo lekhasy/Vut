@@ -45,6 +45,7 @@ Set up the complete Kubernetes infrastructure for the Vut platform. This include
 - Single primary (replica later), `k8s/postgresql/statefulset.yaml` and `k8s/postgresql/service.yaml`.
 - Port 5432. Database: `vut_readmodel`.
 - Credentials from secret `vut-postgresql-secret`.
+- **Projected tables must follow a code-first approach, not database-first.** The read model schema is defined in application code (e.g., C# entity classes with EF Core migrations). PostgreSQL serves as the persistence layer only — schema changes are driven by code migrations, never by manual DDL scripts or direct database modifications. Do not create SQL init scripts or schema files for the projected tables. The application startup (or migration tooling) is responsible for creating and evolving the schema.
 
 ### Actor Service Deployment (skeleton)
 - `k8s/actor-service/deployment.yaml` and `k8s/actor-service/service.yaml`.
