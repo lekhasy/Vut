@@ -1,0 +1,44 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vut-ingress
+  namespace: vut
+  labels:
+    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/component: ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          # API routes -> Actor Service (gRPC over HTTP/2)
+          - path: /api(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: vut-actor-service
+                port:
+                  number: 5000
+          # Auth routes -> Frontend (handles Auth0 callbacks)
+          - path: /auth(/|$)(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: vut-frontend
+                port:
+                  number: 3000
+          # Everything else -> Frontend (Astro.js SPA)
+          - path: /(.*)
+            pathType: Prefix
+            backend:
+              service:
+                name: vut-frontend
+                port:
+                  number: 3000

@@ -1,0 +1,598 @@
+# Product Requirements Document: Vut
+
+## 1. Overview
+
+### Problem Statement
+
+Project management tools are built on time-centric estimation: story points, sprints, velocity charts, and burn-downs. This creates a culture of false precision, wasted estimation effort, and pressure to meet arbitrary deadlines. Teams spend more time estimating than delivering, and the estimates are wrong anyway. There is no mainstream tool built from the ground up for teams who reject time-based estimation entirely.
+
+### Product Vision
+
+Vut is a **#noestimate project management platform** -- a multi-tenant SaaS product where work is tracked by flow, not by time. There are no story points, no sprints, no velocity, and no time tracking. Instead, Vut provides a single, powerful signal: **a cumulative flow diagram that shows how work flows through your process and projects when it will be done.** Everything else -- the backlog, the kanban board, the tags -- exists to make that signal accurate.
+
+The philosophy is simple: count work, track status transitions, let the data speak. No guessing, no rituals, no theater.
+
+### Target Users
+
+- Software teams and their leads who have adopted or want to adopt #noestimate practices.
+- Product managers who want visibility into delivery without mandating estimation ceremonies.
+- Organizations that value flow efficiency over utilization metrics.
+
+### Success Metrics
+
+1. Teams can go from signup to a working kanban board in under 5 minutes.
+2. The cumulative flow diagram produces a projected completion date within the first 2 weeks of use (requires enough data points from status transitions).
+3. Zero time-centric features exist in the product -- this is a hard constraint, not a guideline.
+
+---
+
+## 2. Goals & Non-Goals
+
+### Goals
+
+- Provide a fast, opinionated task management tool with a #noestimate philosophy baked in.
+- Deliver a single report -- the cumulative flow diagram with projected completion date -- that replaces the need for velocity charts, burn-downs, and story points.
+- Support multi-tenant, multi-org usage via GitHub SSO, following GitHub's organization model.
+- Build on an event-sourced architecture so that all state changes are auditable, replayable, and suitable for the analytical needs of the cumulative flow report.
+- Ship an MVP that is immediately useful for a single team managing a product backlog and kanban board.
+
+### Non-Goals (Explicitly Out of Scope)
+
+- **No time tracking** -- no timers, no hours logged, no timesheets.
+- **No story points or estimates** -- no numeric sizing, no T-shirt sizes, no relative estimation.
+- **No sprints or iterations** -- no time-boxed planning cycles, no sprint boards, no retrospectives tied to time periods.
+- **No velocity metrics** -- no calculated velocity, no trend lines based on throughput-per-sprint.
+- **No Gantt charts** -- no dependency mapping, no critical path, no timeline views.
+- **No multiple report types** -- the cumulative flow diagram is the only report for MVP.
+- **No custom fields** -- tags and status cover categorization needs; no arbitrary field builder.
+- **No email/password authentication** -- Third-party identity provider only (GitHub SSO for MVP).
+- **No mobile applications** -- web-only for MVP.
+- **No public API** -- internal use only for MVP. Can be exposed later.
+- **No integrations with other tools** -- no Slack, no Jira import, no CI/CD hooks for MVP.
+
+---
+
+## 3. User Personas
+
+### Team Lead / Engineering Manager
+
+- Creates or joins an organization, sets up products, invites team members.
+- Configures statuses and tags for the team's workflow.
+- Relies on the cumulative flow diagram to communicate progress to stakeholders and answer "when will it be done?"
+- Wants minimal ceremony -- no estimation meetings, no sprint planning rituals.
+
+### Developer / Team Member
+
+- Creates tasks in the backlog, moves them through statuses on the kanban board.
+- Applies tags to categorize work (e.g., `area:frontend`, `type:bug`, `priority:high`).
+- Needs the interface to be fast and unopinionated about how they organize their work.
+
+### Organization Owner
+
+- Manages the organization, its membership, and its products.
+- Can invite and remove members, assign roles.
+- Has visibility across all products within the organization.
+
+---
+
+## 4. Features & Requirements
+
+### 4.1 Authentication & Identity
+
+**GitHub SSO Only**
+
+- Authentication is handled by a third-party identity provider (e.g., Auth0) to support multiple login methods now and in the future.
+- **MVP:** GitHub SSO is the only enabled login method. Other providers (Google, Microsoft, etc.) can be enabled later via the identity provider configuration.
+- No username/password registration. No email-based signup. Users must authenticate through a supported third-party provider.
+- On first login, a Vut user profile is created from the provider's profile (display name, avatar).
+- The identity provider handles all credential management; Vut does not store passwords.
+
+**Acceptance Criteria:**
+- A user can sign in with their GitHub account and be redirected to their default organization dashboard.
+- A user cannot create an account without a GitHub account.
+- Existing users are recognized on subsequent GitHub logins.
+
+---
+
+### 4.2 Organizations (Multi-Tenancy)
+
+**GitHub-Style Organization Model**
+
+Organizations in Vut follow the same pattern as GitHub organizations:
+
+- A user can create organizations.
+- A user can belong to multiple organizations.
+- Each organization has owners and members.
+- Owners can invite users to the organization via email (the invitee signs in with GitHub to accept).
+- Owners can remove members from the organization.
+- Owners can promote members to owners or demote owners to members.
+- Products belong to organizations. A product cannot exist outside an organization.
+
+**Organization Roles:**
+- **Owner:** Full control -- manage members, manage products, configure org-level settings, delete the organization.
+- **Member:** Can access all products within the organization, create tasks, manage tags and statuses (within the product's configuration).
+
+**Acceptance Criteria:**
+- A user sees a list of their organizations on login and can switch between them.
+- An owner can invite a new member by providing their email or GitHub username.
+- An invited user sees the invitation after logging in and can accept or decline.
+- A user can be a member of Organization A and an owner of Organization B simultaneously.
+- Removing a user from an org revokes their access to all products in that org.
+
+---
+
+### 4.3 Products
+
+**The Container for Work**
+
+Products sit below organizations in the hierarchy:
+
+```
+Organization > Product > Task
+```
+
+- Each product belongs to exactly one organization.
+- Tasks can only be created within a product.
+- A product has a name, a description, and a set of configured statuses.
+- Products are proper entities, fully event-sourced (not tags).
+
+**Product Configuration:**
+- When a product is created, the creator defines its initial set of statuses (e.g., "New", "In Progress", "In Review", "Done").
+- Statuses can be added, renamed, or removed later by organization members.
+- The "New" status is special: tasks in "New" status appear in the backlog but NOT on the kanban board.
+
+**Acceptance Criteria:**
+- A user with member or owner role can create a product within their organization.
+- A product has a unique name within its organization.
+- Creating a product requires defining at least two statuses (one of which must be "New" or equivalent starting status).
+- Tasks cannot exist outside a product.
+
+---
+
+### 4.4 Tasks
+
+**The Unit of Work**
+
+- Each task belongs to exactly one product.
+- A task has:
+  - **Title** (required)
+  - **Description** (optional, markdown-supported)
+  - **Status** (required, defaults to the product's initial status -- "New")
+  - **Tags** (optional, zero or more)
+  - **Created timestamp**
+  - **Last updated timestamp**
+- Tasks are fully event-sourced. Every change (creation, status change, tag addition/removal, title/description edit) is recorded as an event in the event stream.
+
+**Task Events (minimum set for MVP):**
+| Event | Payload |
+|---|---|
+| `TaskCreated` | taskId, productId, title, description, actorId, timestamp |
+| `TaskTitleChanged` | taskId, newTitle, actorId, timestamp |
+| `TaskDescriptionChanged` | taskId, newDescription, actorId, timestamp |
+| `TaskStatusChanged` | taskId, oldStatus, newStatus, actorId, timestamp |
+| `TagAdded` | taskId, tag, actorId, timestamp |
+| `TagRemoved` | taskId, tag, actorId, timestamp |
+
+**Status Transitions:**
+- A task's status can be changed to any other status defined for the product. There are no enforced transition rules in MVP (any status to any status).
+- Every status change is an event, which feeds the cumulative flow diagram.
+
+**Acceptance Criteria:**
+- A user can create a task in any product they have access to.
+- A task's status can be changed to any status defined in the product's configuration.
+- A task can have zero, one, or many tags applied.
+- Tags follow the namespaced format `namespace:value` (e.g., `area:backend`, `type:bug`).
+- All task mutations are recorded as immutable events.
+
+---
+
+### 4.5 Tags
+
+**Namespaced, Flexible Categorization**
+
+- Tags are strings in the format `namespace:value`.
+  - Namespace: the category (e.g., `area`, `type`, `priority`, `team`).
+  - Value: the specific label (e.g., `frontend`, `bug`, `high`, `infra`).
+- Tags are free-form -- users type them in, and they are stored as-is.
+- Tags are defined at the product level. When a user types a tag, autocomplete suggests previously used tags in that product.
+- Tags are NOT a separate entity -- they are strings attached to task events.
+- Tags are used for filtering in the backlog and kanban views, and for filtering what's included in the cumulative flow report.
+
+**Acceptance Criteria:**
+- A user can add a tag `area:frontend` to a task, and it is stored exactly as that string.
+- Autocomplete suggests tags that have been previously used in the same product.
+- Tags can be used as filters in both backlog and kanban views.
+
+---
+
+### 4.6 Backlog View
+
+**All Tasks, Filterable**
+
+- The backlog view shows ALL tasks in a product, regardless of status.
+- This is the default landing page when navigating to a product.
+- Tasks are displayed in a list format with columns for: title, status, tags, created date, last updated.
+- Users can filter by:
+  - Status (single or multiple)
+  - Tags (include/exclude)
+  - Text search (title and description)
+- Users can sort by: created date, last updated, title, status.
+- Users can create new tasks directly from the backlog view.
+
+**Acceptance Criteria:**
+- All tasks in the product are visible in the backlog.
+- Filters and sorting are applied client-side with server-side support for large datasets.
+- The backlog loads in under 1 second for products with up to 10,000 tasks.
+
+---
+
+### 4.7 Kanban Board
+
+**Active Work, Column-Based**
+
+- The kanban board shows ONLY tasks whose status is NOT "New" (or the product's designated starting status).
+- Each column represents a non-"New" status defined for the product.
+- Tasks are displayed as cards within their status column.
+- Users can drag-and-drop cards between columns to change status.
+- Dragging a card to a column triggers a `TaskStatusChanged` event.
+
+**Saved Filters and Sorting:**
+- Users can apply filters (by tags, assignee, text) and sorting on the kanban board.
+- Users can save a filter + sort configuration as a named view (e.g., "Backend Team", "High Priority Only").
+- Saved views appear as tabs or a dropdown at the top of the kanban board.
+- Clicking a saved view instantly applies its filter and sort.
+- Saved views are per-user (not shared) in MVP.
+- This replaces the need for multiple dedicated views -- the user creates their own via saved filters.
+
+**Acceptance Criteria:**
+- Tasks in "New" status never appear on the kanban board.
+- Each non-"New" status gets its own column.
+- Drag-and-drop between columns changes the task's status and records the event.
+- A user can create, rename, and delete saved views.
+- Switching between saved views is instantaneous (no page reload).
+
+---
+
+### 4.8 Cumulative Flow Diagram
+
+**The Core Report**
+
+This is the primary -- and only -- report in Vut. It visualizes how work flows through the process over time and projects a completion date.
+
+**What It Shows:**
+- An area/stacked chart where each colored band represents a status.
+- The X-axis is time (days/weeks).
+- The Y-axis is count of tasks.
+- Each band shows how many tasks were in that status on a given day.
+- The total height of the chart at any point represents the total number of tasks.
+
+**Projected Completion Date:**
+- The chart must clearly indicate the projected completion date -- the date when all tasks are expected to reach the final status (e.g., "Done").
+- Projection method: use the historical rate of tasks reaching the final status (throughput) to estimate when remaining tasks will complete. This is derived purely from status transition events -- no estimates, no story points.
+- The projected date is displayed as a vertical line or annotation on the chart, with a clear label.
+- The projection should include a confidence indicator (e.g., range rather than a single date).
+
+**Accessibility:**
+- All members of the product (all org members with access to the product) can view the chart.
+- The chart is read-only -- it is a visualization, not interactive editing.
+
+**Tag-Based Filtering:**
+- Users can select which tags to include in the report (e.g., show only tasks tagged `team:backend`).
+- This allows sub-reports without needing separate report types.
+- When tags are filtered, the projection recalculates based on the filtered subset.
+
+**Data Source:**
+- The chart is built entirely from `TaskStatusChanged` events in the event store.
+- The read model maintains a daily snapshot of task counts per status for efficient querying.
+
+**Acceptance Criteria:**
+- The chart renders correctly with at least 1 day of data.
+- The projected completion date appears as a clear visual element on the chart.
+- Filtering by tags updates the chart and projection in real-time.
+- All product members can access the chart from the product navigation.
+
+---
+
+### 4.9 Event Sourcing Foundation
+
+**Everything Is an Event Stream**
+
+Every entity in Vut is modeled as an event stream. There are no "tables" in the traditional sense — only streams and projections. All state is derived by replaying events. The PostgreSQL read model stores projections of these streams for efficient querying, but the event store (KurrentDB) is the source of truth.
+
+**Invariant: Every event must capture who triggered it (`actorId`) and when it occurred (`timestamp`). No exceptions.**
+
+**User Stream:**
+| Event | Payload |
+|---|---|
+| `UserCreated` | userId, providerId, displayName, avatarUrl, actorId, timestamp |
+| `UserProfileUpdated` | userId, displayName, avatarUrl, actorId, timestamp |
+
+**Organization Stream:**
+Members are part of the organization stream — membership is not a separate entity.
+| Event | Payload |
+|---|---|
+| `OrganizationCreated` | orgId, name, actorId, timestamp |
+| `OrganizationRenamed` | orgId, newName, actorId, timestamp |
+| `MemberInvited` | orgId, inviteeEmail, actorId, timestamp |
+| `MemberJoined` | orgId, userId, actorId, timestamp |
+| `MemberRemoved` | orgId, userId, actorId, timestamp |
+| `MemberRoleChanged` | orgId, userId, oldRole, newRole, actorId, timestamp |
+| `OrganizationDeleted` | orgId, actorId, timestamp |
+
+**Product Stream:**
+Statuses are part of the product stream — they are not a separate entity.
+| Event | Payload |
+|---|---|
+| `ProductCreated` | productId, orgId, name, description, initialStatuses, actorId, timestamp |
+| `ProductRenamed` | productId, newName, actorId, timestamp |
+| `ProductDescriptionChanged` | productId, newDescription, actorId, timestamp |
+| `StatusAdded` | productId, statusName, actorId, timestamp |
+| `StatusRenamed` | productId, oldStatusName, newStatusName, actorId, timestamp |
+| `StatusRemoved` | productId, statusName, actorId, timestamp |
+| `ProductDeleted` | productId, actorId, timestamp |
+
+**Task Stream:**
+Tags are part of the task stream — they are not a separate entity.
+| Event | Payload |
+|---|---|
+| `TaskCreated` | taskId, productId, title, description, actorId, timestamp |
+| `TaskTitleChanged` | taskId, newTitle, actorId, timestamp |
+| `TaskDescriptionChanged` | taskId, newDescription, actorId, timestamp |
+| `TaskStatusChanged` | taskId, oldStatus, newStatus, actorId, timestamp |
+| `TagAdded` | taskId, tag, actorId, timestamp |
+| `TagRemoved` | taskId, tag, actorId, timestamp |
+
+**Event Ordering:**
+- Events are ordered by simple timestamps (UTC).
+- No vector clocks, no causal consistency mechanisms -- timestamps only.
+
+**Projection / Read Model:**
+- PostgreSQL serves as the read model, updated by projecting events from KurrentDB via Redpanda consumers.
+- The read model stores projected views optimized for the queries needed by the backlog, kanban, and cumulative flow diagram.
+- Projections are rebuilt from the event store when needed (e.g., after a schema change).
+- There are no "tables" representing core entities — only projection views derived from streams. Membership, statuses, and tags are projected from their parent entity's stream.
+
+---
+
+## 5. Technical Architecture
+
+### 5.1 Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | Astro.js with Tailwind CSS, component library TBD |
+| Backend | .NET with Proto.Actor framework |
+| Event Store | KurrentDB (formerly EventStoreDB) |
+| Read Model | PostgreSQL |
+| Messaging | Redpanda (Kafka-compatible) |
+| Hosting | Kubernetes |
+| Authentication | Auth0 (or similar third-party identity provider), GitHub SSO for MVP |
+| Client-Side Routing | SPA (Single Page Application) |
+
+### 5.2 Core Components
+
+```
+[Browser / SPA]
+    |
+    v
+[API Gateway / BFF]  <-- Astro.js SSR
+    |
+    +---> [Proto.Actor Backend Services]
+    |         |
+    |         +---> [KurrentDB] (event store)
+    |         |
+    |         +---> [Redpanda] (event publishing)
+    |
+    +---> [Read Model API]
+              |
+              +---> [PostgreSQL] (projected read models)
+```
+
+**Component Responsibilities:**
+
+- **Astro.js Frontend:** Renders the SPA, handles routing, manages client-side state. Communicates with the backend via API calls.
+- **Proto.Actor Backend:** Hosts the domain logic as actor-based services. Each aggregate root (User, Organization, Product, Task) is an actor that processes commands and emits events.
+- **KurrentDB:** Stores all events as immutable streams. The source of truth for all state.
+- **Redpanda:** Publishes events to topics for downstream consumers (read model projectors, analytics).
+- **PostgreSQL Read Model:** Stores projected, query-optimized views of the event data. Updated by subscribing to Redpanda topics.
+- **Kubernetes:** Orchestrates all services, manages scaling and deployment.
+
+### 5.3 Read Model Projections (PostgreSQL)
+
+The read model contains projected views derived from event streams. These are not the source of truth — they are query-optimized materializations rebuilt from KurrentDB.
+
+**Projection Views (MVP):**
+
+- **User Projection:** Current state of each user (id, provider id, display name, avatar url).
+- **Organization Projection:** Current state of each org, including its member list and roles — projected from the organization stream's member events.
+- **Product Projection:** Current state of each product, including its configured statuses — projected from the product stream's status events.
+- **Task Projection:** Current state of each task, including its tags — projected from the task stream's tag and status events.
+- **Cumulative Flow Snapshot:** Daily aggregated counts of tasks per status per product, rebuilt from `TaskStatusChanged` events. This powers the cumulative flow diagram without requiring real-time event scanning.
+
+### 5.4 Security Considerations
+
+- **Auth:** Third-party identity provider (Auth0). No stored passwords.
+- **Authorization:** Role-based access at the organization level (owner vs. member). Product access is inherited from org membership.
+- **Tenant Isolation:** All queries are scoped to the user's organization memberships. Cross-org data access is prevented at the API layer.
+- **Event Store:** KurrentDB access is restricted to the backend services; no direct client access.
+- **HTTPS Only:** All communication is over TLS.
+- **No Secrets in Events:** Events never contain authentication tokens or sensitive credentials.
+
+### 5.5 Scalability Considerations
+
+- Proto.Actor provides location-transparent actor distribution, enabling horizontal scaling of domain logic.
+- KurrentDB supports clustering for high availability and partitioned reads.
+- PostgreSQL read model can be scaled with read replicas.
+- Redpanda handles event distribution with Kafka-compatible partitioning.
+- The cumulative flow snapshots table prevents expensive real-time aggregations.
+
+---
+
+## 6. User Flows
+
+### 6.1 First-Time User Onboarding
+
+1. User clicks "Sign in with GitHub" on the Vut landing page.
+2. Auth0 handles the GitHub OAuth flow; user is redirected back to Vut.
+3. Vut creates a user profile from GitHub data (`UserCreated` event).
+4. User sees an empty state with a prompt to create or join an organization.
+5. User creates their first organization (`OrganizationCreated` event).
+6. User is now the owner of the org and can create products.
+
+### 6.2 Creating a Product and First Tasks
+
+1. Owner/member navigates to the organization dashboard.
+2. Clicks "Create Product."
+3. Enters product name, description, and defines initial statuses (e.g., "New", "In Progress", "Done").
+4. `ProductCreated` event is emitted with the initial status configuration.
+5. User is taken to the product backlog (empty).
+6. User creates their first task -- enters title and optional description.
+7. `TaskCreated` event is emitted; task appears in backlog with "New" status.
+
+### 6.3 Working with the Kanban Board
+
+1. User navigates to a product's kanban board.
+2. Board shows columns for all non-"New" statuses (e.g., "In Progress", "In Review", "Done").
+3. User changes a task's status from "New" to "In Progress" via the backlog or a quick action.
+4. The task now appears on the kanban board in the "In Progress" column.
+5. User drags the card from "In Progress" to "In Review."
+6. `TaskStatusChanged` event is recorded; the card moves to the new column.
+
+### 6.4 Using Saved Views on the Kanban Board
+
+1. User applies a filter on the kanban board (e.g., tag `area:frontend`).
+2. Board updates to show only tasks with that tag.
+3. User clicks "Save this view" and names it "Frontend Tasks."
+4. "Frontend Tasks" appears in the saved views list.
+5. User clears the filter, then clicks "Frontend Tasks" to re-apply it instantly.
+
+### 6.5 Viewing the Cumulative Flow Diagram
+
+1. User navigates to a product's report view.
+2. The cumulative flow diagram displays task counts per status over time.
+3. A projected completion date is shown as a vertical line on the chart.
+4. User applies a tag filter (e.g., `team:backend`) to see the projection for a subset of work.
+5. The chart and projection update to reflect the filtered data.
+
+### 6.6 Inviting a Team Member
+
+1. Organization owner navigates to org settings > Members.
+2. Owner clicks "Invite Member" and enters the invitee's email or GitHub username.
+3. `MemberInvited` event is emitted.
+4. The invitee receives an email with a link to accept.
+5. Invitee clicks the link, signs in via the identity provider, and sees the invitation.
+6. Invitee accepts; `MemberJoined` event is emitted.
+7. The new member can now access all products in the organization.
+
+---
+
+## 7. Design & UX Guidelines
+
+### 7.1 Design Philosophy
+
+- **Fast and minimal:** The UI should feel instant. No loading spinners for routine interactions. Optimistic updates where possible.
+- **Opinionated but flexible:** Vut has strong opinions about workflow (no time tracking, status-driven flow), but is flexible about categorization (free-form tags).
+- **Data over ceremony:** The cumulative flow diagram is the hero element. Every other UI element exists to make the data in that chart accurate.
+
+### 7.2 Platform
+
+- **Web-only** for MVP. Desktop-first responsive design.
+- SPA with client-side routing for snappy navigation.
+
+### 7.3 Key UI Patterns
+
+- **Sidebar navigation:** Organization selector at the top, product list below.
+- **Backlog as default landing page** for a product, since it shows everything.
+- **Kanban board** accessible via tab or navigation change within the product.
+- **Report** accessible via tab or navigation -- always one click away.
+- **Toast notifications** for async operations (e.g., "Task created", "Member invited").
+- **Drag-and-drop** for kanban card movement.
+- **Inline editing** for task title, description, and tags (no modal for quick edits).
+
+### 7.4 Accessibility
+
+- Keyboard-navigable kanban board (arrow keys to move between cards, Enter to open).
+- Semantic HTML and ARIA labels for screen readers.
+- Sufficient color contrast for status bands in the cumulative flow diagram.
+
+---
+
+## 8. Milestones & Phasing
+
+### Phase 1: Foundation (MVP)
+
+**Goal:** A single team can manage a product with a backlog, kanban board, and cumulative flow diagram.
+
+**Deliverables:**
+- Identity provider integration (Auth0 with GitHub SSO for MVP)
+- Organization creation and member management (owners and members)
+- Product creation with configurable statuses
+- Task CRUD with status changes and tags
+- Event sourcing infrastructure (KurrentDB, Proto.Actor, Redpanda)
+- PostgreSQL read model with projections
+- Backlog view with filtering and sorting
+- Kanban board with drag-and-drop status changes
+- Saved filters/views on the kanban board
+- Cumulative flow diagram with projected completion date
+- Tag-based filtering on the report
+
+### Phase 2: Collaboration & Refinement
+
+**Goal:** Support multiple teams and cross-team visibility.
+
+**Potential Deliverables:**
+- Task assignments (assigning users to tasks)
+- Comments/activity feed on tasks
+- Real-time updates (WebSocket-based board updates when teammates move cards)
+- Shared saved views (team-level views)
+- Organization-level settings and policies
+- Improved onboarding flow
+
+### Phase 3: Scale & Integration
+
+**Goal:** Enterprise readiness and ecosystem integration.
+
+**Potential Deliverables:**
+- Public API for integrations
+- Webhook support for CI/CD and notification systems
+- Import/export capabilities (CSV, JSON)
+- Organization analytics dashboard (across products)
+- Custom roles and permissions (beyond owner/member)
+- Audit log viewer (leveraging the event store)
+- Billing and subscription management
+
+---
+
+## 9. Open Questions
+
+1. **Component library selection:** Astro.js + Tailwind CSS is confirmed, but the specific component library is TBD. Options include Headless UI, Radix, or a purpose-built minimal set.
+2. **Projection recalculation strategy:** When statuses are renamed or removed in a product, how are historical events and the cumulative flow diagram affected? Options: (a) rewrite historical events, (b) maintain a status name mapping, (c) show legacy names for historical data.
+3. **Projection confidence model:** The exact statistical model for the projected completion date (e.g., linear regression on throughput, Monte Carlo simulation) needs to be selected during implementation.
+4. **Organization deletion semantics:** When an organization is deleted, are events soft-deleted (marked as deleted) or hard-deleted from KurrentDB? This affects data retention and recovery.
+5. **Tag namespace registry:** Should tags be strictly validated against known namespaces, or is any `namespace:value` string accepted? The PRD assumes free-form, but a registry would enable better autocomplete and consistency.
+6. **Minimum data threshold for projections:** How many data points (days of status transitions) are needed before the cumulative flow diagram shows a projected completion date? Too few data points produce misleading projections.
+
+---
+
+## 10. Appendix
+
+### Inspiration & References
+
+- **#noestimate movement:** The product philosophy is rooted in the #noestimate movement, which challenges the value of time-based estimation in software development.
+- **GitHub organization model:** Multi-tenancy, roles, and org membership follow GitHub's established pattern.
+- **Kanban method:** The cumulative flow diagram is a core Kanban metric. Vut adopts this without adopting the full Kanban method's prescriptive elements.
+- **Event sourcing:** The architecture follows event-sourcing principles as described by Martin Fowler and implemented in systems like KurrentDB.
+
+### Key Terminology
+
+| Term | Definition |
+|---|---|
+| Organization | The top-level tenant entity. Contains users (owners and members) and products. |
+| Product | A container for work within an organization. Contains tasks and has its own status configuration. |
+| Task | The unit of work. Has a title, description, status, and tags. |
+| Status | A dedicated property on a task indicating its position in the workflow. Defined per product. |
+| Tag | A namespaced label (`namespace:value`) for flexible categorization. |
+| Backlog | A list view of all tasks in a product. |
+| Kanban Board | A column-based view of tasks, excluding tasks in the initial ("New") status. |
+| Cumulative Flow Diagram | A stacked area chart showing task counts per status over time, with a projected completion date. |
+| Event Stream | An append-only log of events that represents the history of an entity. |

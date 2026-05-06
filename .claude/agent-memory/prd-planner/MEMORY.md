@@ -1,0 +1,4 @@
+- [User Profile](user_profile.md) — Technical, direct communicator; prefers agent autonomy on details
+- [Vut Tech Stack](vut_tech_stack.md) — Confirmed stack, architecture, and data hierarchy
+- [Vut Product Philosophy](vut_product_philosophy.md) — #noestimate philosophy, hard exclusions, views
+- [Vut Org Model](vut_org_model.md) — GitHub-style multi-tenancy, roles, org/product/task hierarchy

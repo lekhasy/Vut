@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vut-actor-service
+  namespace: vut
+  labels:
+    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/name: actor-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: vut
+      app.kubernetes.io/component: backend
+      app.kubernetes.io/name: actor-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: vut
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/name: actor-service
+    spec:
+      containers:
+        - name: actor-service
+          image: vut/actor-service:latest
+          imagePullPolicy: Never  # For local dev (minikube/kind)
+          ports:
+            - name: grpc
+              containerPort: 5000
+              protocol: TCP
+            - name: http
+              containerPort: 5001
+              protocol: TCP
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Development"
+            - name: KurrentDB__ConnectionString
+              value: "esdb://vut-kurrentdb:2113?tls=false"
+            - name: Redpanda__BootstrapServers
+              value: "vut-redpanda:9092"
+            - name: Auth0__Domain
+              valueFrom:
+                secretKeyRef:
+                  name: vut-auth0-secret
+                  key: domain
+            - name: Auth0__Audience
+              valueFrom:
+                secretKeyRef:
+                  name: vut-auth0-secret
+                  key: audience
+            - name: Auth0__ClientId
+              valueFrom:
+                secretKeyRef:
+                  name: vut-auth0-secret
+                  key: client-id
+            - name: Auth0__ClientSecret
+              valueFrom:
+                secretKeyRef:
+                  name: vut-auth0-secret
+                  key: client-secret
+            - name: PostgreSQL__ConnectionString
+              value: "Host=vut-postgresql;Database=vut_readmodel;Username=vut_app;Password=vut_dev_password"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 45
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3

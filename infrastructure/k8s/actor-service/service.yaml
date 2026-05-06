@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vut-actor-service
+  namespace: vut
+  labels:
+    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/name: actor-service
+spec:
+  type: ClusterIP
+  ports:
+    - name: grpc
+      port: 5000
+      targetPort: 5000
+      protocol: TCP
+    - name: http
+      port: 5001
+      targetPort: 5001
+      protocol: TCP
+  selector:
+    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/name: actor-service

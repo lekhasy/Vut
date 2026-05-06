@@ -1,0 +1,49 @@
+# VUT Platform - Development Overrides (ARM64 / Apple Silicon)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.override.arm.yml --env-file .env.dev up -d
+#
+# All services use native ARM64 images — no Rosetta emulation needed.
+#
+# NOTE: The KurrentDB ARM64 image runs as UID 1001 (kurrent). If switching from
+# the amd64 image (which runs as root), fix the volume ownership first:
+#   docker compose stop kurrentdb
+#   docker run --rm -v vut-kurrentdb-data:/data alpine chown -R 1001:1001 /data
+
+services:
+  kurrentdb:
+    image: kurrentplatform/kurrentdb:26.1.0-experimental-arm64-10.0-noble
+    environment:
+      EVENTSTORE_CLUSTER_SIZE: "1"
+      EVENTSTORE_DEV: "false"
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+        reservations:
+          memory: 1G
+
+  redpanda:
+    command:
+      - redpanda
+      - start
+      - --smp 1
+      - --memory 512M
+      - --overprovisioned
+      - --kafka-addr internal://0.0.0.0:9092
+      - --advertise-kafka-addr internal://redpanda:9092
+      - --pandaproxy-addr internal://0.0.0.0:8082
+      - --advertise-pandaproxy-addr internal://redpanda:8082
+      - --rpc-addr internal://0.0.0.0:33145
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  postgresql:
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M

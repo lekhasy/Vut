@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vut
+  labels:
+    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/managed-by: manual

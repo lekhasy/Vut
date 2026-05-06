@@ -1,0 +1,203 @@
+# VUT Platform - Base Docker Compose Configuration
+# Usage: docker compose up -d
+# Environment overrides are loaded automatically based on VUT_ENV:
+#   - VUT_ENV=dev (default): loads docker-compose.override.yml
+#   - VUT_ENV=staging: loads docker-compose.staging.yml
+#   - VUT_ENV=prod: loads docker-compose.prod.yml
+
+services:
+  # ─── KurrentDB (EventStoreDB) ───────────────────────────────────
+  kurrentdb:
+    image: kurrentplatform/kurrentdb:26.1.0
+    container_name: vut-kurrentdb
+    restart: unless-stopped
+    ports:
+      - "${KURRENTDB_HTTP_PORT:-2113}:2113"
+      - "${KURRENTDB_TCP_PORT:-1113}:1113"
+    environment:
+      EVENTSTORE_CLUSTER_SIZE: ${KURRENTDB_CLUSTER_SIZE:-1}
+      EVENTSTORE_RUN_PROJECTIONS: "None"
+      EVENTSTORE_DB: /data/db
+      EVENTSTORE_DEV: "true"
+      EVENTSTORE_ENABLE_ATOM_PUB_OVER_HTTP: "true"
+      EVENTSTORE_INSECURE: "true"
+    volumes:
+      - kurrentdb-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2113/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: ${KURRENTDB_MEMORY_LIMIT:-3G}
+        reservations:
+          memory: ${KURRENTDB_MEMORY_RESERVATION:-1G}
+
+  # ─── Redpanda (Kafka-compatible messaging) ──────────────────────
+  redpanda:
+    image: redpandadata/redpanda:v24.2.2
+    container_name: vut-redpanda
+    restart: unless-stopped
+    ports:
+      - "${REDPANDA_KAFKA_PORT:-9092}:9092"
+      - "${REDPANDA_ADMIN_PORT:-9644}:9644"
+    command:
+      - redpanda
+      - start
+      - --smp ${REDPANDA_SMP:-1}
+      - --memory ${REDPANDA_MEMORY:-512M}
+      - --overprovisioned
+      - --kafka-addr internal://0.0.0.0:9092
+      - --advertise-kafka-addr internal://redpanda:9092
+      - --pandaproxy-addr internal://0.0.0.0:8082
+      - --advertise-pandaproxy-addr internal://redpanda:8082
+      - --rpc-addr internal://0.0.0.0:33145
+    volumes:
+      - redpanda-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9644/v1/status/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: ${REDPANDA_MEMORY_LIMIT:-1G}
+        reservations:
+          memory: ${REDPANDA_MEMORY_RESERVATION:-512M}
+
+  # ─── PostgreSQL (Read Model Store) ──────────────────────────────
+  postgresql:
+    image: postgres:16-alpine
+    container_name: vut-postgresql
+    restart: unless-stopped
+    ports:
+      - "${POSTGRESQL_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: vut_readmodel
+      POSTGRES_USER: ${POSTGRESQL_USER:-vut_app}
+      POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD:-vut_dev_password}
+    volumes:
+      - postgresql-data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRESQL_USER:-vut_app} -d vut_readmodel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: ${POSTGRESQL_MEMORY_LIMIT:-2G}
+        reservations:
+          memory: ${POSTGRESQL_MEMORY_RESERVATION:-512M}
+
+  # # ─── Actor Service (.NET Proto.Actor backend) ───────────────────
+  # # DISABLED: Uncomment when the actor-service Docker image is ready.
+  # actor-service:
+  #   image: vut/actor-service:latest
+  #   container_name: vut-actor-service
+  #   build:
+  #     context: ../backend/src/Vut.ActorService
+  #     dockerfile: Dockerfile
+  #   restart: unless-stopped
+  #   ports:
+  #     - "${ACTOR_SERVICE_PORT:-5000}:5000"
+  #     - "${ACTOR_SERVICE_GRPC_PORT:-5001}:5001"
+  #   environment:
+  #     ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+  #     KurrentDB__ConnectionString: ${KURRENTDB_CONNECTION_STRING:-esdb://kurrentdb:2113?tls=false}
+  #     Redpanda__BootstrapServers: ${REDPANDA_BOOTSTRAP_SERVERS:-redpanda:9092}
+  #     Auth0__Domain: ${AUTH0_DOMAIN:-dev-vut.us.auth0.com}
+  #     Auth0__Audience: ${AUTH0_AUDIENCE:-https://vut-api-dev}
+  #     Auth0__ClientId: ${AUTH0_CLIENT_ID}
+  #     Auth0__ClientSecret: ${AUTH0_CLIENT_SECRET}
+  #     PostgreSQL__ConnectionString: ${POSTGRESQL_CONNECTION_STRING:-Host=postgresql;Database=vut_readmodel;Username=vut_app;Password=vut_dev_password}
+  #   depends_on:
+  #     kurrentdb:
+  #       condition: service_healthy
+  #     redpanda:
+  #       condition: service_healthy
+  #     postgresql:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 30s
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: ${ACTOR_SERVICE_MEMORY_LIMIT:-1G}
+  #       reservations:
+  #         memory: ${ACTOR_SERVICE_MEMORY_RESERVATION:-256M}
+
+  # # ─── Frontend (Astro.js SSR) ────────────────────────────────────
+  # # DISABLED: Uncomment when the frontend Docker image is ready.
+  # frontend:
+  #   image: vut/frontend:latest
+  #   container_name: vut-frontend
+  #   build:
+  #     context: ../frontend
+  #     dockerfile: Dockerfile
+  #   restart: unless-stopped
+  #   ports:
+  #     - "${FRONTEND_PORT:-3000}:3000"
+  #   environment:
+  #     ACTOR_SERVICE_URL: ${ACTOR_SERVICE_URL:-http://actor-service:5000}
+  #     READMODEL_URL: ${READMODEL_URL:-http://actor-service:5001}
+  #     AUTH0_DOMAIN: ${AUTH0_DOMAIN:-dev-vut.us.auth0.com}
+  #     AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID}
+  #     AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-https://vut-api-dev}
+  #     AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET}
+  #   depends_on:
+  #     actor-service:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 5
+  #     start_period: 20s
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: ${FRONTEND_MEMORY_LIMIT:-512M}
+  #       reservations:
+  #         memory: ${FRONTEND_MEMORY_RESERVATION:-128M}
+
+  # ─── Redpanda Topic Initialization (one-shot) ───────────────────
+  redpanda-init:
+    image: redpandadata/redpanda:v24.2.2
+    container_name: vut-redpanda-init
+    entrypoint: >
+      bash -c "
+        echo 'Waiting for Redpanda to be ready...';
+        until rpk cluster info --brokers redpanda:9092 > /dev/null 2>&1; do
+          echo 'Redpanda not ready, retrying in 2s...';
+          sleep 2;
+        done;
+        echo 'Creating topics...';
+        rpk topic create vut.user-events -p ${REDPANDA_USER_EVENTS_PARTITIONS:-3} --brokers redpanda:9092 2>/dev/null || echo 'Topic vut.user-events already exists';
+        rpk topic create vut.org-events -p ${REDPANDA_ORG_EVENTS_PARTITIONS:-6} --brokers redpanda:9092 2>/dev/null || echo 'Topic vut.org-events already exists';
+        echo 'Topic creation complete.';
+        rpk topic list --brokers redpanda:9092;
+      "
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  kurrentdb-data:
+    name: vut-kurrentdb-data
+  redpanda-data:
+    name: vut-redpanda-data
+  postgresql-data:
+    name: vut-postgresql-data
