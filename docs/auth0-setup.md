@@ -102,9 +102,7 @@ You can test the login flow directly from the Auth0 Dashboard — no frontend ne
 
 ## Step 5: Update Kubernetes Secrets
 
-After completing the above steps, update the Auth0 secret with your actual values.
-
-### Using kubectl (recommended for dev)
+After completing the above steps, update the Auth0 secret with your actual values using kubectl. **Do not** commit plaintext secrets to source control.
 
 ```bash
 # Create/update the secret with your actual values
@@ -115,18 +113,6 @@ kubectl create secret generic vut-auth0-secret \
   --from-literal=client-id='YOUR_CLIENT_ID' \
   --from-literal=client-secret='YOUR_CLIENT_SECRET' \
   --dry-run=client -o yaml | kubectl apply -f -
-```
-
-### Using the manifest file
-
-Edit `infrastructure/k8s/secrets/vut-auth0-secret.yaml` and replace the placeholder values:
-
-```yaml
-stringData:
-  domain: "your-tenant.us.auth0.com"
-  audience: "https://api.vut.dev"
-  client-id: "your-actual-client-id"
-  client-secret: "your-actual-client-secret"
 ```
 
 ---
