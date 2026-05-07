@@ -34,9 +34,8 @@ graph TB
             OS["organization-{orgId}"]
         end
 
-        subgraph Messaging["Redpanda"]
-            RT["vut.user-events"]
-            RO["vut.org-events"]
+        subgraph Cluster["Redpanda (Proto.Actor Cluster)"]
+            CL["Actor Location<br/>Membership Gossip"]
         end
 
         subgraph ReadModel["PostgreSQL"]
@@ -62,10 +61,8 @@ graph TB
     BFF --> OA
     UA --> US
     OA --> OS
-    US --> RT
-    OS --> RO
-    RT --> PU
-    RO --> PO
+    US --> PU
+    OS --> PO
     PU --> UP
     PO --> OP
     PO --> OMP
@@ -97,7 +94,7 @@ graph TB
             end
 
             subgraph "StatefulSet: vut-redpanda"
-                RP["Redpanda<br/>(3-broker cluster)"]
+                RP["Redpanda<br/>(Proto.Actor Cluster Transport)"]
             end
 
             subgraph "StatefulSet: vut-postgresql"
@@ -108,9 +105,9 @@ graph TB
 
     ING --> FE
     FE --> AS
-    AS --> KDB
     AS --> RP
-    RP --> PS
+    AS --> KDB
+    KDB --> PS
     PS --> PG
 ```
 
@@ -173,7 +170,9 @@ spec:
             storage: 10Gi
 ```
 
-### 3.3 Redpanda StatefulSet
+### 3.3 Redpanda StatefulSet (Proto.Actor Cluster Transport)
+
+Redpanda serves as the cluster transport for Proto.Actor — handling actor location routing, membership gossip, and message dispatch between actor nodes. It is NOT used for event distribution to projectors.
 
 ```yaml
 # k8s/redpanda/statefulset.yaml (sketch)
@@ -194,7 +193,7 @@ spec:
         - name: redpanda
           image: redpandadata/redpanda:latest
           ports:
-            - containerPort: 9092  # Kafka API
+            - containerPort: 9092  # Kafka API (Proto.Actor cluster transport)
             - containerPort: 9644  # Admin API
           command:
             - redpanda
@@ -266,7 +265,9 @@ spec:
           env:
             - name: KurrentDB__ConnectionString
               value: "esdb://vut-kurrentdb:2113?tls=false"
-            - name: Redpanda__BootstrapServers
+            - name: ProtoActor__ClusterProvider
+              value: "Redpanda"
+            - name: ProtoActor__RedpandaBootstrapServers
               value: "vut-redpanda:9092"
             - name: Auth0__Domain
               valueFrom:
@@ -551,16 +552,18 @@ Note: `email` may be `null` if the identity provider did not return one. It is o
 
 Events are serialized as JSON in KurrentDB. The .NET backend uses `System.Text.Json` with camelCase naming. Each event type maps to a concrete CLR type via a discriminator (`eventType` field).
 
-### 6.4 Redpanda Topic Design
+### 6.4 KurrentDB Persistent Subscriptions (Projector Feeds)
 
-| Topic | Key | Value | Partitions | Purpose |
-|-------|-----|-------|------------|---------|
-| `vut.user-events` | userId (string) | Event envelope (JSON) | 3 | All User stream events |
-| `vut.org-events` | orgId (string) | Event envelope (JSON) | 6 | All Organization stream events |
-| `vut.product-events` | productId (string) | Event envelope (JSON) | 6 | (Epic 2) All Product stream events |
-| `vut.task-events` | taskId (string) | Event envelope (JSON) | 12 | (Epic 3) All Task stream events |
+Projectors subscribe to KurrentDB persistent subscriptions directly. KurrentDB handles consumer group management, checkpointing, and retry policies natively — no external message broker needed for the projection path.
 
-Partitioning by aggregate ID ensures ordering per entity. The partition count is chosen upfront based on expected throughput; KurrentDB appends events then publishes to Redpanda atomically via a background process in the actor service.
+| Subscription Group | Stream Filter | Consumer Strategy | Purpose |
+|--------------------|---------------|-------------------|---------|
+| `vut-projector-user` | `user-*` | Round-robin (1 consumer) | All User stream events |
+| `vut-projector-org` | `organization-*` | Round-robin (1 consumer) | All Organization stream events |
+
+Persistent subscriptions are created via KurrentDB's HTTP API or the .NET SDK at startup. They track checkpoints internally — no `projection_checkpoint` table is needed.
+
+**Redpanda's role:** Redpanda is used exclusively as Proto.Actor's cluster transport for actor location routing and membership gossip between nodes. It is NOT used for event distribution to projectors.
 
 ## 7. Read Model (PostgreSQL Projections)
 
@@ -637,18 +640,16 @@ CREATE INDEX idx_org_invitation_projection_email ON org_invitation_projection(em
 
 ### 7.2 Projector Service Design
 
-The projector service is a .NET worker that subscribes to Redpanda consumer groups and updates PostgreSQL projections.
+The projector service is a .NET worker that subscribes to KurrentDB persistent subscriptions and updates PostgreSQL projections.
 
 ```mermaid
 graph LR
-    subgraph Redpanda
-        T1["vut.user-events"]
-        T2["vut.org-events"]
+    subgraph KurrentDB["KurrentDB (Persistent Subscriptions)"]
+        PS1["vut-projector-user<br/>stream filter: user-*"]
+        PS2["vut-projector-org<br/>stream filter: organization-*"]
     end
 
     subgraph ProjectorService["Projector Service (.NET Worker)"]
-        CG1["Consumer Group: vut-projector-user"]
-        CG2["Consumer Group: vut-projector-org"]
         PU["User Projector Handler"]
         PO["Org Projector Handler"]
     end
@@ -662,26 +663,15 @@ graph LR
         UOP["user_org_projection"]
     end
 
-    T1 --> CG1 --> PU --> UP
+    PS1 --> PU --> UP
     PU --> UID
-    T2 --> CG2 --> PO --> ORP
+    PS2 --> PO --> ORP
     PO --> OMP
     PO --> OIP
     PO --> UOP
 ```
 
-**Projector Idempotency:** Each projector tracks the last consumed offset per partition in a `projection_checkpoint` table. On restart, it resumes from the last checkpoint. The projector handles events idempotently -- re-processing an event produces the same result.
-
-```sql
-CREATE TABLE projection_checkpoint (
-    projector_name   TEXT NOT NULL,
-    topic            TEXT NOT NULL,
-    partition_id     INT NOT NULL,
-    last_offset      BIGINT NOT NULL,
-    updated_at       TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projector_name, topic, partition_id)
-);
-```
+**Projector Idempotency:** Projectors handle events idempotently — re-processing an event produces the same result. Checkpointing is managed by KurrentDB's persistent subscription infrastructure (no separate checkpoint table needed). On restart, projectors resume from the last acknowledged position automatically.
 
 ## 8. Key Workflow Sequence Diagrams
 
@@ -697,7 +687,6 @@ sequenceDiagram
     participant RM as Read Model API
     participant AS as Actor Service
     participant K as KurrentDB
-    participant RP as Redpanda
     participant PJ as Projector
     participant PG as PostgreSQL
 
@@ -724,13 +713,12 @@ sequenceDiagram
 
     BFF->>AS: CreateUserCommand(providerId, providerName, displayName, avatarUrl, email?)
     AS->>K: Append UserCreated + IdentityLinked to stream user-{userId}
-    K->>RP: Publish events to vut.user-events
     K-->>AS: Append confirmation
     AS-->>BFF: userId
 
-    RP->>PJ: Consume UserCreated event
+    K->>PJ: Persistent subscription delivers UserCreated
     PJ->>PG: INSERT INTO user_projection
-    RP->>PJ: Consume IdentityLinked event
+    K->>PJ: Persistent subscription delivers IdentityLinked
     PJ->>PG: INSERT INTO user_identity
 
     BFF->>BFF: Create session (userId, providerId)
@@ -747,7 +735,6 @@ sequenceDiagram
     participant BFF as Astro.js BFF
     participant AS as Actor Service
     participant K as KurrentDB
-    participant RP as Redpanda
     participant PJ as Projector
     participant PG as PostgreSQL
     participant SMTP as Email Service
@@ -759,7 +746,6 @@ sequenceDiagram
     AS->>K: Append EmailVerificationRequested to user-{userId}
     K-->>AS: OK
     AS-->>BFF: OK
-    K->>RP: Publish EmailVerificationRequested
     BFF->>SMTP: Send verification email with code
 
     User->>Browser: Enter code from email
@@ -769,9 +755,8 @@ sequenceDiagram
     AS->>K: Append EmailVerified to user-{userId}
     K-->>AS: OK
     AS-->>BFF: OK
-    K->>RP: Publish EmailVerified
 
-    RP->>PJ: Consume EmailVerified
+    K->>PJ: Persistent subscription delivers EmailVerified
     PJ->>PG: UPDATE user_projection SET is_email_verified = TRUE, email = ? WHERE user_id = ?
 
     BFF->>Browser: 200 OK
@@ -815,7 +800,6 @@ sequenceDiagram
     participant BFF as Astro.js BFF
     participant AS as Actor Service
     participant K as KurrentDB
-    participant RP as Redpanda
     participant PJ as Org Projector
     participant PG as PostgreSQL
 
@@ -832,12 +816,11 @@ sequenceDiagram
     AS->>K: Append MemberJoined to organization-{orgId}
     K-->>AS: OK
 
-    K->>RP: Publish events to vut.org-events
     AS-->>BFF: { orgId, name }
 
-    RP->>PJ: Consume OrganizationCreated
+    K->>PJ: Persistent subscription delivers OrganizationCreated
     PJ->>PG: INSERT INTO org_projection
-    RP->>PJ: Consume MemberJoined
+    K->>PJ: Persistent subscription delivers MemberJoined
     PJ->>PG: INSERT INTO org_member_projection
     PJ->>PG: INSERT INTO user_org_projection
 
@@ -856,7 +839,6 @@ sequenceDiagram
     participant BFF as Astro.js BFF
     participant AS as Actor Service
     participant K as KurrentDB
-    participant RP as Redpanda
     participant PJ as Org Projector
     participant PG as PostgreSQL
     participant SMTP as Email Service
@@ -868,9 +850,8 @@ sequenceDiagram
     AS->>K: Append MemberInvited to organization-{orgId}
     K-->>AS: OK
     AS-->>BFF: OK
-    K->>RP: Publish MemberInvited
 
-    RP->>PJ: Consume MemberInvited
+    K->>PJ: Persistent subscription delivers MemberInvited
     PJ->>PG: INSERT INTO org_invitation_projection
 
     BFF->>SMTP: Send invitation email
@@ -890,9 +871,8 @@ sequenceDiagram
     AS->>K: Append MemberJoined to organization-{orgId}
     K-->>AS: OK
     AS-->>BFF: OK
-    K->>RP: Publish MemberJoined
 
-    RP->>PJ: Consume MemberJoined
+    K->>PJ: Persistent subscription delivers MemberJoined
     PJ->>PG: INSERT INTO org_member_projection
     PJ->>PG: INSERT INTO user_org_projection
     PJ->>PG: UPDATE org_invitation_projection SET status = 'Accepted'
@@ -1045,12 +1025,11 @@ flowchart LR
     subgraph Write Path
         CMD[Command] --> ACT[Proto.Actor]
         ACT --> ES[KurrentDB<br/>Append Event]
-        ES --> PUB[Redpanda<br/>Publish Event]
     end
 
     subgraph Project Path
-        PUB --> CONS[Projector Consumer]
-        CONS --> PG[(PostgreSQL<br/>Projection)]
+        ES --> PS[KurrentDB Persistent<br/>Subscription]
+        PS --> PG[(PostgreSQL<br/>Projection)]
     end
 
     subgraph Read Path
@@ -1059,8 +1038,8 @@ flowchart LR
     end
 ```
 
-**Write Path:** Browser -> BFF -> Actor Service -> KurrentDB -> Redpanda
-**Project Path:** Redpanda -> Projector -> PostgreSQL
+**Write Path:** Browser -> BFF -> Actor Service -> KurrentDB
+**Project Path:** KurrentDB (persistent subscription) -> Projector -> PostgreSQL
 **Read Path:** Browser -> BFF -> Read Model API -> PostgreSQL
 
 This separation ensures:
@@ -1077,11 +1056,10 @@ These patterns, once established in Epic 1, are reused by all subsequent epics:
 | Event envelope with actorId + timestamp | Standardized JSON envelope in actor service | Epics 2-6 |
 | Actor lifecycle (spawn, hydrate, passivate) | Proto.Actor manager pattern | Epics 2-6 |
 | KurrentDB stream append | Shared infrastructure client | Epics 2-6 |
-| Redpanda publishing after append | Post-commit hook in actor base class | Epics 2-6 |
-| Projector service (consume, checkpoint, project) | Shared projector framework | Epics 2-6 |
+| Redpanda (Proto.Actor cluster transport) | Actor location routing, membership gossip | Epics 2-6 |
+| Projector service (KurrentDB subscription, project) | Shared projector framework | Epics 2-6 |
 | BFF session management + Auth0 | Astro.js middleware | Epics 2-6 |
 | Authorization middleware (org membership check) | BFF request pipeline | Epics 2-6 |
-| Projection checkpoint table | PostgreSQL schema | Epics 2-6 |
 | Kubernetes manifests pattern | Deployment + Service + ConfigMap | Epics 2-6 |
 
 ## 13. Technology Decisions for Epic 1
@@ -1090,7 +1068,7 @@ These patterns, once established in Epic 1, are reused by all subsequent epics:
 |----------|--------|-----------|
 | Actor framework | Proto.Actor | PRD requirement. Supports location transparency, clustering, and grain-like virtual actors. |
 | Event store | KurrentDB (EventStoreDB) | PRD requirement. Purpose-built for event sourcing with stream-based storage, built-in projections (we use external), and HTTP/gRPC APIs. |
-| Message broker | Redpanda | PRD requirement. Kafka-compatible, no JVM dependency, simpler operations in K8s. |
+| Message broker | Redpanda | Proto.Actor cluster transport for actor location routing and membership gossip. NOT used for event distribution — projectors subscribe to KurrentDB persistent subscriptions directly. |
 | Read model | PostgreSQL | PRD requirement. Mature, reliable, supports the complex queries needed for projections and the cumulative flow (Epic 5). |
 | Frontend | Astro.js + Tailwind CSS | PRD requirement. SSR-capable, island architecture for selective hydration, excellent performance. |
 | Auth | Auth0 | PRD requirement. Managed service, supports GitHub SSO and future providers. |

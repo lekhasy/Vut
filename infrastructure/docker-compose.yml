@@ -36,7 +36,7 @@ services:
         reservations:
           memory: ${KURRENTDB_MEMORY_RESERVATION:-1G}
 
-  # ─── Redpanda (Kafka-compatible messaging) ──────────────────────
+  # ─── Redpanda (Proto.Actor cluster transport) ──────────────────
   redpanda:
     image: redpandadata/redpanda:v24.2.2
     container_name: vut-redpanda
@@ -114,7 +114,8 @@ services:
   #   environment:
   #     ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
   #     KurrentDB__ConnectionString: ${KURRENTDB_CONNECTION_STRING:-esdb://kurrentdb:2113?tls=false}
-  #     Redpanda__BootstrapServers: ${REDPANDA_BOOTSTRAP_SERVERS:-redpanda:9092}
+  #     ProtoActor__ClusterProvider: ${PROTOACTOR_CLUSTER_PROVIDER:-Redpanda}
+  #     ProtoActor__RedpandaBootstrapServers: ${PROTOACTOR_REDPANDA_BOOTSTRAP_SERVERS:-redpanda:9092}
   #     Auth0__Domain: ${AUTH0_DOMAIN:-dev-vut.us.auth0.com}
   #     Auth0__Audience: ${AUTH0_AUDIENCE:-https://vut-api-dev}
   #     Auth0__ClientId: ${AUTH0_CLIENT_ID}
@@ -226,28 +227,6 @@ services:
           memory: ${PGADMIN_MEMORY_LIMIT:-512M}
         reservations:
           memory: ${PGADMIN_MEMORY_RESERVATION:-128M}
-
-  # ─── Redpanda Topic Initialization (one-shot) ───────────────────
-  redpanda-init:
-    image: redpandadata/redpanda:v24.2.2
-    container_name: vut-redpanda-init
-    entrypoint: >
-      bash -c "
-        echo 'Waiting for Redpanda to be ready...';
-        until rpk cluster info --brokers redpanda:9092 > /dev/null 2>&1; do
-          echo 'Redpanda not ready, retrying in 2s...';
-          sleep 2;
-        done;
-        echo 'Creating topics...';
-        rpk topic create vut.user-events -p ${REDPANDA_USER_EVENTS_PARTITIONS:-3} --brokers redpanda:9092 2>/dev/null || echo 'Topic vut.user-events already exists';
-        rpk topic create vut.org-events -p ${REDPANDA_ORG_EVENTS_PARTITIONS:-6} --brokers redpanda:9092 2>/dev/null || echo 'Topic vut.org-events already exists';
-        echo 'Topic creation complete.';
-        rpk topic list --brokers redpanda:9092;
-      "
-    depends_on:
-      redpanda:
-        condition: service_healthy
-    restart: "no"
 
 volumes:
   kurrentdb-data:

@@ -124,42 +124,18 @@ check_url "KurrentDB (ready)" "http://localhost:${KURRENTDB_HTTP_PORT:-2113}/hea
 check_url "Redpanda (health)" "http://localhost:${REDPANDA_ADMIN_PORT:-9644}/v1/cluster/health" "200"
 echo ""
 
-# 5. Check Redpanda topics (if rpk is available in the container)
-echo "--- Redpanda Topics ---"
-if docker exec vut-redpanda rpk topic list --brokers localhost:9092 2>/dev/null; then
-    # Check specific topics
-    if docker exec vut-redpanda rpk topic describe vut.user-events --brokers localhost:9092 2>/dev/null | grep -q "vut.user-events"; then
-        partitions=$(docker exec vut-redpanda rpk topic describe vut.user-events --brokers localhost:9092 2>/dev/null | grep -o 'partitions=[0-9]*' | head -1 || echo "unknown")
-        echo "  [OK]   vut.user-events ($partitions)"
-    else
-        echo "  [FAIL] vut.user-events topic not found"
-        ((FAILURES++))
-    fi
-
-    if docker exec vut-redpanda rpk topic describe vut.org-events --brokers localhost:9092 2>/dev/null | grep -q "vut.org-events"; then
-        partitions=$(docker exec vut-redpanda rpk topic describe vut.org-events --brokers localhost:9092 2>/dev/null | grep -o 'partitions=[0-9]*' | head -1 || echo "unknown")
-        echo "  [OK]   vut.org-events ($partitions)"
-    else
-        echo "  [FAIL] vut.org-events topic not found"
-        ((FAILURES++))
-    fi
-else
-    echo "  [WARN] Could not check topics (rpk not available or Redpanda not ready)"
-fi
-echo ""
-
-# 6. Check PostgreSQL database
+# 5. Check PostgreSQL database
 echo "--- PostgreSQL ---"
 if docker exec vut-postgresql psql -U "${POSTGRESQL_USER:-vut_app}" -d vut_readmodel -c "SELECT 1;" &>/dev/null; then
     echo "  [OK]   vut_readmodel database accessible"
 
     # Check tables exist
     tables=$(docker exec vut-postgresql psql -U "${POSTGRESQL_USER:-vut_app}" -d vut_readmodel -t -c \
-        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('user_projection','org_projection','org_member_projection','projection_checkpoint');" 2>/dev/null | tr -d ' ')
+        "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('user_projection','org_projection','org_member_projection','org_invitation_projection','user_org_projection','user_identity');" 2>/dev/null | tr -d ' ')
     if [[ "$tables" -ge 3 ]]; then
         echo "  [OK]   Read model tables present ($tables tables)"
     else
-        echo "  [WARN] Expected 4+ tables, found $tables"
+        echo "  [WARN] Expected 3+ tables, found $tables"
     fi
 else
     echo "  [FAIL] Cannot connect to PostgreSQL"

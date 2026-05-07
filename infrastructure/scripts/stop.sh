@@ -21,9 +21,19 @@ echo "=========================================="
 echo ""
 
 # Determine compose files
+ARCH="$(uname -m)"
+case "$ARCH" in
+    arm64|aarch64)
+        PLATFORM="arm"
+        ;;
+    *)
+        PLATFORM="amd64"
+        ;;
+esac
+
 case "$ENV" in
     dev)
-        COMPOSE_FILES="-f docker-compose.yml -f docker-compose.override.yml"
+        COMPOSE_FILES="-f docker-compose.yml -f docker-compose.override.${PLATFORM}.yml"
         ENV_ARG="--env-file .env.dev"
         ;;
     staging)

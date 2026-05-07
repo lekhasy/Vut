@@ -130,7 +130,7 @@ while [[ $elapsed -lt $timeout ]]; do
         done
 
         echo ""
-        echo ">>> Redpanda topic initialization running in background..."
+        echo ">>> Redpanda ready (Proto.Actor cluster transport)"
         echo ""
         echo "Access points:"
         # Only show app service URLs if the containers are running

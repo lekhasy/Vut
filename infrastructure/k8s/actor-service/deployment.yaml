@@ -37,7 +37,9 @@ spec:
               value: "Development"
             - name: KurrentDB__ConnectionString
               value: "esdb://vut-kurrentdb:2113?tls=false"
-            - name: Redpanda__BootstrapServers
+            - name: ProtoActor__ClusterProvider
+              value: "Redpanda"
+            - name: ProtoActor__RedpandaBootstrapServers
               value: "vut-redpanda:9092"
             - name: Auth0__Domain
               valueFrom:

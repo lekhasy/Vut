@@ -17,11 +17,12 @@ Local infrastructure for the VUT project management SaaS platform. This director
               /     |     \
      KurrentDB  Redpanda  PostgreSQL
        :2113     :9092     :5432
-    (Events)   (Messaging) (Read Model)
+    (Events)  (Cluster)   (Read Model)
+                Transport
 ```
 
-**Write Path:** Browser -> Frontend/BFF -> Actor Service -> KurrentDB -> Redpanda
-**Project Path:** Redpanda -> Projector Service -> PostgreSQL
+**Write Path:** Browser -> Frontend/BFF -> Actor Service -> KurrentDB
+**Project Path:** KurrentDB (persistent subscriptions) -> Projector Service -> PostgreSQL
 **Read Path:** Browser -> Frontend/BFF -> Read Model API -> PostgreSQL
 
 ## Services
@@ -29,7 +30,7 @@ Local infrastructure for the VUT project management SaaS platform. This director
 | Service | Image | Port | Purpose |
 |---------|-------|------|---------|
 | KurrentDB | `kurrentplatform/kurrentdb:26.1.0` | 2113 (HTTP), 1113 (TCP) | Event store (event-sourced) |
-| Redpanda | `redpandadata/redpanda:v24.2.2` | 9092 (Kafka), 9644 (Admin) | Kafka-compatible message broker |
+| Redpanda | `redpandadata/redpanda:v24.2.2` | 9092 (Kafka), 9644 (Admin) | Proto.Actor cluster transport |
 | PostgreSQL | `postgres:16-alpine` | 5432 | Read model store |
 | Actor Service | `vut/actor-service:latest` | 5000 (gRPC), 5001 (HTTP) | .NET Proto.Actor backend |
 | Frontend | `vut/frontend:latest` | 3000 (HTTP) | Astro.js SSR + SPA |
@@ -76,7 +77,6 @@ The start script:
 2. Pulls images (staging/prod only; dev uses local builds)
 3. Starts all services with `docker compose up -d`
 4. Waits for health checks to pass
-5. Runs the Redpanda topic initialization job
 
 ### Stop the Platform
 
@@ -92,7 +92,7 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml down -v
 
 ```bash
 ./scripts/health-check.sh
-# Checks: container health, TCP ports, HTTP endpoints, Redpanda topics, PostgreSQL tables
+# Checks: container health, TCP ports, HTTP endpoints, PostgreSQL tables
 ```
 
 ### Manual Docker Compose Commands
@@ -183,9 +183,6 @@ kubectl apply -f k8s/redpanda/
 kubectl apply -f k8s/actor-service/
 kubectl apply -f k8s/frontend/
 kubectl apply -f k8s/ingress.yaml
-
-# Initialize Redpanda topics
-kubectl apply -f k8s/redpanda/topic-init-job.yaml
 ```
 
 ### Port Forwarding for Local Access
@@ -200,24 +197,6 @@ kubectl port-forward -n vut svc/vut-kurrentdb 2113:2113 &
 
 ```bash
 kubectl delete namespace vut
-```
-
-## Redpanda Topics
-
-| Topic | Partitions | Purpose |
-|-------|-----------|---------|
-| `vut.user-events` | 3 | All User aggregate events |
-| `vut.org-events` | 6 | All Organization aggregate events |
-
-Topics are created automatically on startup by the `redpanda-init` container (Docker Compose) or the `vut-redpanda-topic-init` Job (K8s).
-
-Verify topics:
-```bash
-# Docker Compose
-docker exec vut-redpanda rpk topic list --brokers localhost:9092
-
-# K8s
-kubectl exec -n vut vut-redpanda-0 -- rpk topic list --brokers localhost:9092
 ```
 
 ## Environment Variables
@@ -241,7 +220,8 @@ cp .env.dev .env.local  # For personal overrides (git-ignored)
 ```
 infrastructure/
   docker-compose.yml            # Base compose (all services)
-  docker-compose.override.yml   # Dev overrides (auto-loaded)
+  docker-compose.override.arm.yml   # Dev overrides (ARM)
+  docker-compose.override.amd64.yml # Dev overrides (AMD64)
   docker-compose.staging.yml    # Staging overrides
   docker-compose.prod.yml       # Production overrides
   .env.dev                      # Dev environment variables
@@ -263,9 +243,8 @@ infrastructure/
       statefulset.yaml          # 3-node event store
       service.yaml
     redpanda/
-      statefulset.yaml          # 3-broker cluster
+      statefulset.yaml          # 3-broker cluster (Proto.Actor transport)
       service.yaml
-      topic-init-job.yaml       # Creates vut.* topics
     postgresql/
       statefulset.yaml          # Primary + init SQL ConfigMap
       service.yaml

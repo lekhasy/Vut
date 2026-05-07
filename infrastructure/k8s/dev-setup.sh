@@ -129,50 +129,18 @@ if ! $all_ready; then
     exit 1
 fi
 
-# 7. Initialize Redpanda topics
-info "Initializing Redpanda topics..."
-kubectl apply -f "$K8S_DIR/redpanda/topic-init-job.yaml"
-ok "Topic init job submitted."
-
-# Wait for topic job to complete
-info "Waiting for topic initialization..."
-JOB_TIMEOUT=60
-JOB_ELAPSED=0
-while [[ $JOB_ELAPSED -lt $JOB_TIMEOUT ]]; do
-    job_status=$(kubectl get job vut-redpanda-topic-init -n vut -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || echo "")
-    if [[ "$job_status" == "True" ]]; then
-        ok "Redpanda topics initialized successfully."
-        break
-    fi
-
-    job_failed=$(kubectl get job vut-redpanda-topic-init -n vut -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || echo "")
-    if [[ "$job_failed" == "True" ]]; then
-        fail "Topic initialization job failed. Check logs:"
-        kubectl logs job/vut-redpanda-topic-init -n vut
-        echo ""
-        break
-    fi
-
-    sleep 3
-    JOB_ELAPSED=$((JOB_ELAPSED + 3))
-done
-
-if [[ "$job_status" != "True" && "$job_failed" != "True" ]]; then
-    warn "Topic init job did not complete in time. Check: kubectl logs job/vut-redpanda-topic-init -n vut"
-fi
-
-# 8. Create application services (Actor Service + Frontend)
+# 7. Create application services (Actor Service + Frontend)
 info "Creating application services..."
 kubectl apply -f "$K8S_DIR/actor-service/"
 kubectl apply -f "$K8S_DIR/frontend/"
 ok "Actor Service and Frontend deployments applied."
 
-# 9. Create Ingress
+# 8. Create Ingress
 info "Creating Ingress..."
 kubectl apply -f "$K8S_DIR/ingress.yaml"
 ok "Ingress applied."
 
-# 10. Final health check
+# 9. Final health check
 echo ""
 info "Final health check..."
 echo ""
