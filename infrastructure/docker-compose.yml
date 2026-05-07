@@ -174,6 +174,59 @@ services:
   #       reservations:
   #         memory: ${FRONTEND_MEMORY_RESERVATION:-128M}
 
+  # ─── Redpanda Console (Redpanda management UI) ──────────────────
+  redpanda-console:
+    image: redpandadata/console:v2.7.2
+    container_name: vut-redpanda-console
+    restart: unless-stopped
+    ports:
+      - "${REDPANDA_CONSOLE_PORT:-8080}:8080"
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: ${REDPANDA_CONSOLE_MEMORY_LIMIT:-512M}
+        reservations:
+          memory: ${REDPANDA_CONSOLE_MEMORY_RESERVATION:-128M}
+
+  # ─── pgAdmin (PostgreSQL management UI) ─────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:8.14
+    container_name: vut-pgadmin
+    restart: unless-stopped
+    ports:
+      - "${PGADMIN_PORT:-8081}:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@vut.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: ${PGADMIN_MEMORY_LIMIT:-512M}
+        reservations:
+          memory: ${PGADMIN_MEMORY_RESERVATION:-128M}
+
   # ─── Redpanda Topic Initialization (one-shot) ───────────────────
   redpanda-init:
     image: redpandadata/redpanda:v24.2.2
@@ -203,3 +256,5 @@ volumes:
     name: vut-redpanda-data
   postgresql-data:
     name: vut-postgresql-data
+  pgadmin-data:
+    name: vut-pgadmin-data
