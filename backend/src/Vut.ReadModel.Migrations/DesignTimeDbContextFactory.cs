@@ -13,7 +13,7 @@ public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<Rea
             : "Host=localhost;Database=vut_readmodel;Username=vut_app;Password=vut_dev_password";
 
         var options = new DbContextOptionsBuilder<ReadModelDbContext>()
-            .UseNpgsql(connectionString)
+            .UseNpgsql(connectionString, b => b.MigrationsAssembly("Vut.ReadModel.Migrations"))
             .UseSnakeCaseNamingConvention()
             .Options;
 

@@ -17,7 +17,7 @@ if (string.IsNullOrEmpty(connectionString))
 }
 
 var options = new DbContextOptionsBuilder<ReadModelDbContext>()
-    .UseNpgsql(connectionString)
+    .UseNpgsql(connectionString, b => b.MigrationsAssembly("Vut.ReadModel.Migrations"))
     .UseSnakeCaseNamingConvention()
     .Options;
 

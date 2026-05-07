@@ -31,22 +31,6 @@ namespace Vut.ReadModel.Migrations.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "projection_checkpoint",
-                schema: "public",
-                columns: table => new
-                {
-                    projector_name = table.Column<string>(type: "text", nullable: false),
-                    topic = table.Column<string>(type: "text", nullable: false),
-                    partition_id = table.Column<int>(type: "integer", nullable: false),
-                    last_offset = table.Column<long>(type: "bigint", nullable: false),
-                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("pk_projection_checkpoint", x => new { x.projector_name, x.topic, x.partition_id });
-                });
-
-            migrationBuilder.CreateTable(
                 name: "user_projection",
                 schema: "public",
                 columns: table => new
@@ -213,10 +197,6 @@ namespace Vut.ReadModel.Migrations.Migrations
 
             migrationBuilder.DropTable(
                 name: "org_member_projection",
-                schema: "public");
-
-            migrationBuilder.DropTable(
-                name: "projection_checkpoint",
                 schema: "public");
 
             migrationBuilder.DropTable(

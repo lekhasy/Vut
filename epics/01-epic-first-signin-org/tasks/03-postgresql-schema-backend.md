@@ -9,18 +9,19 @@
 
 ## Description
 
-Create the PostgreSQL read model schema for Epic 1 projections. This includes all projection tables and a migration framework that can be run against the `vut_readmodel` database in the Kubernetes cluster or locally. Note: the `projection_checkpoint` table is not needed — KurrentDB persistent subscriptions handle checkpointing internally.
+Create the PostgreSQL read model schema for Epic 1 projections. This includes all projection tables and a migration framework that can be run against the `vut_readmodel` database in the Kubernetes cluster or locally. Note: KurrentDB persistent subscriptions handle checkpointing internally, so no `projection_checkpoint` table is needed.
 
 ## Architecture Reference
 
 - Architecture doc Section 7 (Read Model - PostgreSQL Projections)
 - Architecture doc Section 7.1 (Projection Views - full SQL DDL)
+- Architecture doc Section 6.4 (KurrentDB Persistent Subscriptions) — projectors subscribe directly to KurrentDB, NOT through Redpanda/Kafka. KurrentDB handles checkpointing internally; no `projection_checkpoint` table is needed.
 
 ## Technical Requirements
 
 ### Migration Framework
-- Use a .NET-compatible migration tool (recommend FluentMigrator or DbUp).
-- Migrations must be idempotent and versioned.
+- Use Entity Framework Core with Npgsql provider for migrations.
+- Migrations are code-first (C# migration classes), versioned, and idempotent.
 - Migrations run as part of the projector-service startup or as a standalone console app.
 - Connection string sourced from environment variable or config.
 
@@ -103,27 +104,34 @@ CREATE TABLE user_org_projection (
 ### File Structure
 ```
 src/
+  Vut.ReadModel/
+    Entities/
+      UserProjection.cs
+      UserIdentity.cs
+      OrgProjection.cs
+      OrgMemberProjection.cs
+      OrgInvitationProjection.cs
+      UserOrgProjection.cs
+    ReadModelDbContext.cs
   Vut.ReadModel.Migrations/
     Program.cs
-    Scripts/
-      001_create_user_projection.sql
-      002_create_user_identity.sql
-      003_create_org_projection.sql
-      004_create_org_member_projection.sql
-      005_create_org_invitation_projection.sql
-      006_create_user_org_projection.sql
+    DesignTimeDbContextFactory.cs
+    Migrations/
+      InitialCreate.cs
+      RemoveProjectionCheckpoint.cs
     Vut.ReadModel.Migrations.csproj
 ```
 
 ## Acceptance Criteria
 
-- [ ] All 6 tables are created by running migrations against a fresh PostgreSQL database.
-- [ ] Migrations are idempotent (running twice does not fail).
-- [ ] CHECK constraints on `role` and `status` columns are enforced.
-- [ ] All foreign key relationships are correct.
-- [ ] All required indexes exist, including unique index on `user_identity(provider_id)` and email index for auto-linking.
-- [ ] Migration tool can be run from command line: `dotnet run --connection "Host=...;Database=vut_readmodel;..."`.
-- [ ] Migration tool can be run from command line: `dotnet run --connection "Host=...;Database=vut_readmodel;...".
+- [x] All 6 tables are created via EF Core migrations against a fresh PostgreSQL database.
+- [x] Migrations are idempotent (running twice does not fail).
+- [x] CHECK constraints on `role` and `status` columns are enforced.
+- [x] All foreign key relationships are correct.
+- [x] All required indexes exist, including unique index on `user_identity(provider_id)` and email index for auto-linking.
+- [x] Migration tool can be run from command line: `dotnet run -- "Host=...;Database=vut_readmodel;..."`.
+- [x] `projection_checkpoint` table is NOT created — KurrentDB handles checkpointing internally.
+- [ ] Future epics can add `product_projection`, `task_projection`, `task_tag_projection`, and `cumulative_flow_snapshot` tables.
 
 ## Dependencies
 
@@ -132,6 +140,6 @@ src/
 
 ## Notes
 
-- The migration scripts should be SQL-first (raw .sql files) so they can be reviewed and audited easily.
-- Future epics will add `product_projection`, `task_projection`, `task_tag_projection`, and `cumulative_flow_snapshot` tables. Design the migration numbering to accommodate this.
+- Migrations are code-first (EF Core) with Npgsql provider — no raw SQL migration files needed.
+- Future epics will add `product_projection`, `task_projection`, `task_tag_projection`, and `cumulative_flow_snapshot` tables. New migrations can be added following the same pattern.
 - The `user_org_projection` is a denormalized reverse index. It is maintained by the projector alongside `org_member_projection` to enable fast "my organizations" queries without JOINs.

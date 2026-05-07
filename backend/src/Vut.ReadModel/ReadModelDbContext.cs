@@ -13,7 +13,6 @@ public sealed class ReadModelDbContext : DbContext
     public DbSet<OrgMemberProjection> OrgMemberProjections => Set<OrgMemberProjection>();
     public DbSet<OrgInvitationProjection> OrgInvitationProjections => Set<OrgInvitationProjection>();
     public DbSet<UserOrgProjection> UserOrgProjections => Set<UserOrgProjection>();
-    public DbSet<ProjectionCheckpoint> ProjectionCheckpoints => Set<ProjectionCheckpoint>();
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -28,7 +27,6 @@ public sealed class ReadModelDbContext : DbContext
         ConfigureOrgMemberProjection(modelBuilder);
         ConfigureOrgInvitationProjection(modelBuilder);
         ConfigureUserOrgProjection(modelBuilder);
-        ConfigureProjectionCheckpoint(modelBuilder);
 
         modelBuilder.HasDefaultSchema("public");
         base.OnModelCreating(modelBuilder);
@@ -128,17 +126,6 @@ public sealed class ReadModelDbContext : DbContext
                 .HasForeignKey(x => x.UserId);
             e.HasOne<OrgProjection>().WithMany()
                 .HasForeignKey(x => x.OrgId);
-        });
-    }
-
-    private static void ConfigureProjectionCheckpoint(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<ProjectionCheckpoint>(e =>
-        {
-            e.ToTable("projection_checkpoint");
-            e.HasKey(x => new { x.ProjectorName, x.Topic, x.PartitionId });
-            e.Property(x => x.ProjectorName).IsRequired();
-            e.Property(x => x.Topic).IsRequired();
         });
     }
 }

@@ -5,14 +5,14 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using Vut.ReadModel.Migrations;
+using Vut.ReadModel;
 
 #nullable disable
 
 namespace Vut.ReadModel.Migrations.Migrations
 {
     [DbContext(typeof(ReadModelDbContext))]
-    [Migration("20260507163741_InitialCreate")]
+    [Migration("20260507221730_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -26,7 +26,7 @@ namespace Vut.ReadModel.Migrations.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Vut.ReadModel.Migrations.Entities.OrgInvitationProjection", b =>
+            modelBuilder.Entity("Vut.ReadModel.Entities.OrgInvitationProjection", b =>
                 {
                     b.Property<Guid>("OrgId")
                         .HasColumnType("uuid")
@@ -68,7 +68,7 @@ namespace Vut.ReadModel.Migrations.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Vut.ReadModel.Migrations.Entities.OrgMemberProjection", b =>
+            modelBuilder.Entity("Vut.ReadModel.Entities.OrgMemberProjection", b =>
                 {
                     b.Property<Guid>("OrgId")
                         .HasColumnType("uuid")
@@ -101,7 +101,7 @@ namespace Vut.ReadModel.Migrations.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Vut.ReadModel.Migrations.Entities.OrgProjection", b =>
+            modelBuilder.Entity("Vut.ReadModel.Entities.OrgProjection", b =>
                 {
                     b.Property<Guid>("OrgId")
                         .ValueGeneratedOnAdd()
@@ -137,35 +137,7 @@ namespace Vut.ReadModel.Migrations.Migrations
                     b.ToTable("org_projection", "public");
                 });
 
-            modelBuilder.Entity("Vut.ReadModel.Migrations.Entities.ProjectionCheckpoint", b =>
-                {
-                    b.Property<string>("ProjectorName")
-                        .HasColumnType("text")
-                        .HasColumnName("projector_name");
-
-                    b.Property<string>("Topic")
-                        .HasColumnType("text")
-                        .HasColumnName("topic");
-
-                    b.Property<int>("PartitionId")
-                        .HasColumnType("integer")
-                        .HasColumnName("partition_id");
-
-                    b.Property<long>("LastOffset")
-                        .HasColumnType("bigint")
-                        .HasColumnName("last_offset");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("ProjectorName", "Topic", "PartitionId")
-                        .HasName("pk_projection_checkpoint");
-
-                    b.ToTable("projection_checkpoint", "public");
-                });
-
-            modelBuilder.Entity("Vut.ReadModel.Migrations.Entities.UserIdentity", b =>
+            modelBuilder.Entity("Vut.ReadModel.Entities.UserIdentity", b =>
                 {
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
@@ -204,7 +176,7 @@ namespace Vut.ReadModel.Migrations.Migrations
                     b.ToTable("user_identity", "public");
                 });
 
-            modelBuilder.Entity("Vut.ReadModel.Migrations.Entities.UserOrgProjection", b =>
+            modelBuilder.Entity("Vut.ReadModel.Entities.UserOrgProjection", b =>
                 {
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
@@ -228,7 +200,7 @@ namespace Vut.ReadModel.Migrations.Migrations
                     b.ToTable("user_org_projection", "public");
                 });
 
-            modelBuilder.Entity("Vut.ReadModel.Migrations.Entities.UserProjection", b =>
+            modelBuilder.Entity("Vut.ReadModel.Entities.UserProjection", b =>
                 {
                     b.Property<Guid>("UserId")
                         .ValueGeneratedOnAdd()
@@ -270,9 +242,9 @@ namespace Vut.ReadModel.Migrations.Migrations
                     b.ToTable("user_projection", "public");
                 });
 
-            modelBuilder.Entity("Vut.ReadModel.Migrations.Entities.OrgInvitationProjection", b =>
+            modelBuilder.Entity("Vut.ReadModel.Entities.OrgInvitationProjection", b =>
                 {
-                    b.HasOne("Vut.ReadModel.Migrations.Entities.OrgProjection", null)
+                    b.HasOne("Vut.ReadModel.Entities.OrgProjection", null)
                         .WithMany()
                         .HasForeignKey("OrgId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -280,16 +252,16 @@ namespace Vut.ReadModel.Migrations.Migrations
                         .HasConstraintName("fk_org_invitation_projection_org_projection_org_id");
                 });
 
-            modelBuilder.Entity("Vut.ReadModel.Migrations.Entities.OrgMemberProjection", b =>
+            modelBuilder.Entity("Vut.ReadModel.Entities.OrgMemberProjection", b =>
                 {
-                    b.HasOne("Vut.ReadModel.Migrations.Entities.OrgProjection", null)
+                    b.HasOne("Vut.ReadModel.Entities.OrgProjection", null)
                         .WithMany()
                         .HasForeignKey("OrgId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_org_member_projection_org_projection_org_id");
 
-                    b.HasOne("Vut.ReadModel.Migrations.Entities.UserProjection", null)
+                    b.HasOne("Vut.ReadModel.Entities.UserProjection", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -297,9 +269,9 @@ namespace Vut.ReadModel.Migrations.Migrations
                         .HasConstraintName("fk_org_member_projection_user_projection_user_id");
                 });
 
-            modelBuilder.Entity("Vut.ReadModel.Migrations.Entities.UserIdentity", b =>
+            modelBuilder.Entity("Vut.ReadModel.Entities.UserIdentity", b =>
                 {
-                    b.HasOne("Vut.ReadModel.Migrations.Entities.UserProjection", "User")
+                    b.HasOne("Vut.ReadModel.Entities.UserProjection", "User")
                         .WithMany("Identities")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -309,16 +281,16 @@ namespace Vut.ReadModel.Migrations.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Vut.ReadModel.Migrations.Entities.UserOrgProjection", b =>
+            modelBuilder.Entity("Vut.ReadModel.Entities.UserOrgProjection", b =>
                 {
-                    b.HasOne("Vut.ReadModel.Migrations.Entities.OrgProjection", null)
+                    b.HasOne("Vut.ReadModel.Entities.OrgProjection", null)
                         .WithMany()
                         .HasForeignKey("OrgId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_user_org_projection_org_projection_org_id");
 
-                    b.HasOne("Vut.ReadModel.Migrations.Entities.UserProjection", null)
+                    b.HasOne("Vut.ReadModel.Entities.UserProjection", null)
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -326,7 +298,7 @@ namespace Vut.ReadModel.Migrations.Migrations
                         .HasConstraintName("fk_user_org_projection_user_projection_user_id");
                 });
 
-            modelBuilder.Entity("Vut.ReadModel.Migrations.Entities.UserProjection", b =>
+            modelBuilder.Entity("Vut.ReadModel.Entities.UserProjection", b =>
                 {
                     b.Navigation("Identities");
                 });
