@@ -37,9 +37,7 @@ Set up the complete Kubernetes infrastructure for the Vut platform. This include
 - 3-broker cluster, `k8s/redpanda/statefulset.yaml` and `k8s/redpanda/service.yaml`.
 - Port 9092 (Kafka API), 9644 (Admin API).
 - Command flags: `--smp 1 --memory 512M --overprovisioned --kafka-addr internal://0.0.0.0:9092`.
-- Create Redpanda topics on startup (init container or post-install job):
-  - `vut.user-events` (3 partitions)
-  - `vut.org-events` (6 partitions)
+- Redpanda is used exclusively for Proto.Actor cluster transport (actor location routing, membership gossip). No topics need to be created — projectors subscribe directly to KurrentDB persistent subscriptions instead.
 
 ### PostgreSQL StatefulSet
 - Single primary (replica later), `k8s/postgresql/statefulset.yaml` and `k8s/postgresql/service.yaml`.
@@ -78,7 +76,6 @@ k8s/
   redpanda/
     statefulset.yaml
     service.yaml
-    topic-init-job.yaml
   postgresql/
     statefulset.yaml
     service.yaml
@@ -96,7 +93,6 @@ k8s/
 - [ ] All pods reach `Running` and `Ready` state within 3 minutes.
 - [ ] KurrentDB is reachable at `vut-kurrentdb:2113` inside the cluster.
 - [ ] Redpanda is reachable at `vut-redpanda:9092` inside the cluster.
-- [ ] Topics `vut.user-events` and `vut.org-events` exist with correct partitions.
 - [ ] PostgreSQL is reachable at `vut-postgresql:5432` with database `vut_readmodel`.
 - [ ] Ingress routes correctly to frontend and actor-service.
 - [ ] `dev-setup.sh` runs end-to-end and reports success/failure for each component.

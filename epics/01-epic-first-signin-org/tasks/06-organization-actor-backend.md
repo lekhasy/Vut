@@ -113,7 +113,7 @@ public record OrganizationDeletedEvent(Guid OrgId, string ActorId, DateTime Time
 
 ### Stream ID Convention
 - Stream: `organization-{orgId}`.
-- All events route to `vut.org-events` Redpanda topic.
+- Projectors subscribe to KurrentDB persistent subscriptions directly — no topic routing needed.
 
 ### File Structure
 ```
@@ -171,7 +171,6 @@ Test cases:
 - [ ] Cannot remove or demote the last Owner.
 - [ ] `AcceptInvitation` validates the email matches a pending invitation.
 - [ ] All events are appended to `organization-{orgId}` stream in KurrentDB.
-- [ ] All events are published to `vut.org-events` Redpanda topic.
 - [ ] Actor correctly rehydrates from KurrentDB on activation.
 - [ ] All unit tests pass.
 

@@ -9,7 +9,7 @@
 
 ## Description
 
-Build the foundational .NET actor service that all subsequent backend tasks build upon. This includes the Proto.Actor host setup, the shared event envelope, KurrentDB client integration, Redpanda producer integration, actor lifecycle management (spawn, hydrate, passivate), and the base classes that User and Organization actors will inherit from.
+Build the foundational .NET actor service that all subsequent backend tasks build upon. This includes the Proto.Actor host setup, the shared event envelope, KurrentDB client integration, actor lifecycle management (spawn, hydrate, passivate), and the base classes that User and Organization actors will inherit from. Projectors subscribe to KurrentDB persistent subscriptions directly — no Redpanda message production needed from the actor service.
 
 ## Architecture Reference
 
@@ -28,7 +28,6 @@ src/
     Vut.ActorService.csproj
     Configuration/
       KurrentDbOptions.cs
-      RedpandaOptions.cs
     Actors/
       ActorManagerBase.cs
       AggregateActorBase.cs
@@ -38,7 +37,6 @@ src/
       EventTypeMapping.cs
     Infrastructure/
       KurrentDbClient.cs
-      RedpandaProducer.cs
       EventSerializer.cs
     Proto/
       actor.proto (gRPC service definitions)
@@ -72,15 +70,6 @@ public class EventEnvelope
 - Read events for rehydration: `ReadStreamAsync(string streamId)` -> returns `IAsyncEnumerable<EventEnvelope>`.
 - Use the EventStoreDB GRPC client NuGet package.
 - Connection string from configuration (`KurrentDbOptions.ConnectionString`).
-- After successful append, publish the event to Redpanda via `RedpandaProducer`.
-
-### Redpanda Producer (`RedpandaProducer`)
-- Produce events to the correct topic based on stream type:
-  - `user-{*}` streams -> `vut.user-events` topic
-  - `organization-{*}` streams -> `vut.org-events` topic
-- Message key: aggregate ID (string). Message value: JSON-serialized `EventEnvelope`.
-- Use Confluent.Kafka NuGet package (Redpanda is Kafka-compatible).
-- Bootstrap servers from configuration (`RedpandaOptions.BootstrapServers`).
 
 ### Actor Lifecycle (`AggregateActorBase`)
 - Abstract base class for all aggregate actors.
@@ -89,8 +78,7 @@ public class EventEnvelope
 - On next command after passivation: re-spawn and rehydrate.
 - Provide `EmmitEvent(IEvent @event)` method that:
   1. Appends to KurrentDB stream.
-  2. Publishes to Redpanda topic.
-  3. Updates local actor state.
+  2. Updates local actor state.
 
 ### Actor Manager (`ActorManagerBase<TActor>`)
 - Manages PID lookup and spawning of aggregate actors.
@@ -127,7 +115,6 @@ message CommandResponse {
 
 - [ ] `Vut.ActorService` compiles and starts without errors.
 - [ ] Actor service connects to KurrentDB and can append/read events.
-- [ ] Actor service connects to Redpanda and can produce messages to `vut.user-events` and `vut.org-events`.
 - [ ] `AggregateActorBase` correctly rehydrates state from KurrentDB event stream.
 - [ ] `ActorManagerBase` correctly spawns and looks up actors.
 - [ ] Event envelope is serialized as JSON with camelCase and includes all required fields.
@@ -144,5 +131,4 @@ message CommandResponse {
 - The actor service is the heart of the write path. It must be reliable and well-tested.
 - Proto.Actor virtual actors are the recommended pattern -- they provide location transparency and automatic activation.
 - The `EmmitEvent` method must handle KurrentDB append failures gracefully (retry with backoff).
-- Redpanda publish is fire-and-forget after KurrentDB append succeeds. If Redpanda is down, the event is still persisted in KurrentDB and a catch-up subscription can replay it later. This is acceptable for Epic 1.
 - This task creates the framework; Tasks 05 and 06 add the concrete User and Organization actors.

@@ -122,4 +122,3 @@ With parallelism: approximately 10-11 days with 2 developers.
 | `org_member_projection` | Task 03 | Task 07 |
 | `org_invitation_projection` | Task 03 | Task 07 |
 | `user_org_projection` | Task 03 | Task 07 |
-| `projection_checkpoint` | Task 03 | Task 07 |

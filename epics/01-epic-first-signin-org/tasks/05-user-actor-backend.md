@@ -150,11 +150,7 @@ public record EmailVerifiedEvent(
 ### Stream ID Convention
 - Stream: `user-{userId}` (e.g., `user-a1b2c3d4-e5f6-7890-abcd-ef1234567890`).
 - The actor manager routes commands to the correct actor based on the stream ID.
-
-### Event Routing to Redpanda
-- All events from User actors go to topic `vut.user-events`.
-- Message key: `userId` (string).
-- This routing is handled by the base class from Task 04.
+- Projectors subscribe to KurrentDB persistent subscriptions directly — no topic production needed.
 
 ### File Structure
 ```
@@ -208,7 +204,6 @@ Test cases:
 - [ ] `RequestEmailVerification` generates a 6-digit code with 15-minute expiry.
 - [ ] `VerifyEmail` validates the token and sets `IsEmailVerified = true`.
 - [ ] Events are appended to `user-{userId}` stream in KurrentDB.
-- [ ] Events are published to `vut.user-events` Redpanda topic.
 - [ ] Actor correctly rehydrates from KurrentDB on activation.
 - [ ] All unit tests pass.
 

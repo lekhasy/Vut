@@ -113,9 +113,9 @@ services:
 
   projector-service:
     build: ./src/Vut.ProjectorService
-    depends_on: [redpanda, postgres]
+    depends_on: [kurrentdb, postgres]
     environment:
-      Redpanda__BootstrapServers: "redpanda:9092"
+      KurrentDB__ConnectionString: "esdb://kurrentdb:2113?tls=false"
       Postgres__ConnectionString: "Host=postgres;Database=vut_readmodel;Username=vut;Password=vut_dev_password"
 
   readmodel-api:
@@ -198,8 +198,8 @@ frontend/
 
 - [ ] All 5 Dockerfiles build successfully.
 - [ ] `docker-compose up` starts all services and they can communicate.
-- [ ] Actor service connects to KurrentDB and Redpanda inside Docker Compose.
-- [ ] Projector service connects to Redpanda and PostgreSQL inside Docker Compose.
+- [ ] Actor service connects to KurrentDB inside Docker Compose.
+- [ ] Projector service connects to KurrentDB and PostgreSQL inside Docker Compose (no Redpanda dependency).
 - [ ] Read Model API connects to PostgreSQL inside Docker Compose.
 - [ ] Frontend connects to actor service and read model API inside Docker Compose.
 - [ ] GitHub Actions CI pipeline runs on pull requests.

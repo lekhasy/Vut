@@ -9,13 +9,12 @@
 
 ## Description
 
-Create the PostgreSQL read model schema for Epic 1 projections. This includes all projection tables, the checkpoint table for idempotent projector consumers, and a migration framework that can be run against the `vut_readmodel` database in the Kubernetes cluster or locally.
+Create the PostgreSQL read model schema for Epic 1 projections. This includes all projection tables and a migration framework that can be run against the `vut_readmodel` database in the Kubernetes cluster or locally. Note: the `projection_checkpoint` table is not needed — KurrentDB persistent subscriptions handle checkpointing internally.
 
 ## Architecture Reference
 
 - Architecture doc Section 7 (Read Model - PostgreSQL Projections)
 - Architecture doc Section 7.1 (Projection Views - full SQL DDL)
-- Architecture doc Section 7.2 (Projector Service Design - checkpoint table)
 
 ## Technical Requirements
 
@@ -101,18 +100,6 @@ CREATE TABLE user_org_projection (
 );
 ```
 
-#### `projection_checkpoint`
-```sql
-CREATE TABLE projection_checkpoint (
-    projector_name   TEXT NOT NULL,
-    topic            TEXT NOT NULL,
-    partition_id     INT NOT NULL,
-    last_offset      BIGINT NOT NULL,
-    updated_at       TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projector_name, topic, partition_id)
-);
-```
-
 ### File Structure
 ```
 src/
@@ -125,19 +112,18 @@ src/
       004_create_org_member_projection.sql
       005_create_org_invitation_projection.sql
       006_create_user_org_projection.sql
-      007_create_projection_checkpoint.sql
     Vut.ReadModel.Migrations.csproj
 ```
 
 ## Acceptance Criteria
 
-- [ ] All 7 tables are created by running migrations against a fresh PostgreSQL database.
+- [ ] All 6 tables are created by running migrations against a fresh PostgreSQL database.
 - [ ] Migrations are idempotent (running twice does not fail).
 - [ ] CHECK constraints on `role` and `status` columns are enforced.
 - [ ] All foreign key relationships are correct.
 - [ ] All required indexes exist, including unique index on `user_identity(provider_id)` and email index for auto-linking.
 - [ ] Migration tool can be run from command line: `dotnet run --connection "Host=...;Database=vut_readmodel;..."`.
-- [ ] `projection_checkpoint` table has the correct composite primary key.
+- [ ] Migration tool can be run from command line: `dotnet run --connection "Host=...;Database=vut_readmodel;...".
 
 ## Dependencies
 

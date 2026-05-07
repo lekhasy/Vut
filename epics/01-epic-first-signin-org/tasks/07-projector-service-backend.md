@@ -9,13 +9,13 @@
 
 ## Description
 
-Implement the .NET Projector Service that subscribes to Redpanda consumer groups and updates PostgreSQL read model projections. This service is the bridge between the event store (source of truth) and the read model (query-optimized views). It must be idempotent, checkpointed, and resilient to restarts.
+Implement the .NET Projector Service that subscribes to KurrentDB persistent subscriptions and updates PostgreSQL read model projections. This service is the bridge between the event store (source of truth) and the read model (query-optimized views). Projectors subscribe directly to KurrentDB persistent subscriptions — no Redpanda/Kafka message broker in the projection path. The service must be idempotent and resilient to restarts.
 
 ## Architecture Reference
 
 - Architecture doc Section 7.2 (Projector Service Design)
 - Architecture doc Section 7.1 (Projection Views - table schema)
-- Architecture doc Section 6.4 (Redpanda Topic Design)
+- Architecture doc Section 6.4 (KurrentDB Persistent Subscriptions)
 
 ## Technical Requirements
 
@@ -26,10 +26,8 @@ src/
     Program.cs
     Vut.ProjectorService.csproj
     Configuration/
-      RedpandaOptions.cs
+      KurrentDbOptions.cs
       PostgresOptions.cs
-    Checkpoints/
-      CheckpointStore.cs
     Handlers/
       UserProjector.cs
       OrgProjector.cs
@@ -38,27 +36,16 @@ src/
 ```
 
 ### Service Lifecycle
-- Runs as a .NET Worker Service (`IHostedService` or `BackgroundService`).
-- On startup: load last checkpoint offsets from `projection_checkpoint` table.
-- Subscribe to Redpanda consumer groups:
-  - Consumer group `vut-projector-user` for topic `vut.user-events`.
-  - Consumer group `vut-projector-org` for topic `vut.org-events`.
-- On each consumed message: deserialize the event envelope, route to the correct handler, update PostgreSQL, save checkpoint.
-- On shutdown: commit final offsets.
-
-### Checkpoint Store (`CheckpointStore`)
-```csharp
-public interface ICheckpointStore
-{
-    Task<long> GetLastOffsetAsync(string projectorName, string topic, int partitionId);
-    Task SaveOffsetAsync(string projectorName, string topic, int partitionId, long offset);
-}
-```
-- Reads/writes to the `projection_checkpoint` table.
-- Checkpoints are saved after each successful batch of event projections (or every N events).
+- Runs as a .NET Worker Service (`BackgroundService`).
+- On startup: subscribe to KurrentDB persistent subscriptions for `user-*` and `organization-*` streams.
+- Subscription groups:
+  - `vut-projector-user` — stream filter: `user-*` (all User stream events)
+  - `vut-projector-org` — stream filter: `organization-*` (all Organization stream events)
+- On each consumed event: deserialize the event envelope, route to the correct handler, update PostgreSQL, ack the event.
+- KurrentDB handles checkpointing internally via persistent subscriptions — no separate checkpoint table needed.
+- On shutdown: acknowledge final position gracefully.
 
 ### User Projector (`UserProjector`)
-Handles events from `vut.user-events` topic:
 
 | Event | Action |
 |-------|--------|
@@ -73,7 +60,6 @@ All operations must be idempotent:
 - `UPDATE` uses `WHERE user_id = @userId` and is naturally idempotent.
 
 ### Org Projector (`OrgProjector`)
-Handles events from `vut.org-events` topic:
 
 | Event | Action |
 |-------|--------|
@@ -94,12 +80,13 @@ Idempotency rules:
 - Connection string from configuration or environment variable.
 - Use connection pooling (configure min/max pool size).
 
-### Redpanda Consumer Configuration
-- Use Confluent.Kafka NuGet package.
-- Consumer group IDs: `vut-projector-user` and `vut-projector-org`.
-- `enable.auto.commit = false` -- manual offset commit after successful projection.
-- `auto.offset.reset = earliest` -- start from beginning on first run.
-- Consume in a loop with cancellation token support for graceful shutdown.
+### KurrentDB Persistent Subscription Configuration
+- Use EventStoreDB GRPC client NuGet package.
+- Consumer group `vut-projector-user` subscribing to stream `user-*`.
+- Consumer group `vut-projector-org` subscribing to stream `organization-*`.
+- Subscription uses `StreamRevision.Current` (start from live, replay existing on first run).
+- Manual ack after successful projection — KurrentDB tracks positions internally.
+- Subscribe in a loop with cancellation token support for graceful shutdown.
 
 ### Dockerfile
 - Multi-stage build similar to actor-service.
@@ -108,7 +95,7 @@ Idempotency rules:
 
 ## Acceptance Criteria
 
-- [ ] Projector service starts and subscribes to both Redpanda consumer groups.
+- [ ] Projector service starts and subscribes to both KurrentDB persistent subscription groups.
 - [ ] Consumed events are correctly projected into PostgreSQL tables.
 - [ ] `UserCreated` creates a row in `user_projection`.
 - [ ] `IdentityLinked` creates a row in `user_identity`.
@@ -117,8 +104,7 @@ Idempotency rules:
 - [ ] `MemberJoined` creates rows in `org_member_projection`, `user_org_projection`, and updates `org_invitation_projection`.
 - [ ] `MemberRemoved` deletes from both `org_member_projection` and `user_org_projection`.
 - [ ] `MemberRoleChanged` updates both member tables.
-- [ ] Checkpoints are saved after each processed event.
-- [ ] Restarting the projector resumes from the last checkpoint without reprocessing.
+- [ ] Restarting the projector resumes from the last acknowledged position without reprocessing.
 - [ ] All operations are idempotent (reprocessing the same event produces the same result).
 - [ ] Dockerfile builds successfully.
 
@@ -131,6 +117,6 @@ Idempotency rules:
 ## Notes
 
 - The projector is eventually consistent. There will be a small delay (typically <100ms) between an event being appended to KurrentDB and the projection being updated. The frontend should handle this gracefully (refetch after mutations).
-- For testing, use Testcontainers for Redpanda and PostgreSQL, or use embedded Kafka mock.
-- The projector should log event processing at DEBUG level and errors at ERROR level. Include event type, stream ID, and offset in log messages.
-- Batch checkpointing (every 10 events or every 1 second, whichever comes first) is a performance optimization that can be added later.
+- KurrentDB persistent subscriptions handle checkpointing internally — no `projection_checkpoint` table is needed.
+- For local development, use Testcontainers for KurrentDB and PostgreSQL.
+- The projector should log event processing at DEBUG level and errors at ERROR level. Include event type, stream ID, and event number in log messages.
