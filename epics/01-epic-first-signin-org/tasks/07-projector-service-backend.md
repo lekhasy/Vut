@@ -13,9 +13,10 @@ Implement the .NET Projector Service that subscribes to KurrentDB persistent sub
 
 ## Architecture Reference
 
-- Architecture doc Section 7.2 (Projector Service Design)
-- Architecture doc Section 7.1 (Projection Views - table schema)
-- Architecture doc Section 6.4 (KurrentDB Persistent Subscriptions)
+- Architecture doc Section 7.3 (Projector Service Design)
+- Architecture doc Section 7.1 (Entity Relationship Diagram)
+- Architecture doc Section 7.2 (SQL Schema)
+- Architecture doc Section 6.5 (KurrentDB Persistent Subscriptions)
 
 ## Technical Requirements
 
@@ -111,12 +112,13 @@ Idempotency rules:
 ## Dependencies
 
 - Task 03 (PostgreSQL Schema) -- tables must exist.
-- Task 04 (Actor Service Foundation) -- event envelope and serialization must match.
-- Tasks 05 and 06 (User and Organization Actors) -- to produce events for testing.
+- Task 04 (Actor Service Foundation) -- event serialization via Proto.Persistence.EventStore must match.
+- Tasks 05 and 06 (User and Organization Grains) -- to produce events for testing.
 
 ## Notes
 
 - The projector is eventually consistent. There will be a small delay (typically <100ms) between an event being appended to KurrentDB and the projection being updated. The frontend should handle this gracefully (refetch after mutations).
+- **Projectors are separate from the actor cluster.** They are independent .NET workers that subscribe to KurrentDB persistent subscriptions. They do not participate in the Proto.Actor cluster. This ensures projectors can be scaled independently of the grain service.
 - KurrentDB persistent subscriptions handle checkpointing internally — no `projection_checkpoint` table is needed.
 - For local development, use Testcontainers for KurrentDB and PostgreSQL.
 - The projector should log event processing at DEBUG level and errors at ERROR level. Include event type, stream ID, and event number in log messages.

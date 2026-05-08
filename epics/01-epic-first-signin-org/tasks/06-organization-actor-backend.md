@@ -1,4 +1,4 @@
-# Task 06: Organization Actor Implementation
+# Task 06: Organization Grain Implementation
 
 | Field | Value |
 |-------|-------|
@@ -9,22 +9,25 @@
 
 ## Description
 
-Implement the Organization Actor that handles organization creation, renaming, member invitation, acceptance, removal, and role changes. This actor manages the `organization-{orgId}` event stream in KurrentDB and enforces all business rules for organization membership.
+Implement the Organization Grain (virtual actor) that handles organization creation, renaming, member invitation, acceptance, removal, and role changes. This grain manages the `organization-{orgId}` event stream in KurrentDB via `Proto.Persistence.EventStore` and enforces all business rules for organization membership.
+
+There is **no OrganizationActorManager**. The grain is auto-activated by the Proto.Actor cluster runtime on first message to `("organization", orgId)`.
 
 ## Architecture Reference
 
-- Architecture doc Section 5.4 (Organization Actor)
-- Architecture doc Section 8.3 (Create Organization sequence)
-- Architecture doc Section 8.4 (Invite and Accept Member sequence)
+- Architecture doc Section 5.4 (Organization Grain)
+- Architecture doc Section 5.5 (Sending Messages to Grains)
+- Architecture doc Section 8.4 (Create Organization sequence)
+- Architecture doc Section 8.5 (Invite and Accept Member sequence)
 
 ## Technical Requirements
 
-### Organization Actor State
+### Organization Grain State
 ```csharp
 public class OrganizationState
 {
     public Guid OrgId { get; set; }
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
     public Dictionary<Guid, MemberEntry> Members { get; set; } = new();
     public Dictionary<string, InvitationEntry> Invitations { get; set; } = new();
     public bool IsDeleted { get; set; }
@@ -34,7 +37,7 @@ public record MemberEntry(Guid UserId, string Role, DateTime JoinedAt);
 public record InvitationEntry(string Email, string Role, DateTime InvitedAt, string Status);
 ```
 
-### Commands
+### Cluster Messages (gRPC)
 ```csharp
 public record CreateOrganizationCommand(string Name, Guid OwnerId);
 public record RenameOrganizationCommand(Guid OrgId, string NewName, string ActorId);
@@ -45,7 +48,7 @@ public record RemoveMemberCommand(Guid OrgId, Guid UserId, string ActorId);
 public record ChangeMemberRoleCommand(Guid OrgId, Guid UserId, string NewRole, string ActorId);
 ```
 
-### Events
+### Events (persisted to KurrentDB via Proto.Persistence.EventStore)
 ```csharp
 public record OrganizationCreatedEvent(Guid OrgId, string Name, string ActorId, DateTime Timestamp) : IEvent;
 public record OrganizationRenamedEvent(Guid OrgId, string NewName, string ActorId, DateTime Timestamp) : IEvent;
@@ -54,6 +57,52 @@ public record MemberJoinedEvent(Guid OrgId, Guid UserId, string ActorId, DateTim
 public record MemberRemovedEvent(Guid OrgId, Guid UserId, string ActorId, DateTime Timestamp) : IEvent;
 public record MemberRoleChangedEvent(Guid OrgId, Guid UserId, string OldRole, string NewRole, string ActorId, DateTime Timestamp) : IEvent;
 public record OrganizationDeletedEvent(Guid OrgId, string ActorId, DateTime Timestamp) : IEvent;
+```
+
+### Grain Implementation
+
+The `OrganizationGrain` inherits from `AggregateGrain<OrganizationState>` (built in Task 04):
+
+```csharp
+public class OrganizationGrain : AggregateGrain<OrganizationState>
+{
+    public OrganizationGrain(IProvider persistenceProvider)
+        : base(persistenceProvider) { }
+
+    protected override string GetStreamId(string identity) => $"organization-{identity}";
+
+    protected override void Apply(OrganizationState state, object @event)
+    {
+        switch (@event)
+        {
+            case OrganizationCreatedEvent e:
+                state.OrgId = e.OrgId;
+                state.Name = e.Name;
+                break;
+            case OrganizationRenamedEvent e:
+                state.Name = e.NewName;
+                break;
+            case MemberInvitedEvent e:
+                state.Invitations[e.InviteeEmail] = new InvitationEntry(
+                    e.InviteeEmail, e.Role, e.Timestamp, "Pending");
+                break;
+            case MemberJoinedEvent e:
+                state.Members[e.UserId] = new MemberEntry(
+                    e.UserId, /* role from invitation */, e.Timestamp);
+                break;
+            case MemberRemovedEvent e:
+                state.Members.Remove(e.UserId);
+                break;
+            case MemberRoleChangedEvent e:
+                if (state.Members.TryGetValue(e.UserId, out var member))
+                    state.Members[e.UserId] = member with { Role = e.NewRole };
+                break;
+            case OrganizationDeletedEvent e:
+                state.IsDeleted = true;
+                break;
+        }
+    }
+}
 ```
 
 ### Command Handlers & Validation Rules
@@ -113,15 +162,15 @@ public record OrganizationDeletedEvent(Guid OrgId, string ActorId, DateTime Time
 
 ### Stream ID Convention
 - Stream: `organization-{orgId}`.
-- Projectors subscribe to KurrentDB persistent subscriptions directly — no topic routing needed.
+- The grain is activated by cluster identity: `Cluster.GetGrain("organization", orgId)`.
+- Projectors subscribe to KurrentDB persistent subscriptions directly.
 
 ### File Structure
 ```
 src/
   Vut.ActorService/
-    Actors/
-      OrganizationActor.cs
-      OrganizationActorManager.cs
+    Grains/
+      OrganizationGrain.cs
     Events/
       OrganizationCreatedEvent.cs
       OrganizationRenamedEvent.cs
@@ -144,8 +193,8 @@ src/
 ```
 tests/
   Vut.ActorService.Tests/
-    Actors/
-      OrganizationActorTests.cs
+    Grains/
+      OrganizationGrainTests.cs
 ```
 
 Test cases:
@@ -161,7 +210,7 @@ Test cases:
 - Remove last Owner -> error.
 - Change role Owner->Member by Owner -> success (if other Owners exist).
 - Demote last Owner -> error.
-- Rehydrate from events -> state matches original.
+- State rehydration from events matches original state after activation.
 
 ## Acceptance Criteria
 
@@ -170,17 +219,19 @@ Test cases:
 - [ ] Only Owners can invite, remove members, change roles, and rename the org.
 - [ ] Cannot remove or demote the last Owner.
 - [ ] `AcceptInvitation` validates the email matches a pending invitation.
-- [ ] All events are appended to `organization-{orgId}` stream in KurrentDB.
-- [ ] Actor correctly rehydrates from KurrentDB on activation.
+- [ ] All events are persisted to `organization-{orgId}` stream in KurrentDB via Proto.Persistence.EventStore.
+- [ ] Grain correctly rehydrates from KurrentDB on activation.
+- [ ] Grain passivates after 30 minutes of inactivity (ReceiveTimeout).
 - [ ] All unit tests pass.
 
 ## Dependencies
 
-- Task 04 (.NET Actor Service Foundation) -- must be complete.
+- Task 04 (.NET Actor Service Foundation) -- must be complete (provides `AggregateGrain<TState>` base class, cluster setup, and `Proto.Persistence.EventStore` provider).
 
 ## Notes
 
 - The `OrganizationDeleted` event is defined but no delete command is required in Epic 1. The event type should exist in the codebase for future use.
-- The actor should return structured error responses (not exceptions) so the BFF can map them to HTTP status codes. Use a pattern like `{ success: false, error: "NOT_OWNER", message: "Only owners can invite members" }`.
+- The grain should return structured error responses (not exceptions) so the BFF can map them to HTTP status codes. Use a pattern like `{ success: false, error: "NOT_OWNER", message: "Only owners can invite members" }`.
 - `MemberJoinedEvent` during org creation does NOT include `oldRole`/`newRole` -- it simply adds the member. The role is derived from the invitation or is "Owner" for the creator.
 - The `ActorId` in commands is the `userId` of the person performing the action, extracted from the session by the BFF.
+- Cluster kind registration: `"organization"` kind is registered in Program.cs (Task 04), pointing to `OrganizationGrain`.

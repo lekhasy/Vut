@@ -13,9 +13,10 @@ Set up Dockerfiles for all .NET services and the Astro.js frontend, and create a
 
 ## Architecture Reference
 
-- Architecture doc Section 2 (Component Diagram - all deployments)
-- Architecture doc Section 3.5 (Actor Service Deployment)
-- Architecture doc Section 3.6 (Frontend Deployment)
+- Architecture doc Section 3 (Component Diagram - all deployments)
+- Architecture doc Section 9.5 (Actor Service Deployment)
+- Architecture doc Section 9.6 (Frontend Deployment)
+- Architecture doc Section 4 (Cluster Topology & Placement)
 
 ## Technical Requirements
 
@@ -109,7 +110,8 @@ services:
     depends_on: [kurrentdb, redpanda]
     environment:
       KurrentDB__ConnectionString: "esdb://kurrentdb:2113?tls=false"
-      Redpanda__BootstrapServers: "redpanda:9092"
+      ProtoActor__ClusterProvider: "Redpanda"
+      ProtoActor__RedpandaBootstrapServers: "redpanda:9092"
 
   projector-service:
     build: ./src/Vut.ProjectorService
