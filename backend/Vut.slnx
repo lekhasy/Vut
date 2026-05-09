@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Vut.Silo/Vut.Silo.csproj" />
     <Project Path="src/Vut.ReadModel/Vut.ReadModel.csproj" />
     <Project Path="src/Vut.ReadModel.Migrations/Vut.ReadModel.Migrations.csproj" />
   </Folder>
