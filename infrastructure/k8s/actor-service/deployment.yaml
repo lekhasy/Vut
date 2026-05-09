@@ -32,15 +32,20 @@ spec:
             - name: http
               containerPort: 5001
               protocol: TCP
+            - name: orleans-dash
+              containerPort: 8888
+              protocol: TCP
           env:
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: KurrentDB__ConnectionString
               value: "esdb://vut-kurrentdb:2113?tls=false"
-            - name: ProtoActor__ClusterProvider
-              value: "Redpanda"
-            - name: ProtoActor__RedpandaBootstrapServers
-              value: "vut-redpanda:9092"
+            - name: Orleans__ClusterId
+              value: "vut-cluster"
+            - name: Orleans__ServiceId
+              value: "vut-service"
+            - name: Orleans__ClusteringConnectionString
+              value: "Host=vut-postgresql;Database=vut_readmodel;Username=vut_app;Password=vut_dev_password"
             - name: Auth0__Domain
               valueFrom:
                 secretKeyRef:

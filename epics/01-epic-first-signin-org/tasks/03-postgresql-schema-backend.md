@@ -14,8 +14,10 @@ Create the PostgreSQL read model schema for Epic 1 projections. This includes al
 ## Architecture Reference
 
 - Architecture doc Section 7 (Read Model - PostgreSQL Projections)
-- Architecture doc Section 7.1 (Projection Views - full SQL DDL)
-- Architecture doc Section 6.4 (KurrentDB Persistent Subscriptions) — projectors subscribe directly to KurrentDB, NOT through Redpanda/Kafka. KurrentDB handles checkpointing internally; no `projection_checkpoint` table is needed.
+- Architecture doc Section 7.1 (Entity Relationship Diagram)
+- Architecture doc Section 7.2 (SQL Schema)
+- Architecture doc Section 6.5 (KurrentDB Persistent Subscriptions) — projectors subscribe directly to KurrentDB persistent subscriptions. KurrentDB handles checkpointing internally; no `projection_checkpoint` table is needed.
+- Architecture doc Section 4.1 (Silo Configuration) — Orleans clustering uses the same PostgreSQL instance via `Orleans.Clustering.AdoNet`.
 
 ## Technical Requirements
 
@@ -143,3 +145,4 @@ src/
 - Migrations are code-first (EF Core) with Npgsql provider — no raw SQL migration files needed.
 - Future epics will add `product_projection`, `task_projection`, `task_tag_projection`, and `cumulative_flow_snapshot` tables. New migrations can be added following the same pattern.
 - The `user_org_projection` is a denormalized reverse index. It is maintained by the projector alongside `org_member_projection` to enable fast "my organizations" queries without JOINs.
+- **Orleans clustering tables** (`OrleansMembershipTable`, `OrleansMembershipVersionTable`) are auto-created by the `Orleans.Clustering.AdoNet` provider on first silo startup. No manual migration is needed for these tables — they are managed entirely by Orleans in the same PostgreSQL database.

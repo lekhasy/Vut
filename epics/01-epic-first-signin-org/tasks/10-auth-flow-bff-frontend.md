@@ -13,9 +13,9 @@ Implement the complete authentication flow in the Astro.js BFF: Auth0 login redi
 
 ## Architecture Reference
 
-- Architecture doc Section 4 (Auth0 Integration Architecture)
-- Architecture doc Section 4.1 (Auth flow sequence diagram)
-- Architecture doc Section 4.3 (Auth Middleware)
+- Architecture doc Section 10 (Auth0 Integration Architecture)
+- Architecture doc Section 10.1 (Auth flow sequence diagram)
+- Architecture doc Section 10.3 (Auth Middleware)
 - Architecture doc Section 8.1 (First-Time User Sign-In)
 - Architecture doc Section 8.2 (Email Verification)
 - Architecture doc Section 8.3 (Returning User Sign-In)
@@ -64,23 +64,19 @@ Implement the complete authentication flow in the Astro.js BFF: Auth0 login redi
    - `name` -> display name
    - `picture` -> avatar URL
    - `email` -> email address (may be null — providers don't always return it)
-6. Look up user in read model by providerId: `GET http://{READMODEL_URL}/api/users/by-provider/{providerId}`.
+6. Look up user by providerId via co-hosted API: `GET http://{SILO_API_URL}/api/users/by-provider/{providerId}`.
 7. **If user not found (404)** — check for auto-linking (only if email is present from the provider):
-   a. If email is present from the provider, look up: `GET http://{READMODEL_URL}/api/users/by-email/{email}`.
-   b. If an existing user is found by email, link the new provider: send `LinkIdentity` command to actor service.
-   c. If no existing user found (truly new user), create user via actor service:
+   a. If email is present from the provider, look up: `GET http://{SILO_API_URL}/api/users/by-email/{email}`.
+   b. If an existing user is found by email, link the new provider via co-hosted API: `POST http://{SILO_API_URL}/api/users/{userId}/link-identity { providerId, providerName, email }`.
+   c. If no existing user found (truly new user), create user via co-hosted API:
    ```
-   POST http://{ACTOR_SERVICE_URL}/commands
+   POST http://{SILO_API_URL}/api/users/create
    {
-     "commandType": "CreateUser",
-     "payload": {
-       "providerId": "github|12345678",
-       "providerName": "github",
-       "displayName": "Jane Developer",
-       "avatarUrl": "https://avatars.githubusercontent.com/u/12345678",
-       "email": "jane@example.com"
-     },
-     "actorId": "pending"
+     "providerId": "github|12345678",
+     "providerName": "github",
+     "displayName": "Jane Developer",
+     "avatarUrl": "https://avatars.githubusercontent.com/u/12345678",
+     "email": "jane@example.com"
    }
    ```
    Note: `email` may be `null` if the identity provider did not return one.
@@ -122,8 +118,7 @@ AUTH0_CLIENT_ID=abc123
 AUTH0_CLIENT_SECRET=secret123
 AUTH0_AUDIENCE=https://api.vut.dev
 SESSION_SECRET=<32-byte-base64-key>
-ACTOR_SERVICE_URL=http://vut-actor-service:5000
-READMODEL_URL=http://vut-readmodel-api:5001
+SILO_API_URL=http://vut-silo:5000
 BASE_URL=http://localhost:3000
 ```
 
@@ -155,48 +150,42 @@ src/
 }
 ```
 
-### Internal: Create User Command (to Actor Service)
-```json
-POST /commands
+### Internal: Create User (to Co-hosted API)
+```
+POST http://{SILO_API_URL}/api/users/create
+Content-Type: application/json
+
 {
-  "commandType": "CreateUser",
-  "payload": {
-    "providerId": "github|12345678",
-    "providerName": "github",
-    "displayName": "Jane Developer",
-    "avatarUrl": "https://avatars.githubusercontent.com/u/12345678",
-    "email": "jane@example.com"
-  },
-  "actorId": "pending"
+  "providerId": "github|12345678",
+  "providerName": "github",
+  "displayName": "Jane Developer",
+  "avatarUrl": "https://avatars.githubusercontent.com/u/12345678",
+  "email": "jane@example.com"
 }
 ```
-Response:
+Response (201):
 ```json
 {
-  "success": true,
-  "payload": "{\"userId\":\"a1b2c3d4-e5f6-7890-abcd-ef1234567890\"}"
+  "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 }
 ```
 
-### Internal: Link Identity Command (to Actor Service)
-```json
-POST /commands
+### Internal: Link Identity (to Co-hosted API)
+```
+POST http://{SILO_API_URL}/api/users/{userId}/link-identity
+Content-Type: application/json
+
 {
-  "commandType": "LinkIdentity",
-  "payload": {
-    "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "providerId": "google-oauth2|1234567890",
-    "providerName": "google",
-    "email": "jane@example.com"
-  },
-  "actorId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  "providerId": "google-oauth2|1234567890",
+  "providerName": "google",
+  "email": "jane@example.com"
 }
 ```
 Note: `email` may be `null` if the identity provider did not return one.
 
-### Internal: Lookup User (to Read Model API)
+### Internal: Lookup User (to Co-hosted API)
 ```
-GET /api/users/by-provider/github%7C12345678
+GET http://{SILO_API_URL}/api/users/by-provider/github%7C12345678
 ```
 Response (200):
 ```json
@@ -224,7 +213,7 @@ Response (404):
 - [ ] Clicking "Sign in with GitHub" redirects to Auth0 and then GitHub OAuth.
 - [ ] After GitHub approval, the callback correctly exchanges the code for tokens.
 - [ ] JWT is validated against Auth0 JWKS (signature, issuer, audience, expiry).
-- [ ] First-time users are created in the system (via actor service) and a session is set.
+- [ ] First-time users are created in the system (via co-hosted API) and a session is set.
 - [ ] Returning users are recognized and a session is set without creating a duplicate.
 - [ ] Auto-linking: if a new provider's email matches an existing user, the identity is linked automatically.
 - [ ] Unverified users are redirected to `/verify-email` after login.
@@ -239,12 +228,12 @@ Response (404):
 
 - Task 09 (Astro Project Setup) -- project structure must exist.
 - Task 02 (Auth0 Tenant Setup) -- Auth0 tenant must be configured.
-- For local dev without backend: can mock the actor service and read model API responses.
+- For local dev without backend: can mock the co-hosted API responses.
 
 ## Notes
 
 - The BFF pattern means the browser never sees the JWT directly. The BFF validates it server-side and creates its own session cookie. This is more secure than storing tokens in localStorage.
 - Use the `jose` npm package for JWT validation (it supports JWKS and RS256).
 - The `state` parameter in the OAuth flow prevents CSRF attacks. It must be validated in the callback.
-- The `actorId` in the `CreateUser` command is "pending" because the user doesn't have a userId yet. The actor service will generate one and return it.
+- The co-hosted API generates a new `userId` (GUID) for `CreateUser` and returns it. The BFF does not need to generate the ID.
 - Session cookie expiry: 24 hours for MVP. Users will be redirected to re-authenticate via GitHub after expiry.

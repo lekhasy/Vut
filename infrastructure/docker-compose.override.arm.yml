@@ -21,25 +21,6 @@ services:
         reservations:
           memory: 1G
 
-  redpanda:
-    command:
-      - redpanda
-      - start
-      - --smp 1
-      - --memory 512M
-      - --overprovisioned
-      - --kafka-addr internal://0.0.0.0:9092
-      - --advertise-kafka-addr internal://redpanda:9092
-      - --pandaproxy-addr internal://0.0.0.0:8082
-      - --advertise-pandaproxy-addr internal://redpanda:8082
-      - --rpc-addr internal://0.0.0.0:33145
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-        reservations:
-          memory: 512M
-
   postgresql:
     deploy:
       resources:

@@ -1,4 +1,4 @@
-# Task 08: Read Model API Service
+# Task 08: Co-hosted API Controllers (Silo API Endpoints)
 
 | Field | Value |
 |-------|-------|
@@ -9,31 +9,30 @@
 
 ## Description
 
-Implement the Read Model API -- a .NET web service that provides read-only HTTP endpoints querying the PostgreSQL read model. The Astro.js BFF calls this service to fetch user profiles, organization details, member lists, and invitation data. This service has no write capabilities; it only reads from projection tables.
+Implement ASP.NET Core API controllers co-hosted inside the Orleans silo process. These controllers provide HTTP endpoints that the Astro.js BFF calls to read user profiles, organization details, member lists, and invitation data, as well as to invoke write operations on grains. Controllers use `IGrainFactory` (injected via DI) for write operations and query PostgreSQL directly (via `Npgsql`/Dapper) for reads. There is no separate Read Model API service — all endpoints live in the `Vut.Silo` project and share port 5000 with the silo.
 
 ## Architecture Reference
 
-- Architecture doc Section 9 (API Design - BFF Endpoints)
-- Architecture doc Section 7.1 (Projection Views)
-- Architecture doc Section 11 (Data Flow Summary - Read Path)
+- Architecture doc Section 5.5 (Calling Grains from API Controllers)
+- Architecture doc Section 11 (API Design - BFF Endpoints)
+- Architecture doc Section 13 (Data Flow Summary - Read Path)
+- Architecture doc Section 7.1 (Entity Relationship Diagram - projection tables used in read queries)
 
 ## Technical Requirements
 
 ### Solution Structure
 ```
 src/
-  Vut.ReadModelApi/
-    Program.cs
-    Vut.ReadModelApi.csproj
-    Configuration/
-      PostgresOptions.cs
+  Vut.Silo/
+    Program.cs                    # Already exists from Task 04 (Orleans silo bootstrap)
+    Vut.Silo.csproj
     Controllers/
-      UsersController.cs
-      OrganizationsController.cs
-      InvitationsController.cs
-      IdentitiesController.cs
+      UsersController.cs          # Read queries + write commands via IGrainFactory
+      OrganizationsController.cs  # Read queries + write commands via IGrainFactory
+      InvitationsController.cs    # Read queries
+      IdentitiesController.cs     # Read queries
     Queries/
-      UserQueries.cs
+      UserQueries.cs              # Dapper/raw SQL read queries
       OrgQueries.cs
     Models/
       UserDto.cs
@@ -42,9 +41,11 @@ src/
       InvitationDto.cs
 ```
 
+Controllers are registered in the existing `Vut.Silo/Program.cs` alongside the Orleans silo configuration (from Task 04). The silo already calls `builder.Services.AddControllers()` and `app.MapControllers()`.
+
 ### Endpoints
 
-#### Users
+#### Internal Lookup Endpoints (BFF-to-API, read-only)
 
 **GET /api/users/by-provider/{providerId}**
 - Looks up user by any linked Auth0 provider ID via `user_identity` table.
@@ -68,8 +69,10 @@ Note: `email` may be `null` if the identity provider did not return one and the 
 - Query: `SELECT ui.user_id FROM user_identity ui WHERE ui.email = @email LIMIT 1`.
 - Returns `200` with `{ userId }` or `404` if not found.
 
+#### User Endpoints
+
 **GET /api/users/{userId}**
-- Returns user profile by userId.
+- Returns user profile by userId (read from PostgreSQL).
 - Returns `200` with `UserDto` or `404`.
 
 **GET /api/users/{userId}/identities**
@@ -101,10 +104,15 @@ Note: `email` may be `null` if the identity provider did not return one.
 ]
 ```
 
-#### Organizations
+**POST /api/users/create**
+- Creates a new user via `IGrainFactory.GetGrain<IUserGrain>(userId)`.
+- Calls `grain.CreateUser(...)` — write operation routed through Orleans.
+- Returns `200` with the result from the grain.
+
+#### Organization Endpoints
 
 **GET /api/organizations/{orgId}**
-- Returns org details from `org_projection`.
+- Returns org details from `org_projection` (read from PostgreSQL).
 ```json
 {
   "orgId": "f7e6d5c4-b3a2-1098-7654-321fedcba098",
@@ -130,6 +138,16 @@ Note: `email` may be `null` if the identity provider did not return one.
 ]
 ```
 
+**POST /api/organizations**
+- Creates an organization via `IGrainFactory.GetGrain<IOrganizationGrain>(orgId)`.
+- Write operation routed through Orleans grain.
+
+**POST /api/organizations/{orgId}/members/invite**
+- Invites a member via the `IOrganizationGrain`.
+
+**POST /api/organizations/{orgId}/members/accept**
+- Accepts an invitation via the `IOrganizationGrain`.
+
 #### Invitations
 
 **GET /api/invitations?email={email}**
@@ -153,22 +171,29 @@ Note: `email` may be `null` if the identity provider did not return one.
 - Returns all invitations for an organization (all statuses).
 - Owner-only (authorization is handled by the BFF, but the API should also check).
 
-### Database Access
-- Use `Npgsql` with Dapper (lightweight micro-ORM) or raw SQL.
-- Connection string from configuration.
-- All queries are read-only -- no writes.
+### Database Access (Reads)
+- Use `Npgsql` with Dapper (lightweight micro-ORM) or raw SQL for all read queries.
+- Connection string from configuration (same PostgreSQL instance used by Orleans clustering).
+- Read queries go directly to PostgreSQL — they do NOT pass through Orleans grains.
+
+### Grain Access (Writes)
+- Inject `IGrainFactory` via constructor DI into controllers.
+- Obtain grain references via `_grainFactory.GetGrain<IUserGrain>(userId)` or `_grainFactory.GetGrain<IOrganizationGrain>(orgId)`.
+- Orleans handles grain activation, placement, and routing transparently.
 
 ### Cross-Origin (CORS)
 - Allow requests from the Astro.js BFF origin.
-- This service is internal to the cluster but should support CORS for local dev.
+- The API is internal to the cluster but should support CORS for local dev.
 
-### Dockerfile
-- Multi-stage build. Expose port 5001.
-- Output image: `vut/readmodel-api`.
+### Hosting
+- Co-hosted in the `Vut.Silo` process — no separate Dockerfile or service.
+- Shares port 5000 with the Orleans silo HTTP endpoint.
+- The silo `Program.cs` (from Task 04) already configures `WebApplication` with Orleans and ASP.NET Core controllers.
 
 ## Acceptance Criteria
 
-- [ ] All endpoints return correct data from PostgreSQL projections.
+- [ ] All read endpoints return correct data from PostgreSQL projections.
+- [ ] Write endpoints (create user, create org, invite member, accept invitation) correctly invoke grains via `IGrainFactory`.
 - [ ] `GET /api/users/by-provider/{providerId}` returns `404` for unknown users.
 - [ ] `GET /api/users/by-email/{email}` returns `404` for unknown emails.
 - [ ] `GET /api/users/{userId}/identities` returns all linked providers for a user.
@@ -177,16 +202,20 @@ Note: `email` may be `null` if the identity provider did not return one.
 - [ ] `GET /api/invitations?email=...` returns only pending invitations for that email.
 - [ ] All responses follow consistent JSON format (camelCase).
 - [ ] Error responses follow a consistent format: `{ "error": "NOT_FOUND", "message": "..." }`.
-- [ ] Dockerfile builds successfully.
+- [ ] Controllers are co-hosted in the silo process and accessible on port 5000.
 
 ## Dependencies
 
-- Task 03 (PostgreSQL Schema) -- tables must exist.
+- Task 03 (PostgreSQL Schema) -- projection tables must exist.
+- Task 04 (Orleans Silo Foundation) -- silo `Program.cs` with `UseOrleans()`, `AddControllers()`, and `MapControllers()` must be in place. `IGrainFactory` is available via DI.
+- Task 05 (User Grain) -- `IUserGrain` interface must exist for write operations.
+- Task 06 (Organization Grain) -- `IOrganizationGrain` interface must exist for write operations.
 - Task 07 (Projector Service) -- projections must be populated for integration testing. However, unit/integration tests can seed test data directly.
 
 ## Notes
 
-- This service is intentionally simple -- it is a thin read layer over PostgreSQL projections.
-- Authorization checks (org membership, role verification) should be performed by the BFF before calling the Read Model API. The Read Model API trusts the BFF as the caller.
-- In a production setup, this service would be internal (not exposed to the internet). The Astro.js BFF proxies requests to it.
+- **No separate service or Dockerfile.** Controllers live inside `Vut.Silo` and are co-hosted with Orleans grains in the same process. See architecture Section 3 (Component Diagram) and Section 5.5.
+- Authorization checks (org membership, role verification) should be performed by the BFF before calling the API. The API trusts the BFF as the caller.
+- In a production setup, this API is internal (not exposed to the internet). The Astro.js BFF proxies requests to port 5000 on the silo service.
 - Pagination will be needed for member lists and invitations in the future, but is not required for Epic 1 (organizations will have small teams).
+- Write operations go through grains (ensuring event sourcing and single-threaded consistency). Read operations bypass grains and go directly to PostgreSQL projections (ensuring fast, scalable reads).

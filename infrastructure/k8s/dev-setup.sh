@@ -58,13 +58,7 @@ info "Creating KurrentDB..."
 kubectl apply -f "$K8S_DIR/kurrentdb/"
 ok "KurrentDB StatefulSet and Service applied."
 
-# 5. Create Redpanda
-info "Creating Redpanda..."
-kubectl apply -f "$K8S_DIR/redpanda/statefulset.yaml"
-kubectl apply -f "$K8S_DIR/redpanda/service.yaml"
-ok "Redpanda StatefulSet and Service applied."
-
-# 6. Wait for infrastructure services to be ready
+# 5. Wait for infrastructure services to be ready
 info "Waiting for infrastructure pods to be ready..."
 echo ""
 
@@ -100,15 +94,6 @@ while [[ $ELAPSED -lt $MAX_WAIT ]]; do
         all_ready=false
     fi
 
-    # Check Redpanda (need at least 1 for development)
-    rp_ready=$(check_pod_ready "app.kubernetes.io/name=redpanda")
-    if [[ "$rp_ready" -ge 1 ]]; then
-        ok "Redpanda: $rp_ready pod(s) running"
-    else
-        echo -e "  [WAIT] Redpanda: starting..."
-        all_ready=false
-    fi
-
     if $all_ready; then
         echo ""
         ok "All infrastructure services are running!"
@@ -129,18 +114,18 @@ if ! $all_ready; then
     exit 1
 fi
 
-# 7. Create application services (Actor Service + Frontend)
+# 6. Create application services (Actor Service + Frontend)
 info "Creating application services..."
 kubectl apply -f "$K8S_DIR/actor-service/"
 kubectl apply -f "$K8S_DIR/frontend/"
 ok "Actor Service and Frontend deployments applied."
 
-# 8. Create Ingress
+# 7. Create Ingress
 info "Creating Ingress..."
 kubectl apply -f "$K8S_DIR/ingress.yaml"
 ok "Ingress applied."
 
-# 9. Final health check
+# 8. Final health check
 echo ""
 info "Final health check..."
 echo ""
@@ -164,13 +149,6 @@ if kubectl exec -n vut vut-kurrentdb-0 -- curl -sf http://localhost:2113/health/
     ok "KurrentDB: http://vut-kurrentdb:2113/health/live"
 else
     warn "KurrentDB: not yet reachable (may still be starting)"
-fi
-
-# Redpanda
-if kubectl exec -n vut vut-redpanda-0 -- curl -sf http://localhost:9644/v1/cluster/health > /dev/null 2>&1; then
-    ok "Redpanda: http://vut-redpanda:9644/v1/cluster/health"
-else
-    warn "Redpanda: not yet reachable (may still be starting)"
 fi
 
 # PostgreSQL

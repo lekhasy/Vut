@@ -100,7 +100,6 @@ check_url() {
 # 1. Check infrastructure services
 echo "--- Infrastructure Services ---"
 check_docker_service "kurrentdb"
-check_docker_service "redpanda"
 check_docker_service "postgresql"
 echo ""
 
@@ -113,7 +112,6 @@ echo ""
 # 3. Check network connectivity
 echo "--- Network Connectivity ---"
 check_tcp_port "kurrentdb" "localhost" "${KURRENTDB_HTTP_PORT:-2113}"
-check_tcp_port "redpanda" "localhost" "${REDPANDA_KAFKA_PORT:-9092}"
 check_tcp_port "postgresql" "localhost" "${POSTGRESQL_PORT:-5432}"
 echo ""
 
@@ -121,7 +119,6 @@ echo ""
 echo "--- HTTP Endpoints ---"
 check_url "KurrentDB (live)" "http://localhost:${KURRENTDB_HTTP_PORT:-2113}/health/live"
 check_url "KurrentDB (ready)" "http://localhost:${KURRENTDB_HTTP_PORT:-2113}/health/ready"
-check_url "Redpanda (health)" "http://localhost:${REDPANDA_ADMIN_PORT:-9644}/v1/cluster/health" "200"
 echo ""
 
 # 5. Check PostgreSQL database

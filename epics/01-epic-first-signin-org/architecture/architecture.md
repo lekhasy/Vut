@@ -1,10 +1,12 @@
-# Epic 1 Architecture: First Sign-In & Organization (Virtual Actor Redesign)
+# Epic 1 Architecture: First Sign-In & Organization (Microsoft Orleans)
 
 ## 1. System Context
 
-Epic 1 establishes the entire infrastructure footprint of Vut. Every subsequent epic builds on the virtual actors, streams, projections, and deployment infrastructure defined here.
+Epic 1 establishes the entire infrastructure footprint of Vut. Every subsequent epic builds on the grains, event sourcing, projections, and deployment infrastructure defined here.
 
-The architecture uses **Proto.Actor virtual actors (grains)** instead of a manual Actor Manager pattern. Virtual actors are identified by cluster identity (kind + entity ID), auto-activate on first message, and are location-transparent. There are no manager actors, no manual PID lookup, and no manual spawning logic.
+The architecture uses **Microsoft Orleans virtual actors (grains)** as the core backend framework. Orleans grains are identified by strongly-typed interfaces and keys (GUIDs), auto-activate on first call, and are location-transparent across silo nodes. There are no manager actors, no manual PID lookup, and no manual spawning logic.
+
+**Key simplification:** Orleans uses the existing PostgreSQL database for cluster membership and grain directory — no external message broker is needed. This keeps the infrastructure lean and reduces operational overhead.
 
 ```mermaid
 graph TB
@@ -26,9 +28,10 @@ graph TB
             BFF["BFF / API Gateway<br/>(Astro.js SSR)"]
         end
 
-        subgraph Backend[".NET Proto.Actor Cluster"]
-            UA["User Grain<br/>(virtual actor)"]
-            OA["Organization Grain<br/>(virtual actor)"]
+        subgraph Backend[".NET Orleans Silo"]
+            UA["UserGrain<br/>(virtual actor)"]
+            OA["OrganizationGrain<br/>(virtual actor)"]
+            APIEP["ASP.NET Core API<br/>(co-hosted in silo)"]
         end
 
         subgraph EventStore["KurrentDB"]
@@ -36,15 +39,12 @@ graph TB
             OS["organization-{orgId}"]
         end
 
-        subgraph Cluster["Redpanda (Proto.Actor Cluster Transport)"]
-            CL["Identity Partition<br/>Membership Gossip"]
-        end
-
         subgraph ReadModel["PostgreSQL"]
             UP["user_projection"]
             UI2["user_identity"]
             OP["org_projection"]
             OMP["org_member_projection"]
+            CLU["orleans_membership<br/>orleans_reminders"]
         end
 
         subgraph Projectors["Projector Services"]
@@ -59,8 +59,9 @@ graph TB
     Auth0 --> GH
     Auth0 --> Google
     Auth0 --> MS
-    BFF -->|gRPC: Cluster Identity| UA
-    BFF -->|gRPC: Cluster Identity| OA
+    BFF -->|HTTP / gRPC| APIEP
+    APIEP -->|IGrainFactory| UA
+    APIEP -->|IGrainFactory| OA
     UA --> US
     OA --> OS
     US -->|Persistent Subscription| PU
@@ -72,42 +73,45 @@ graph TB
     OA --> SMTP
 ```
 
-**Key difference from the previous design:** The BFF no longer communicates with an "Actor Service" intermediary. Instead, the BFF (or a thin gRPC gateway) sends messages directly to virtual actors via cluster identity. The actors are auto-activated by Proto.Actor's runtime -- no manager spawns them.
+The BFF communicates with a co-hosted ASP.NET Core API that lives inside the Orleans silo process. The API uses `IGrainFactory` to obtain grain references. Grains are auto-activated by the Orleans runtime on first call — no manual routing or external broker required.
 
 ---
 
-## 2. Why Virtual Actors
+## 2. Why Virtual Actors (Orleans)
 
-### 2.1 Problems with the Actor Manager Pattern
+### 2.1 Why Virtual Actors
 
-The previous design used an `ActorManagerBase<TActor>` pattern where dedicated manager actors manually handled PID lookup, actor spawning, hydration from KurrentDB, and passivation. This introduced several issues:
+Virtual actors (grains) are the natural fit for Vut's domain model. Each aggregate root (User, Organization, Product, Task) maps to one grain instance identified by its entity ID. Virtual actors provide:
 
-1. **Manager bottleneck**: Every command for any user or org flows through a single manager actor per kind, creating a serialization point.
-2. **Manual lifecycle bookkeeping**: The manager must track which actors exist, which are idle, which need rehydration -- duplicating what virtual actors handle natively.
-3. **PID caching complexity**: Managers must maintain a dictionary of PIDs, invalidate on passivation, and refresh on re-activation.
-4. **Failure recovery gaps**: If a manager crashes, all its tracked PIDs are lost. Recovery requires re-discovering or re-spawning actors.
-5. **Single-node affinity**: The manager pattern assumes all actors of a kind are local to the manager's node, defeating cluster distribution.
+1. **Automatic lifecycle management**: Grains activate on first call and deactivate when idle — no manual creation or destruction logic.
+2. **Location transparency**: The caller doesn't need to know which server hosts a grain. The Orleans runtime handles placement and routing.
+3. **Single-threaded execution**: Each grain processes one call at a time, eliminating concurrency bugs within an aggregate.
+4. **Failure recovery**: If a silo crashes, grains re-activate on surviving silos automatically. State is safe in KurrentDB.
+5. **Horizontal scaling**: Adding silo pods distributes grains across more nodes with zero code changes.
 
-### 2.2 What Virtual Actors Solve
+### 2.2 Why Orleans Specifically
 
-Virtual actors in Proto.Actor address every one of these problems:
-
-| Concern | Actor Manager Pattern | Virtual Actor (Grain) |
-|---------|----------------------|----------------------|
-| Actor location | Manager looks up PID in dictionary | Cluster identity partitioning; runtime resolves location |
-| Actor creation | Manager spawns on first message | Runtime auto-activates on first message |
-| Actor lifecycle | Manager tracks Loading/Active/Idle/Passivated | Runtime manages activation; grain uses ReceiveTimeout for passivation |
-| Failover | Manager must re-spawn lost actors | Runtime re-activates on another node automatically |
-| Distribution | Manager is a single node | Grains are distributed across cluster by identity hash |
-| Code surface | ActorManagerBase<TActor> + custom logic per kind | Just the grain itself; no manager needed |
+| Concern | Orleans Approach |
+|---------|-----------------|
+| Cluster membership | Built-in; uses PostgreSQL (ADO.NET) — no external message broker needed |
+| Grain communication | Strongly-typed C# interfaces (`IUserGrain`, `IOrganizationGrain`) |
+| .NET integration | Native ASP.NET Core co-hosting via `UseOrleans()` |
+| Persistence providers | Rich ecosystem (ADO.NET, Azure, Redis, custom) |
+| Grain deactivation | Built-in `DelayDeactivation()` + configurable idle timeout |
+| Community & support | Large, Microsoft-backed, deployed at scale (Halo, Xbox, Skype, Azure) |
+| Streaming | Built-in Orleans Streams (optional, for future use) |
+| Dependency injection | Full ASP.NET Core DI integration in grains |
 
 ### 2.3 Trade-offs Acknowledged
 
-- **Less explicit control**: Virtual actors hide lifecycle details. If you need fine-grained control over when actors are deactivated, the implicit model requires trust in the runtime.
-- **Debugging complexity**: Location transparency means a grain may be on any node. Tracing requires correlation IDs propagated through the cluster.
-- **Learning curve**: Virtual actor semantics differ from local actors. The team must understand activation, passivation, and identity-based routing.
+- **Opinionated framework**: Orleans has strong opinions about grain design, state management, and communication patterns. This rigidity is beneficial for Vut's straightforward aggregate model.
+- **Custom event sourcing**: Orleans does not have a built-in KurrentDB provider. A custom `EventSourcedGrain<TState>` base class is needed (see Section 5.1).
+- **Grain key types**: Orleans grain keys are limited to `Guid`, `long`, `string`, or compound keys. This is not a limitation for Vut (all entities use UUID/Guid keys).
 
-These trade-offs are acceptable because Vut's aggregate actors (User, Organization, Product, Task) are natural grain candidates -- they are identified by ID, have independent lifecycles, and need no hierarchical supervision beyond crash-restart.
+These trade-offs are acceptable because:
+- Native ASP.NET Core integration reduces boilerplate and improves developer experience.
+- The strongly-typed grain interface model is safer and more maintainable.
+- Orleans is battle-tested at scale.
 
 ---
 
@@ -123,8 +127,8 @@ graph TB
                 FE["Astro.js SSR Pods<br/>(BFF + Static)"]
             end
 
-            subgraph "Deployment: vut-actor-service"
-                AS["Proto.Actor Pods<br/>(Cluster Node)"]
+            subgraph "Deployment: vut-silo"
+                SL["Orleans Silo Pods<br/>(ASP.NET Core + Grains)"]
             end
 
             subgraph "Deployment: vut-projector-service"
@@ -135,122 +139,152 @@ graph TB
                 KDB["KurrentDB<br/>(3-node cluster)"]
             end
 
-            subgraph "StatefulSet: vut-redpanda"
-                RP["Redpanda<br/>(Proto.Actor Cluster Transport)"]
-            end
-
             subgraph "StatefulSet: vut-postgresql"
-                PG["PostgreSQL<br/>(Primary + Replica)"]
+                PG["PostgreSQL<br/>(Primary + Replica)<br/>Read Model + Orleans Clustering"]
             end
         end
     end
 
     ING --> FE
-    FE -->|gRPC| AS
-    AS -->|"Cluster Transport"| RP
-    AS -->|"Proto.Persistence.EventStore"| KDB
+    FE -->|HTTP / gRPC| SL
+    SL -->|"Orleans Clustering<br/>(ADO.NET)"| PG
+    SL -->|"KurrentDB .NET Client"| KDB
     KDB -->|"Persistent Subscription"| PS
     PS --> PG
 ```
 
-**Key change**: The actor service is now a homogeneous Proto.Actor cluster node. Every pod runs the same code and can host any grain kind. There are no "manager" pods or special roles. The cluster provider (Redpanda) handles membership and identity partitioning.
+**Key design decisions:**
+- Orleans uses PostgreSQL (already in the stack) for cluster membership via `Orleans.Clustering.AdoNet`. No external message broker needed.
+- The silo is a homogeneous Orleans cluster node running ASP.NET Core. Every pod runs the same code and can host any grain type.
+- The API layer is **co-hosted** inside the silo — no separate API service needed. The BFF calls the co-hosted API endpoints, which use `IGrainFactory` to access grains.
 
 ---
 
 ## 4. Cluster Topology & Placement
 
-### 4.1 Cluster Configuration
+### 4.1 Silo Configuration
 
-Every `vut-actor-service` pod joins the Proto.Actor cluster on startup. The cluster is configured with:
+Every `vut-silo` pod joins the Orleans cluster on startup. The cluster is configured with:
 
-- **Cluster Provider**: Redpanda (Kafka-compatible) for membership gossip
-- **Identity Lookup**: Partition identity lookup (hash-based partitioning of grain identities across nodes)
-- **Cluster Kinds**: Registered at startup for each aggregate type
+- **Clustering Provider**: PostgreSQL via `Orleans.Clustering.AdoNet` (membership table in the existing PostgreSQL instance)
+- **Grain Directory**: Orleans' built-in distributed grain directory (hash-based placement)
+- **Grain Types**: Registered via dependency injection at startup
 
 ```csharp
-// Pseudocode -- Cluster configuration at startup
-var clusterConfig = ClusterConfig.Setup(
-    clusterName: "vut-cluster",
-    clusterProvider: new RedpandaProvider(new RedpandaConfig("vut-redpanda:9092")),
-    identityLookup: new PartitionIdentityLookup(),
-    kinds: new[]
-    {
-        ClusterKind.Get("user", GetUserGrainProps()),
-        ClusterKind.Get("organization", GetOrganizationGrainProps()),
-    }
-);
+// Program.cs — Orleans silo configuration
+var builder = WebApplication.CreateBuilder(args);
 
-var cluster = new Cluster(system, clusterConfig);
-await cluster.StartAsync();
+builder.UseOrleans(siloBuilder =>
+{
+    siloBuilder
+        .UseAdoNetClustering(options =>
+        {
+            options.ConnectionString = builder.Configuration
+                .GetConnectionString("PostgreSQL");
+            options.Invariant = "Npgsql";
+        })
+        .ConfigureEndpoints(
+            siloPort: 11111,
+            gatewayPort: 30000)
+        .AddMemoryGrainStorageAsDefault() // Grain state is in KurrentDB, not Orleans storage
+        .Configure<ClusterOptions>(options =>
+        {
+            options.ClusterId = "vut-cluster";
+            options.ServiceId = "vut";
+        })
+        .Configure<GrainCollectionOptions>(options =>
+        {
+            options.CollectionAge = TimeSpan.FromMinutes(30);
+        });
+});
+
+// Co-hosted API
+builder.Services.AddControllers();
+builder.Services.AddSingleton<IKurrentDbClient>(/* ... */);
+
+var app = builder.Build();
+app.MapControllers();
+app.Run();
 ```
 
-### 4.2 Cluster Kinds
+### 4.2 Grain Types
 
-| Cluster Kind | Identity Format | Grain Type | Description |
-|-------------|----------------|------------|-------------|
-| `user` | `{userId}` (UUID) | `UserGrain` | One grain per Vut user |
-| `organization` | `{orgId}` (UUID) | `OrganizationGrain` | One grain per Vut organization |
+| Grain Interface | Key Type | Identity Format | Description |
+|----------------|----------|-----------------|-------------|
+| `IUserGrain` | `Guid` | `{userId}` (UUID) | One grain per Vut user |
+| `IOrganizationGrain` | `Guid` | `{orgId}` (UUID) | One grain per Vut organization |
 
-Future epics will register additional kinds:
+Future epics will register additional grain types:
 
-| Cluster Kind | Identity Format | Grain Type | Epic |
-|-------------|----------------|------------|------|
-| `product` | `{productId}` (UUID) | `ProductGrain` | Epic 2 |
-| `task` | `{taskId}` (UUID) | `TaskGrain` | Epic 3 |
+| Grain Interface | Key Type | Identity Format | Epic |
+|----------------|----------|-----------------|------|
+| `IProductGrain` | `Guid` | `{productId}` (UUID) | Epic 2 |
+| `ITaskGrain` | `Guid` | `{taskId}` (UUID) | Epic 3 |
 
-### 4.3 Identity Partitioning
+### 4.3 Silo Placement
 
 ```mermaid
 graph LR
-    subgraph "Proto.Actor Cluster (3 nodes)"
-        N1["Node A<br/>vut-actor-service-0"]
-        N2["Node B<br/>vut-actor-service-1"]
-        N3["Node C<br/>vut-actor-service-2"]
+    subgraph "Orleans Cluster (3 silos)"
+        N1["Silo A<br/>vut-silo-0"]
+        N2["Silo B<br/>vut-silo-1"]
+        N3["Silo C<br/>vut-silo-2"]
     end
 
-    subgraph "Identity Assignment (Hash Ring)"
-        I1["user/a1b2c3..."] --> N1
-        I2["org/f7e6d5..."] --> N2
-        I3["user/9z8y7x..."] --> N3
-        I4["org/b4c5d6..."] --> N1
+    subgraph "Grain Placement (Consistent Hash Ring)"
+        I1["IUserGrain/a1b2c3..."] --> N1
+        I2["IOrganizationGrain/f7e6d5..."] --> N2
+        I3["IUserGrain/9z8y7x..."] --> N3
+        I4["IOrganizationGrain/b4c5d6..."] --> N1
     end
+
+    subgraph "Shared State"
+        PG["PostgreSQL<br/>orleans_membership table"]
+    end
+
+    N1 -.->|heartbeat| PG
+    N2 -.->|heartbeat| PG
+    N3 -.->|heartbeat| PG
 ```
 
-The partition identity lookup uses consistent hashing to map each `(kind, identity)` pair to a specific node. When a grain is activated, the request is routed to the owning node. If that node fails, the identity is re-partitioned to a surviving node and the grain re-activates there.
+Orleans uses consistent hashing to place each grain on a specific silo. The membership table in PostgreSQL tracks which silos are alive. When a silo fails, Orleans re-places grains from the dead silo onto surviving silos automatically.
 
 ### 4.4 Grain Activation Flow
 
 ```mermaid
 sequenceDiagram
-    participant Client as BFF / gRPC Client
-    participant Cluster as Proto.Actor Cluster
-    participant Node as Target Node
+    participant Client as API Controller
+    participant Factory as IGrainFactory
+    participant Runtime as Orleans Runtime
+    participant Silo as Target Silo
     participant Grain as UserGrain (new activation)
     participant ES as KurrentDB
 
-    Client->>Cluster: GetGrain("user", userId)
-    Cluster->>Cluster: Resolve partition owner for ("user", userId)
-    Cluster->>Node: Route to owner node
+    Client->>Factory: GetGrain<IUserGrain>(userId)
+    Factory->>Runtime: Resolve placement for IUserGrain/userId
+    Runtime->>Runtime: Hash userId → Silo B
 
     alt Grain not activated
-        Node->>Grain: Activate grain (first message triggers)
+        Runtime->>Silo: Activate grain on Silo B
+        Silo->>Grain: OnActivateAsync()
         Grain->>ES: Load events from stream "user-{userId}"
         ES-->>Grain: Event stream (may be empty for new users)
         Grain->>Grain: Replay events, build state
-        Grain-->>Node: Activated, ready
-    else Grain already activated on this node
-        Note over Node: Grain is in memory, return cached PID
+        Grain-->>Silo: Activated, ready
+    else Grain already activated on this silo
+        Note over Silo: Grain is in memory, route directly
     end
 
-    Node-->>Client: Forward message to grain
+    Silo-->>Client: Grain reference (proxy)
+    Client->>Grain: await grain.CreateUser(...)
     Grain-->>Client: Response
 ```
 
 **Key points:**
-- Activation is implicit. The first message to any grain identity triggers activation.
-- State is hydrated from KurrentDB during activation using `Proto.Persistence.EventStore`.
-- If the grain is already active on the owning node, the message is delivered directly (no re-hydration).
-- If the owning node fails, the cluster re-partitions identities and the grain re-activates on a new node.
+- Activation is implicit. The first call to any grain triggers activation.
+- State is hydrated from KurrentDB during `OnActivateAsync()`.
+- If the grain is already active on the owning silo, the call is delivered directly (no re-hydration).
+- If the owning silo fails, Orleans re-places the grain on another silo and it re-activates.
 
 ---
 
@@ -258,115 +292,173 @@ sequenceDiagram
 
 ### 5.1 Base Grain Abstraction
 
-All aggregate grains share a common base that handles event sourcing lifecycle. This replaces the old `AggregateActorBase<TState>` and eliminates the need for `ActorManagerBase<TActor>`.
+All aggregate grains share a common base that handles event sourcing lifecycle. This base class integrates KurrentDB directly using the `EventStore.Client` .NET SDK.
 
 ```csharp
-// Pseudocode -- base grain abstraction
-public abstract class AggregateGrain<TState> where TState : class, new()
+// Pseudocode — base grain abstraction for event sourcing with KurrentDB
+public abstract class EventSourcedGrain<TState> : Grain
+    where TState : class, new()
 {
-    private readonly Persistence _persistence;
+    private readonly IKurrentDbClient _client;
+    private readonly string _streamId;
     private TState _state = new();
+    private StreamRevision _currentRevision = StreamRevision.None;
 
-    protected AggregateGrain(
-        IProvider persistenceProvider,
-        string streamId)
+    protected TState State => _state;
+
+    protected EventSourcedGrain(IKurrentDbClient client, string streamId)
     {
-        _persistence = Persistence.WithEventSourcingAndSnapshotting(
-            persistenceProvider,
-            streamId,
-            ApplyEvent,
-            ApplySnapshot,
-            () => _state);
+        _client = client;
+        _streamId = streamId;
     }
 
-    // Called on first activation or when grain wakes up
-    protected async Task OnActivate()
+    public override async Task OnActivateAsync(CancellationToken ct)
     {
-        await _persistence.RecoverStateAsync();
+        await HydrateFromStream(ct);
+        await base.OnActivateAsync(ct);
+    }
+
+    private async Task HydrateFromStream(CancellationToken ct)
+    {
+        var result = _client.ReadStreamAsync(
+            Direction.Forwards,
+            _streamId,
+            StreamPosition.Start,
+            cancellationToken: ct);
+
+        if (await result.ReadState == ReadState.StreamNotFound)
+            return; // New aggregate, empty state
+
+        await foreach (var resolved in result)
+        {
+            var @event = DeserializeEvent(resolved);
+            Apply(_state, @event);
+            _currentRevision = resolved.Event.EventNumber;
+        }
+    }
+
+    protected async Task<TResult> EmitEvent<TResult>(
+        object @event,
+        Func<TState, TResult> resultSelector)
+    {
+        var eventData = SerializeEvent(@event);
+        var writeResult = await _client.AppendToStreamAsync(
+            _streamId,
+            _currentRevision,
+            new[] { eventData });
+
+        _currentRevision = writeResult.NextExpectedStreamRevision;
+        Apply(_state, @event);
+        return resultSelector(_state);
     }
 
     protected async Task EmitEvent(object @event)
     {
-        await _persistence.PersistEventAsync(@event);
-    }
+        var eventData = SerializeEvent(@event);
+        var writeResult = await _client.AppendToStreamAsync(
+            _streamId,
+            _currentRevision,
+            new[] { eventData });
 
-    private void ApplyEvent(object @event)
-    {
-        // Delegate to subclass
+        _currentRevision = writeResult.NextExpectedStreamRevision;
         Apply(_state, @event);
     }
 
-    private void ApplySnapshot(Snapshot snapshot)
+    protected abstract void Apply(TState state, object @event);
+
+    private EventData SerializeEvent(object @event)
     {
-        _state = (TState)snapshot.State;
+        var typeName = EventTypeMapping.GetTypeName(@event.GetType());
+        var json = JsonSerializer.SerializeToUtf8Bytes(
+            @event, @event.GetType());
+        return new EventData(Uuid.NewUuid(), typeName, json);
     }
 
-    protected abstract void Apply(TState state, object @event);
+    private object DeserializeEvent(ResolvedEvent resolved)
+    {
+        var type = EventTypeMapping.GetClrType(
+            resolved.Event.EventType);
+        return JsonSerializer.Deserialize(
+            resolved.Event.Data.Span, type)!;
+    }
 }
 ```
 
-**What this replaces:**
-- No `ActorManagerBase<TActor>` -- the cluster runtime handles identity resolution and activation.
-- No manual PID dictionary -- `Cluster.GetGrain(kind, identity)` returns the PID.
-- No spawn/hydrate/passivate state machine -- the grain lifecycle is driven by the runtime.
+**What this provides:**
+- No external persistence provider needed — grains interact with KurrentDB directly via the official .NET client.
+- Optimistic concurrency via `_currentRevision` — KurrentDB rejects writes if another process has appended events since the grain last read.
+- Event replay on activation builds the grain state from the event stream.
+- The `Apply` method is the single place where state is mutated, ensuring consistency between event replay and command processing.
 
 ### 5.2 Grain Lifecycle State Machine
 
 ```mermaid
 stateDiagram-v2
-    [*] --> NotActivated: Cluster starts, no grains exist
+    [*] --> NotActivated: Silo starts, no grains exist
 
-    NotActivated --> Activating: First message to (kind, identity)
-    Activating --> Active: Events loaded from KurrentDB,<br/>state hydrated
+    NotActivated --> Activating: First call to grain reference
+    Activating --> Active: OnActivateAsync() completes<br/>(events loaded from KurrentDB)
 
-    Active --> Idle: ReceiveTimeout fires<br/>(configurable, e.g., 30 min)
-    Idle --> Active: New message arrives
+    Active --> Deactivating: CollectionAge timeout expires<br/>(configurable, e.g., 30 min)
+    Deactivating --> Deactivated: OnDeactivateAsync() completes
 
-    Idle --> Passivated: Passivation timer expires
-    Passivated --> Activating: New message arrives<br/>(re-activate, re-hydrate)
+    Deactivated --> Activating: New call arrives<br/>(re-activate, re-hydrate)
 
-    Active --> Activating: Node failure detected,<br/>grain re-activates on new node
+    Active --> Activating: Silo failure detected,<br/>grain re-activates on new silo
 
-    note right of NotActivated: Grains are virtual -- they do<br/>not exist until first message
-    note right of Activating: Loads events from KurrentDB<br/>via Proto.Persistence.EventStore
-    note right of Passivated: Grain is removed from memory.<br/>Next message triggers fresh activation.
+    note right of NotActivated: Grains are virtual -- they do<br/>not exist until first call
+    note right of Activating: Loads events from KurrentDB<br/>via EventStore.Client
+    note right of Deactivated: Grain is removed from memory.<br/>Next call triggers fresh activation.
 ```
 
-**Passivation strategy:** Each grain sets a `ReceiveTimeout` (e.g., 30 minutes). When the timeout fires, the grain performs cleanup (if needed) and allows the runtime to deactivate it. This prevents idle grains from consuming memory indefinitely.
+**Deactivation strategy:** Orleans uses `GrainCollectionOptions.CollectionAge` (e.g., 30 minutes) to deactivate idle grains. Grains can also call `DelayDeactivation(TimeSpan)` to extend their lifetime after receiving a message. This prevents idle grains from consuming memory indefinitely.
 
 ```csharp
-// Pseudocode -- passivation via ReceiveTimeout
-protected override Task OnActivated()
+// Pseudocode — extending grain lifetime after activity
+public override Task OnActivateAsync(CancellationToken ct)
 {
-    // Set timeout for passivation
-    Context.SetReceiveTimeout(TimeSpan.FromMinutes(30));
-    return base.OnActivated();
+    // Keep grain alive for 30 minutes after last call
+    DelayDeactivation(TimeSpan.FromMinutes(30));
+    return base.OnActivateAsync(ct);
 }
 
-protected override Task OnReceiveTimeout()
+// Called before deactivation — opportunity for cleanup
+public override Task OnDeactivateAsync(
+    DeactivationReason reason, CancellationToken ct)
 {
-    // Grain will be passivated after this
     // State is safe because events are in KurrentDB
-    return Task.CompletedTask;
+    return base.OnDeactivateAsync(reason, ct);
 }
 ```
 
 ### 5.3 User Grain
 
-**Cluster Kind:** `user`
+**Grain Interface:** `IUserGrain : IGrainWithGuidKey`
 **Identity:** `{userId}` (UUID)
 **Event Stream:** `user-{userId}`
 **Responsibility:** Manages the user aggregate root. Creates user on first login, links additional identity providers, handles profile updates, and manages email verification.
 
-```
-Cluster Messages (gRPC):
-  CreateUser(providerId, providerName, displayName, avatarUrl, email?) -> userId
-  LinkIdentity(userId, providerId, providerName, email?)
-  UpdateProfile(displayName, avatarUrl)
-  RequestEmailVerification(userId, email) -> token
-  VerifyEmail(token) -> email
+```csharp
+// Grain interface — strongly typed, no .proto files needed
+public interface IUserGrain : IGrainWithGuidKey
+{
+    Task<CreateUserResult> CreateUser(
+        string providerId, string providerName,
+        string displayName, string avatarUrl, string? email);
 
-Events (persisted to KurrentDB via Proto.Persistence.EventStore):
+    Task LinkIdentity(
+        string providerId, string providerName, string? email);
+
+    Task UpdateProfile(string displayName, string avatarUrl);
+
+    Task<string> RequestEmailVerification(string email);
+
+    Task VerifyEmail(string token);
+}
+```
+
+```
+Events (persisted to KurrentDB):
   UserCreated(userId, displayName, avatarUrl, email?, actorId, timestamp)
   IdentityLinked(userId, providerId, providerName, email?, actorId, timestamp)
   UserProfileUpdated(userId, displayName, avatarUrl, actorId, timestamp)
@@ -391,10 +483,10 @@ IdentityEntry:
 ```
 
 **Validation Rules:**
-- `CreateUser` is idempotent: if the user already exists (state has a userId), return the existing userId without emitting a duplicate event. `CreateUser` also emits an `IdentityLinked` event for the initial provider. If `email` is provided from the provider, it is stored but marked as unverified (`isEmailVerified = false`). Email may be null -- identity providers do not guarantee returning an email.
+- `CreateUser` is idempotent: if the user already exists (state has a userId), return the existing userId without emitting a duplicate event. `CreateUser` also emits an `IdentityLinked` event for the initial provider. If `email` is provided from the provider, it is stored but marked as unverified (`isEmailVerified = false`). Email may be null — identity providers do not guarantee returning an email.
 - `LinkIdentity` validates that the `providerId` is not already linked to a different user. If already linked to this user, it is a no-op.
 - `UpdateProfile` only emits `UserProfileUpdated` if displayName or avatarUrl actually changed.
-- `RequestEmailVerification` generates a time-limited 6-digit code (expires in 15 minutes). The user provides an email address on the `/verify-email` page -- this is the primary way email is collected. Emits `EmailVerificationRequested`.
+- `RequestEmailVerification` generates a time-limited 6-digit code (expires in 15 minutes). The user provides an email address on the `/verify-email` page — this is the primary way email is collected. Emits `EmailVerificationRequested`.
 - `VerifyEmail` validates the token has not expired and matches. On success, sets `isEmailVerified = true` and updates `email`. Emits `EmailVerified`.
 
 **Email Verification Gate:**
@@ -402,22 +494,26 @@ All platform actions (create organization, invite members, etc.) require `isEmai
 
 ### 5.4 Organization Grain
 
-**Cluster Kind:** `organization`
+**Grain Interface:** `IOrganizationGrain : IGrainWithGuidKey`
 **Identity:** `{orgId}` (UUID)
 **Event Stream:** `organization-{orgId}`
 **Responsibility:** Manages the organization aggregate root. Handles creation, member management, and role changes.
 
+```csharp
+public interface IOrganizationGrain : IGrainWithGuidKey
+{
+    Task<CreateOrgResult> CreateOrganization(string name, Guid ownerId);
+    Task RenameOrganization(string newName);
+    Task InviteMember(string inviteeEmail, string role);
+    Task AcceptInvitation(Guid userId, string email);
+    Task DeclineInvitation(Guid userId, string email);
+    Task RemoveMember(Guid userId);
+    Task ChangeMemberRole(Guid userId, string newRole);
+}
 ```
-Cluster Messages (gRPC):
-  CreateOrganization(name, ownerId) -> orgId
-  RenameOrganization(newName)
-  InviteMember(inviteeEmail, role)
-  AcceptInvitation(userId, email)
-  DeclineInvitation(userId, email)
-  RemoveMember(userId)
-  ChangeMemberRole(userId, newRole)
 
-Events (persisted to KurrentDB via Proto.Persistence.EventStore):
+```
+Events (persisted to KurrentDB):
   OrganizationCreated(orgId, name, actorId, timestamp)
   OrganizationRenamed(orgId, newName, actorId, timestamp)
   MemberInvited(orgId, inviteeEmail, role, actorId, timestamp)
@@ -454,47 +550,55 @@ InvitationEntry:
 - `ChangeMemberRole`: only Owners can change roles. Cannot demote the last Owner.
 - `OrganizationDeleted` event is defined but the UI action is deferred (not required in Epic 1).
 
-### 5.5 Sending Messages to Grains
+### 5.5 Calling Grains from API Controllers
 
-The BFF (or a thin gRPC gateway layer) sends messages to grains using cluster identity, not PIDs:
+The co-hosted API controllers use `IGrainFactory` (injected via ASP.NET Core DI) to obtain grain references:
 
 ```csharp
-// Pseudocode -- sending a command to a User grain
-var cluster = // injected Cluster instance
-var userGrain = cluster.GetUserGrain(userId);
-var response = await userGrain.CreateUser(
-    new CreateUserRequest
-    {
-        ProviderId = providerId,
-        ProviderName = "github",
-        DisplayName = displayName,
-        AvatarUrl = avatarUrl,
-        Email = email
-    },
-    CancellationTokens.DefaultTimeout);
+// Pseudocode — API controller calling a grain
+[ApiController]
+[Route("api/users")]
+public class UserController : ControllerBase
+{
+    private readonly IGrainFactory _grainFactory;
 
-// The cluster runtime:
-// 1. Resolves which node owns ("user", userId)
-// 2. Activates the grain on that node if not already active
-// 3. Grain loads state from KurrentDB during activation
-// 4. Delivers the message
-// 5. Returns the response
+    public UserController(IGrainFactory grainFactory)
+    {
+        _grainFactory = grainFactory;
+    }
+
+    [HttpPost("create")]
+    public async Task<IActionResult> CreateUser(
+        [FromBody] CreateUserRequest request)
+    {
+        var userId = Guid.NewGuid();
+        var grain = _grainFactory.GetGrain<IUserGrain>(userId);
+        var result = await grain.CreateUser(
+            request.ProviderId,
+            request.ProviderName,
+            request.DisplayName,
+            request.AvatarUrl,
+            request.Email);
+
+        return Ok(result);
+    }
+}
 ```
 
-**No manager actor is involved.** The cluster runtime handles routing, activation, and delivery.
+**No cluster routing or gRPC serialization is involved.** The `IGrainFactory` returns a grain reference (proxy). If the grain is on this silo, the call is local. If it's on another silo, Orleans handles the serialization and network transport transparently.
 
 ---
 
 ## 6. Event Sourcing Integration
 
-### 6.1 Proto.Persistence.EventStore Bridge
+### 6.1 KurrentDB .NET Client Integration
 
-KurrentDB integration uses the `Proto.Persistence.EventStore` NuGet package, which provides an `IProvider` implementation that bridges Proto.Actor's persistence API with KurrentDB's streams.
+KurrentDB integration uses the official `EventStore.Client.Grpc.Streams` NuGet package. Each grain interacts with KurrentDB directly — there is no intermediary persistence provider layer.
 
 ```mermaid
 graph LR
     subgraph "Grain Lifecycle"
-        Activate["Grain Activation"] --> Load["Load Events"]
+        Activate["Grain Activation<br/>(OnActivateAsync)"] --> Load["Load Events"]
         Load --> Replay["Replay to State"]
         Command["Command Received"] --> Validate["Validate"]
         Validate --> Emit["Persist Event"]
@@ -502,48 +606,45 @@ graph LR
         Apply --> Respond["Respond"]
     end
 
-    subgraph "Proto.Persistence.EventStore"
-        Provider["EventStoreProvider<br/>(IProvider)"]
+    subgraph "EventStore.Client"
+        Client["EventStoreClient<br/>(.NET gRPC Client)"]
     end
 
     subgraph "KurrentDB"
         Stream["Stream: user-{userId}"]
     end
 
-    Load --> Provider
-    Provider --> Stream
-    Emit --> Provider
-    Provider --> Stream
+    Load --> Client
+    Client --> Stream
+    Emit --> Client
+    Client --> Stream
 ```
 
-**Provider initialization:**
+**Client initialization:**
 
 ```csharp
-// Pseudocode -- registering Proto.Persistence.EventStore
-var eventStoreConnection = EventStoreClientSettings.Create(
-    "esdb://vut-kurrentdb:2113?tls=false");
-
-var persistenceProvider = new EventStoreProvider(eventStoreConnection);
-
-// Each grain gets its own persistence instance scoped to its stream
-// streamId = "user-{userId}" for user grains
-// streamId = "organization-{orgId}" for org grains
+// Pseudocode — KurrentDB client registration in DI
+builder.Services.AddSingleton(new EventStoreClient(
+    EventStoreClientSettings.Create(
+        "esdb://vut-kurrentdb:2113?tls=false")));
 ```
+
+The `EventStoreClient` is registered as a singleton in the DI container and injected into grains via constructor injection (Orleans supports DI for grains).
 
 ### 6.2 Event Serialization
 
 Events are serialized as JSON in KurrentDB using `System.Text.Json` with camelCase naming. Each event type maps to a concrete CLR type.
 
-Proto.Persistence.EventStore handles serialization and deserialization transparently. The grain only works with strongly-typed event objects.
+The `EventSourcedGrain<TState>` base class handles serialization and deserialization transparently. Grains only work with strongly-typed event objects.
 
 ### 6.3 Stream Naming Convention
 
-| Aggregate | Stream ID Format | Cluster Kind | Example |
-|-----------|-----------------|-------------|---------|
-| User | `user-{userId}` | `user` | `user-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
-| Organization | `organization-{orgId}` | `organization` | `organization-f7e6d5c4-b3a2-1098-7654-321fedcba098` |
-| Product | `product-{productId}` | `product` | (Epic 2) |
-| Task | `task-{taskId}` | `task` | (Epic 3) |
+| Aggregate | Stream ID Format | Grain Interface | Example |
+|-----------|-----------------|----------------|---------|
+| User | `user-{userId}` | `IUserGrain` | `user-a1b2c3d4-e5f6-7890-abcd-ef1234567890` |
+| Organization | `organization-{orgId}` | `IOrganizationGrain` | `organization-f7e6d5c4-b3a2-1098-7654-321fedcba098` |
+| Product | `product-{productId}` | `IProductGrain` | (Epic 2) |
+| Task | `task-{taskId}` | `ITaskGrain` | (Epic 3) |
 
 ### 6.4 Event Envelope
 
@@ -577,9 +678,9 @@ Projectors subscribe to KurrentDB persistent subscriptions directly. KurrentDB h
 | `vut-projector-user` | `user-*` | Round-robin (1 consumer) | All User stream events |
 | `vut-projector-org` | `organization-*` | Round-robin (1 consumer) | All Organization stream events |
 
-Persistent subscriptions are created via KurrentDB's HTTP API or .NET SDK at startup. They track checkpoints internally -- no `projection_checkpoint` table is needed.
+Persistent subscriptions are created via KurrentDB's HTTP API or .NET SDK at startup. They track checkpoints internally — no `projection_checkpoint` table is needed.
 
-**Redpanda's role:** Redpanda is used exclusively as Proto.Actor's cluster transport for actor location routing and membership gossip between nodes. It is NOT used for event distribution to projectors.
+**Orleans' role:** Orleans handles grain lifecycle, placement, and cluster membership only. It does NOT participate in event distribution to projectors — that is handled entirely by KurrentDB persistent subscriptions.
 
 ---
 
@@ -648,7 +749,7 @@ erDiagram
 ### 7.2 SQL Schema
 
 ```sql
--- User projection (no provider_id -- identities are in user_identity)
+-- User projection (no provider_id — identities are in user_identity)
 CREATE TABLE user_projection (
     user_id           UUID PRIMARY KEY,
     display_name      TEXT NOT NULL,
@@ -711,6 +812,9 @@ CREATE TABLE user_org_projection (
     PRIMARY KEY (user_id, org_id)
 );
 
+-- Orleans clustering tables (created by Orleans ADO.NET scripts)
+-- orleans_membership, orleans_reminders — managed by Orleans runtime
+
 -- Indexes
 CREATE INDEX idx_org_member_projection_user ON org_member_projection(user_id);
 CREATE INDEX idx_org_invitation_projection_email ON org_invitation_projection(email, status);
@@ -749,12 +853,12 @@ graph LR
     PO --> UOP
 ```
 
-**Projector Idempotency:** Projectors handle events idempotently -- re-processing an event produces the same result. Checkpointing is managed by KurrentDB's persistent subscription infrastructure (no separate checkpoint table needed). On restart, projectors resume from the last acknowledged position automatically.
+**Projector Idempotency:** Projectors handle events idempotently — re-processing an event produces the same result. Checkpointing is managed by KurrentDB's persistent subscription infrastructure (no separate checkpoint table needed). On restart, projectors resume from the last acknowledged position automatically.
 
-**Projectors are separate from the actor cluster.** They are independent .NET workers that subscribe to KurrentDB persistent subscriptions. They do not participate in the Proto.Actor cluster. This separation ensures:
-- Projectors can be scaled independently of the actor service.
+**Projectors are separate from the Orleans silo.** They are independent .NET workers that subscribe to KurrentDB persistent subscriptions. They do not participate in the Orleans cluster. This separation ensures:
+- Projectors can be scaled independently of the silo.
 - Projector failures do not affect grain availability.
-- Projectors can be rebuilt from KurrentDB at any time without touching the actor service.
+- Projectors can be rebuilt from KurrentDB at any time without touching the silo.
 
 ---
 
@@ -769,8 +873,8 @@ sequenceDiagram
     participant BFF as Astro.js BFF
     participant Auth0
     participant IdP as Identity Provider
-    participant RM as Read Model API
-    participant Cluster as Proto.Actor Cluster
+    participant API as Co-hosted API
+    participant RM as Read Model (PostgreSQL)
     participant Grain as UserGrain (activated)
     participant K as KurrentDB
     participant PJ as Projector
@@ -787,23 +891,24 @@ sequenceDiagram
     Auth0->>BFF: ID token (sub, name, picture, email?)
     BFF->>BFF: Validate JWT, extract sub = providerId
 
-    BFF->>RM: GET /api/users/by-provider/{providerId}
-    RM->>PG: SELECT user_id FROM user_identity WHERE provider_id = ?
-    PG-->>RM: Empty result
-    RM-->>BFF: 404 Not Found
+    BFF->>API: GET /api/users/by-provider/{providerId}
+    API->>RM: SELECT user_id FROM user_identity WHERE provider_id = ?
+    RM-->>API: Empty result
+    API-->>BFF: 404 Not Found
 
     Note over BFF: Check if existing user with same email (auto-link)
-    BFF->>RM: GET /api/users/by-email/{email}
-    RM->>PG: SELECT user_id FROM user_identity WHERE email = ? LIMIT 1
-    PG-->>RM: Empty result (truly new user)
+    BFF->>API: GET /api/users/by-email/{email}
+    API->>RM: SELECT user_id FROM user_identity WHERE email = ? LIMIT 1
+    RM-->>API: Empty result (truly new user)
 
-    BFF->>Cluster: Cluster.GetGrain("user", newUserId)
-    Note over Cluster: Grain auto-activates on owning node
-    Cluster->>Grain: Forward CreateUserCommand
+    BFF->>API: POST /api/users/create
+    API->>API: var grain = grainFactory.GetGrain<IUserGrain>(newUserId)
+    Note over API: Grain auto-activates on owning silo
+    API->>Grain: await grain.CreateUser(...)
     Grain->>K: Append UserCreated + IdentityLinked to stream user-{userId}
     K-->>Grain: Append confirmation
-    Grain-->>Cluster: userId
-    Cluster-->>BFF: userId
+    Grain-->>API: CreateUserResult { userId }
+    API-->>BFF: 201 Created { userId }
 
     K->>PJ: Persistent subscription delivers UserCreated
     PJ->>PG: INSERT INTO user_projection
@@ -815,7 +920,7 @@ sequenceDiagram
     Browser->>User: Email verification page (email not yet verified)
 ```
 
-**Virtual actor difference:** The BFF sends the command directly to the grain via cluster identity. No manager actor intermediates. The grain activates on its first message, loading (empty) state from KurrentDB, processes the command, and persists events.
+**Orleans difference:** The BFF calls a co-hosted API endpoint. The API controller uses `IGrainFactory` to get a grain reference — the grain activates on its first call, loading (empty) state from KurrentDB, processes the command, and persists events.
 
 ### 8.2 Email Verification
 
@@ -824,7 +929,7 @@ sequenceDiagram
     actor User
     participant Browser
     participant BFF as Astro.js BFF
-    participant Cluster as Proto.Actor Cluster
+    participant API as Co-hosted API
     participant Grain as UserGrain
     participant K as KurrentDB
     participant PJ as Projector
@@ -833,28 +938,31 @@ sequenceDiagram
 
     User->>Browser: Enter email on /verify-email, submit
     Browser->>BFF: POST /api/users/me/verify-email { email }
-    BFF->>Cluster: GetGrain("user", userId)
-    Cluster->>Grain: RequestEmailVerification(userId, email)
+    BFF->>API: POST /api/users/{userId}/verify-email
+    API->>API: grainFactory.GetGrain<IUserGrain>(userId)
+    API->>Grain: await grain.RequestEmailVerification(email)
     Grain->>Grain: Generate 6-digit code, set expiry (15 min)
     Grain->>K: Append EmailVerificationRequested to user-{userId}
     K-->>Grain: OK
-    Grain-->>BFF: OK
-    BFF->>SMTP: Send verification email with code
+    Grain-->>API: OK (returns token for SMTP)
+    API->>SMTP: Send verification email with code
+    API-->>BFF: 200 OK
 
     User->>Browser: Enter code from email
     Browser->>BFF: POST /api/users/me/verify-email/confirm { code }
-    BFF->>Cluster: GetGrain("user", userId)
-    Cluster->>Grain: VerifyEmail(userId, code)
+    BFF->>API: POST /api/users/{userId}/verify-email/confirm
+    API->>API: grainFactory.GetGrain<IUserGrain>(userId)
+    API->>Grain: await grain.VerifyEmail(code)
     Grain->>Grain: Validate code matches and not expired
     Grain->>K: Append EmailVerified to user-{userId}
     K-->>Grain: OK
-    Grain-->>BFF: OK
+    Grain-->>API: OK
 
     K->>PJ: Persistent subscription delivers EmailVerified
     PJ->>PG: UPDATE user_projection SET is_email_verified = TRUE, email = ? WHERE user_id = ?
 
-    BFF->>Browser: 200 OK
-    Browser->>User: Redirect to /dashboard (verified)
+    API-->>BFF: 200 OK
+    BFF->>Browser: Redirect to /dashboard (verified)
 ```
 
 ### 8.3 Returning User Sign-In
@@ -865,7 +973,7 @@ sequenceDiagram
     participant Browser
     participant BFF as Astro.js BFF
     participant Auth0
-    participant RM as Read Model API
+    participant API as Co-hosted API
     participant PG as PostgreSQL
 
     User->>Browser: Click "Sign in with [Provider]"
@@ -873,24 +981,24 @@ sequenceDiagram
     BFF->>Auth0: Redirect to /authorize
     Auth0->>BFF: Callback with ID token
     BFF->>BFF: Validate JWT, extract providerId
-    BFF->>RM: GET /api/users/by-provider/{providerId}
-    RM->>PG: SELECT ui.user_id, up.display_name, up.avatar_url, up.is_email_verified FROM user_identity ui JOIN user_projection up ON ui.user_id = up.user_id WHERE ui.provider_id = ?
-    PG-->>RM: User row found
-    RM-->>BFF: { userId, displayName, avatarUrl, isEmailVerified }
+    BFF->>API: GET /api/users/by-provider/{providerId}
+    API->>PG: SELECT ui.user_id, up.display_name, up.avatar_url, up.is_email_verified FROM user_identity ui JOIN user_projection up ON ui.user_id = up.user_id WHERE ui.provider_id = ?
+    PG-->>API: User row found
+    API-->>BFF: { userId, displayName, avatarUrl, isEmailVerified }
 
     alt Email not verified
         BFF->>Browser: Redirect to /verify-email
     else Email verified
         BFF->>BFF: Create session
-        BFF->>RM: GET /api/users/{userId}/organizations
-        RM->>PG: SELECT * FROM user_org_projection WHERE user_id = ?
-        PG-->>RM: List of org memberships
-        RM-->>BFF: [{ orgId, name, role }, ...]
+        BFF->>API: GET /api/users/{userId}/organizations
+        API->>PG: SELECT * FROM user_org_projection WHERE user_id = ?
+        PG-->>API: List of org memberships
+        API-->>BFF: [{ orgId, name, role }, ...]
         BFF->>Browser: Set session cookie, redirect to /dashboard
     end
 ```
 
-**Note:** The returning user sign-in flow is entirely read-path. No grain activation is needed because the user is not creating events -- only reading from the PostgreSQL read model.
+**Note:** The returning user sign-in flow is entirely read-path. No grain activation is needed because the user is not creating events — only reading from the PostgreSQL read model.
 
 ### 8.4 Create Organization
 
@@ -899,7 +1007,7 @@ sequenceDiagram
     actor Owner
     participant Browser
     participant BFF as Astro.js BFF
-    participant Cluster as Proto.Actor Cluster
+    participant API as Co-hosted API
     participant Grain as OrgGrain (activated)
     participant K as KurrentDB
     participant PJ as Org Projector
@@ -907,18 +1015,17 @@ sequenceDiagram
 
     Owner->>Browser: Fill "New Organization" form, submit
     Browser->>BFF: POST /api/organizations { name }
-    BFF->>BFF: Validate session, extract userId as actorId
-
-    BFF->>Cluster: Cluster.GetGrain("organization", newOrgId)
-    Note over Cluster: Grain auto-activates on owning node.<br/>Loads empty stream -- new org.
-    Cluster->>Grain: CreateOrganization(name, ownerId=userId)
+    BFF->>API: POST /api/organizations { name, userId }
+    API->>API: var grain = grainFactory.GetGrain<IOrganizationGrain>(newOrgId)
+    Note over API: Grain auto-activates on owning silo.<br/>Loads empty stream — new org.
+    API->>Grain: await grain.CreateOrganization(name, ownerId)
     Grain->>Grain: Validate name non-empty
     Grain->>K: Append OrganizationCreated to organization-{orgId}
     Note over K: Event includes creator as first member with role=Owner
     K-->>Grain: OK
     Grain->>K: Append MemberJoined to organization-{orgId}
     K-->>Grain: OK
-    Grain-->>BFF: { orgId, name }
+    Grain-->>API: { orgId, name }
 
     K->>PJ: Persistent subscription delivers OrganizationCreated
     PJ->>PG: INSERT INTO org_projection
@@ -926,11 +1033,9 @@ sequenceDiagram
     PJ->>PG: INSERT INTO org_member_projection
     PJ->>PG: INSERT INTO user_org_projection
 
-    BFF->>Browser: 201 Created { orgId }
-    Browser->>Owner: Redirect to org dashboard
+    API-->>BFF: 201 Created { orgId }
+    BFF->>Browser: Redirect to org dashboard
 ```
-
-**Virtual actor difference:** The grain is activated by the first `CreateOrganization` message. Since the stream is empty (new org), hydration is instant. The grain validates, generates events, and persists them.
 
 ### 8.5 Invite and Accept Member
 
@@ -941,7 +1046,7 @@ sequenceDiagram
     participant Browser1 as Owner Browser
     participant Browser2 as Invitee Browser
     participant BFF as Astro.js BFF
-    participant Cluster as Proto.Actor Cluster
+    participant API as Co-hosted API
     participant Grain as OrgGrain
     participant K as KurrentDB
     participant PJ as Org Projector
@@ -950,34 +1055,38 @@ sequenceDiagram
 
     Owner->>Browser1: Invite member (email)
     Browser1->>BFF: POST /api/orgs/{orgId}/members/invite { email }
-    BFF->>Cluster: GetGrain("organization", orgId)
-    Cluster->>Grain: InviteMemberCommand(orgId, email, role="Member")
+    BFF->>API: POST /api/organizations/{orgId}/invite { email, role }
+    API->>API: grainFactory.GetGrain<IOrganizationGrain>(orgId)
+    API->>Grain: await grain.InviteMember(email, "Member")
     Grain->>Grain: Verify caller is Owner
     Grain->>K: Append MemberInvited to organization-{orgId}
     K-->>Grain: OK
-    Grain-->>BFF: OK
+    Grain-->>API: OK
 
     K->>PJ: Persistent subscription delivers MemberInvited
     PJ->>PG: INSERT INTO org_invitation_projection
 
-    BFF->>SMTP: Send invitation email
+    API->>SMTP: Send invitation email
+    API-->>BFF: OK
 
     Note over Invitee: Invitee receives email, clicks link
 
     Invitee->>Browser2: Sign in via GitHub (if new user, goes through first-time flow)
     Browser2->>BFF: GET /api/invitations?userId={userId}
-    BFF->>PG: SELECT * FROM org_invitation_projection WHERE email = ? AND status = 'Pending'
-    PG-->>BFF: List of pending invitations
-    BFF-->>Browser2: [{ orgId, orgName, role }]
+    BFF->>API: GET /api/invitations?email={email}
+    API->>PG: SELECT * FROM org_invitation_projection WHERE email = ? AND status = 'Pending'
+    PG-->>API: List of pending invitations
+    API-->>BFF: [{ orgId, orgName, role }]
 
     Invitee->>Browser2: Accept invitation
     Browser2->>BFF: POST /api/orgs/{orgId}/members/accept
-    BFF->>Cluster: GetGrain("organization", orgId)
-    Cluster->>Grain: AcceptInvitationCommand(orgId, userId, email)
+    BFF->>API: POST /api/organizations/{orgId}/accept { userId, email }
+    API->>API: grainFactory.GetGrain<IOrganizationGrain>(orgId)
+    API->>Grain: await grain.AcceptInvitation(userId, email)
     Grain->>Grain: Verify pending invitation exists for this email
     Grain->>K: Append MemberJoined to organization-{orgId}
     K-->>Grain: OK
-    Grain-->>BFF: OK
+    Grain-->>API: OK
 
     K->>PJ: Persistent subscription delivers MemberJoined
     PJ->>PG: INSERT INTO org_member_projection
@@ -992,18 +1101,18 @@ sequenceDiagram
     actor User
     participant Browser
     participant BFF as Astro.js BFF
-    participant RM as Read Model API
+    participant API as Co-hosted API
     participant PG as PostgreSQL
 
     User->>Browser: Click org selector, choose "Acme Corp"
     Browser->>BFF: GET /api/orgs/{orgId}/products
     BFF->>BFF: Verify user membership via session
-    BFF->>RM: GET /api/users/{userId}/orgs
-    RM->>PG: SELECT * FROM user_org_projection WHERE user_id = ?
-    PG-->>RM: User memberships
-    RM-->>BFF: Verify user belongs to {orgId}
-    BFF->>RM: GET /api/orgs/{orgId}/products
-    RM-->>BFF: Product list (empty for Epic 1)
+    BFF->>API: GET /api/users/{userId}/orgs
+    API->>PG: SELECT * FROM user_org_projection WHERE user_id = ?
+    PG-->>API: User memberships
+    API-->>BFF: Verify user belongs to {orgId}
+    BFF->>API: GET /api/orgs/{orgId}/products
+    API-->>BFF: Product list (empty for Epic 1)
     BFF->>Browser: Render org dashboard
 ```
 
@@ -1068,41 +1177,9 @@ spec:
             storage: 10Gi
 ```
 
-### 9.3 Redpanda StatefulSet (Proto.Actor Cluster Transport)
+### 9.3 PostgreSQL StatefulSet
 
-Redpanda serves as the cluster transport for Proto.Actor -- handling actor location routing, membership gossip, and message dispatch between actor nodes. It is NOT used for event distribution to projectors.
-
-```yaml
-# k8s/redpanda/statefulset.yaml (sketch)
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: vut-redpanda
-  namespace: vut
-spec:
-  replicas: 3
-  serviceName: vut-redpanda
-  selector:
-    matchLabels:
-      app: vut-redpanda
-  template:
-    spec:
-      containers:
-        - name: redpanda
-          image: redpandadata/redpanda:latest
-          ports:
-            - containerPort: 9092  # Kafka API (Proto.Actor cluster transport)
-            - containerPort: 9644  # Admin API
-          command:
-            - redpanda
-            - start
-            - --smp 1
-            - --memory 512M
-            - --overprovisioned
-            - --kafka-addr internal://0.0.0.0:9092
-```
-
-### 9.4 PostgreSQL StatefulSet
+PostgreSQL serves double duty: Orleans clustering tables AND read model projections.
 
 ```yaml
 # k8s/postgresql/statefulset.yaml (sketch)
@@ -1139,34 +1216,40 @@ spec:
                   key: password
 ```
 
-### 9.5 Actor Service Deployment
+**Note:** Orleans clustering tables (`OrleansMembershipTable`, `OrleansMembershipVersionTable`) are created automatically by the Orleans ADO.NET clustering provider on first silo startup.
+
+### 9.4 Orleans Silo Deployment
 
 ```yaml
-# k8s/actor-service/deployment.yaml (sketch)
+# k8s/silo/deployment.yaml (sketch)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vut-actor-service
+  name: vut-silo
   namespace: vut
 spec:
-  replicas: 3  # Multiple nodes for grain distribution
+  replicas: 3  # Multiple silos for grain distribution
   selector:
     matchLabels:
-      app: vut-actor-service
+      app: vut-silo
   template:
     spec:
       containers:
-        - name: actor-service
-          image: vut/actor-service:latest
+        - name: silo
+          image: vut/silo:latest
           ports:
-            - containerPort: 5000  # gRPC
+            - containerPort: 5000  # HTTP API
+            - containerPort: 11111 # Orleans silo-to-silo
+            - containerPort: 30000 # Orleans gateway (client connections)
           env:
-            - name: KurrentDB__ConnectionString
+            - name: KurrentDb__ConnectionString
               value: "esdb://vut-kurrentdb:2113?tls=false"
-            - name: ProtoActor__ClusterProvider
-              value: "Redpanda"
-            - name: ProtoActor__RedpandaBootstrapServers
-              value: "vut-redpanda:9092"
+            - name: ConnectionStrings__PostgreSQL
+              value: "Host=vut-postgresql;Database=vut_readmodel;Username=vut_app;Password=$(POSTGRESQL_PASSWORD)"
+            - name: Orleans__ClusterId
+              value: "vut-cluster"
+            - name: Orleans__ServiceId
+              value: "vut"
             - name: Auth0__Domain
               valueFrom:
                 secretKeyRef:
@@ -1179,9 +1262,9 @@ spec:
                   key: audience
 ```
 
-**Note:** The actor service is scaled to 3 replicas for grain distribution. Each pod joins the cluster and can host any grain kind. Grains are distributed across nodes by identity hash partitioning.
+**Note:** The silo is scaled to 3 replicas for grain distribution. Each pod joins the Orleans cluster (discovered via the PostgreSQL membership table) and can host any grain type. Grains are distributed across silos by consistent hash placement.
 
-### 9.6 Frontend Deployment (Astro.js BFF)
+### 9.5 Frontend Deployment (Astro.js BFF)
 
 ```yaml
 # k8s/frontend/deployment.yaml (sketch)
@@ -1203,10 +1286,8 @@ spec:
           ports:
             - containerPort: 3000
           env:
-            - name: ACTOR_SERVICE_URL
-              value: "http://vut-actor-service:5000"
-            - name: READMODEL_URL
-              value: "http://vut-readmodel-api:5001"
+            - name: SILO_API_URL
+              value: "http://vut-silo:5000"
             - name: AUTH0_DOMAIN
               valueFrom:
                 secretKeyRef:
@@ -1236,7 +1317,7 @@ sequenceDiagram
     participant FE as Astro.js BFF
     participant A as Auth0
     participant IdP as Identity Provider (GitHub/Google/Microsoft)
-    participant Cluster as Proto.Actor Cluster
+    participant API as Co-hosted API (Orleans Silo)
     participant Grain as UserGrain
     participant K as KurrentDB
 
@@ -1249,19 +1330,23 @@ sequenceDiagram
     FE->>A: Exchange code for tokens
     A->>FE: ID token + access token
     FE->>FE: Validate JWT, extract claims
-    FE->>FE: Check if user exists (via read model, lookup by providerId)
+    FE->>API: Check if user exists (lookup by providerId)
     alt New User
-        FE->>Cluster: GetGrain("user", newUserId)
-        Cluster->>Grain: CreateUserCommand(providerId, providerName, displayName, avatarUrl, email?)
+        FE->>API: POST /api/users/create
+        API->>API: grainFactory.GetGrain<IUserGrain>(newUserId)
+        API->>Grain: await grain.CreateUser(providerId, providerName, displayName, avatarUrl, email?)
         Grain->>K: Append UserCreated + IdentityLinked events to user-{userId}
         K-->>Grain: OK
-        Grain-->>FE: userId
+        Grain-->>API: CreateUserResult { userId }
+        API-->>FE: 201 Created { userId }
     else Existing User, New Identity
-        FE->>Cluster: GetGrain("user", userId)
-        Cluster->>Grain: LinkIdentityCommand(userId, providerId, providerName, email?)
+        FE->>API: POST /api/users/{userId}/link-identity
+        API->>API: grainFactory.GetGrain<IUserGrain>(userId)
+        API->>Grain: await grain.LinkIdentity(providerId, providerName, email?)
         Grain->>K: Append IdentityLinked event to user-{userId}
         K-->>Grain: OK
-        Grain-->>FE: userId
+        Grain-->>API: OK
+        API-->>FE: 200 OK
     else Existing User, Known Identity
         FE->>FE: User found, continue
     end
@@ -1275,7 +1360,7 @@ Auth0 token includes these claims that Vut extracts:
 - `nickname`: Username (provider-specific)
 - `name`: Display name
 - `picture`: Avatar URL
-- `email`: Email address (nullable -- identity providers do not guarantee this; e.g., GitHub users may have no public email)
+- `email`: Email address (nullable — identity providers do not guarantee this; e.g., GitHub users may have no public email)
 
 The `sub` claim's prefix identifies the provider. Vut uses this as the `providerId` and stores it alongside a `providerName` in the `user_identity` table to support multiple login providers per user.
 
@@ -1288,7 +1373,7 @@ The BFF validates the JWT on every request:
 4. Look up the Vut `userId` from the read model using `user_identity` table: `SELECT user_id FROM user_identity WHERE provider_id = ?`
 5. Attach `userId` and `providerId` to the request context as the `actorId` for all commands
 
-If a user logs in with a new provider and the provider returns an email that matches an existing user, the BFF auto-links the identity (see Section 8.1). Auto-linking is only possible when the provider returns an email -- it is skipped when email is null.
+If a user logs in with a new provider and the provider returns an email that matches an existing user, the BFF auto-links the identity (see Section 8.1). Auto-linking is only possible when the provider returns an email — it is skipped when email is null.
 
 ---
 
@@ -1339,7 +1424,7 @@ If a user logs in with a new provider and the provider returns an email that mat
 |--------|------|-------------|
 | GET | `/api/invitations` | List pending invitations for current user |
 
-### 11.6 Internal Lookup Endpoints (BFF-to-ReadModel)
+### 11.6 Internal Lookup Endpoints (BFF-to-API)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -1419,7 +1504,7 @@ flowchart TD
 ```mermaid
 flowchart LR
     subgraph Write Path
-        CMD[Command] --> GRAIN["Virtual Actor<br/>(Grain)"]
+        CMD[Command] --> GRAIN["Orleans Grain<br/>(virtual actor)"]
         GRAIN --> ES[KurrentDB<br/>Append Event]
     end
 
@@ -1429,14 +1514,14 @@ flowchart LR
     end
 
     subgraph Read Path
-        API[Read Model API] --> PG
+        API[Co-hosted API] --> PG
         UI[Browser SPA] --> API
     end
 ```
 
-**Write Path:** Browser -> BFF -> Proto.Actor Cluster (grain auto-activation) -> KurrentDB
-**Project Path:** KurrentDB (persistent subscription) -> Projector -> PostgreSQL
-**Read Path:** Browser -> BFF -> Read Model API -> PostgreSQL
+**Write Path:** Browser → BFF → Co-hosted API → Orleans Grain (auto-activation) → KurrentDB
+**Project Path:** KurrentDB (persistent subscription) → Projector → PostgreSQL
+**Read Path:** Browser → BFF → Co-hosted API → PostgreSQL
 
 This separation ensures:
 - Writes are always consistent (KurrentDB is the source of truth)
@@ -1452,46 +1537,48 @@ This separation ensures:
 
 ```mermaid
 sequenceDiagram
-    participant Client as BFF
-    participant Cluster as Proto.Actor Cluster
-    participant Node1 as Node A (failed)
-    participant Node2 as Node B (takes over)
+    participant Client as API Controller
+    participant Runtime as Orleans Runtime
+    participant Silo1 as Silo A (failed)
+    participant Silo2 as Silo B (takes over)
     participant Grain as OrgGrain (re-activated)
     participant K as KurrentDB
 
-    Client->>Cluster: GetGrain("organization", orgId)
-    Cluster->>Node1: Route to Node A (identity owner)
-    Node1--xCluster: Node A crashed
-    Cluster->>Cluster: Re-partition identity to Node B
-    Cluster->>Node2: Route to Node B (new owner)
-    Node2->>Grain: Activate grain on Node B
+    Client->>Runtime: GetGrain<IOrganizationGrain>(orgId)
+    Runtime->>Silo1: Route to Silo A (placement owner)
+    Silo1--xRuntime: Silo A crashed
+    Runtime->>Runtime: Detect failure via membership protocol
+    Runtime->>Runtime: Re-place grain on Silo B
+    Runtime->>Silo2: Activate grain on Silo B
+    Silo2->>Grain: OnActivateAsync()
     Grain->>K: Load events from organization-{orgId}
     K-->>Grain: Full event stream
     Grain->>Grain: Replay all events, rebuild state
-    Grain-->>Node2: Ready
-    Node2-->>Client: Deliver pending message
+    Grain-->>Silo2: Ready
+    Silo2-->>Client: Deliver pending call result
 ```
 
 **Key resilience properties:**
-- If a node crashes, all grains on that node are lost from memory but their events are safe in KurrentDB.
-- The cluster re-partitions identities to surviving nodes automatically.
-- Grains re-activate on new nodes by re-hydrating from KurrentDB -- state is never lost.
+- If a silo crashes, all grains on that silo are lost from memory but their events are safe in KurrentDB.
+- Orleans detects silo failure via the membership protocol (PostgreSQL-backed heartbeats).
+- Grains re-activate on surviving silos by re-hydrating from KurrentDB — state is never lost.
 - The client receives a transparent retry; the grain appears to survive the failure.
 
 ### 14.2 Timeout & Retry Strategy
 
 | Scenario | Strategy |
 |----------|----------|
-| Grain activation timeout (slow KurrentDB) | BFF retries with exponential backoff (max 3 retries, 2s timeout per attempt) |
-| gRPC call to cluster timeout | BFF returns 503 Service Unavailable to the browser |
-| KurrentDB append failure | Grain returns error to caller; no event is persisted; client can retry |
+| Grain activation timeout (slow KurrentDB) | Orleans has configurable activation timeout; API returns 503 if exceeded |
+| API call to grain timeout | API returns 503 Service Unavailable to the browser |
+| KurrentDB append failure | Grain throws exception to caller; no event is persisted; client can retry |
 | Projector failure (PostgreSQL down) | KurrentDB persistent subscription retries; events are not acked until projection succeeds |
-| Redpanda cluster transport failure | Actor service pods lose membership; cluster re-forms when Redpanda recovers |
+| Silo-to-silo communication failure | Orleans runtime retries grain calls transparently; re-places grain if silo is dead |
+| PostgreSQL clustering table unavailable | Existing silos continue operating with stale membership; new silos cannot join until PostgreSQL recovers |
 
 ### 14.3 Idempotency
 
-- **Grain commands** must be idempotent where possible. `CreateUser` returns the existing userId if the user already exists. `LinkIdentity` is a no-op if already linked.
-- **Projector handlers** are idempotent by design -- re-processing an event produces the same database state (UPSERT semantics).
+- **Grain methods** must be idempotent where possible. `CreateUser` returns the existing userId if the user already exists. `LinkIdentity` is a no-op if already linked.
+- **Projector handlers** are idempotent by design — re-processing an event produces the same database state (UPSERT semantics).
 - **BFF requests** should use idempotency keys for mutating operations to prevent duplicate command submission on network retries.
 
 ---
@@ -1502,28 +1589,34 @@ sequenceDiagram
 
 Grain activation requires loading events from KurrentDB. For aggregates with long event histories, this can be slow. Mitigations:
 
-1. **Snapshotting**: `Proto.Persistence.EventStore` supports snapshotting. Periodically save a snapshot of the grain state. On activation, load the latest snapshot and only replay events after it.
+1. **Snapshotting**: Periodically save a snapshot of the grain state to KurrentDB (using a separate snapshot stream, e.g., `user-{userId}-snapshot`). On activation, load the latest snapshot and only replay events after it.
    - Recommended snapshot interval: every 50 events or when event count exceeds 100.
-   - Snapshot storage: KurrentDB (same provider handles events and snapshots).
 
-2. **Passivation tuning**: Set `ReceiveTimeout` to balance memory usage vs. activation cost.
+2. **Deactivation tuning**: Set `GrainCollectionOptions.CollectionAge` to balance memory usage vs. activation cost.
    - Short timeout (5 min): Frequent re-activations, low memory usage.
    - Long timeout (60 min): Fewer activations, higher memory usage.
-   - Recommended starting point: 30 minutes, adjustable per grain kind.
+   - Recommended starting point: 30 minutes, adjustable per grain type.
 
-3. **Cold start optimization**: For grains that are accessed predictably (e.g., org grains during business hours), consider warming them up by sending a health-check message on deployment.
+3. **Cold start optimization**: For grains that are accessed predictably (e.g., org grains during business hours), consider warming them up by calling a no-op method on deployment.
 
 ### 15.2 Read Path Performance
 
 - PostgreSQL indexes are optimized for the query patterns in the API endpoints (see Section 7.2).
-- The read model API should use connection pooling and prepared statements.
+- The co-hosted API should use connection pooling (Npgsql's built-in pooling) and prepared statements.
 - For large result sets (e.g., orgs with many members), implement pagination.
 
 ### 15.3 Write Path Performance
 
-- gRPC communication between BFF and the actor cluster is low-latency binary protocol.
+- Grain calls within the same silo are local (in-process). Grain calls across silos use Orleans' binary serialization protocol.
 - KurrentDB appends are single-digit millisecond latency for small events.
-- The write path (BFF -> grain -> KurrentDB) should complete in under 50ms for most commands.
+- The write path (API → grain → KurrentDB) should complete in under 50ms for most commands.
+
+### 15.4 Co-hosting Performance Benefit
+
+By co-hosting the API and Orleans silo in the same process:
+- Local grain calls avoid network serialization entirely.
+- The Orleans gateway port (30000) allows cross-silo calls when a grain is on a different silo.
+- For a 3-silo cluster, approximately 1/3 of grain calls will be local (on average), reducing latency for those calls to near-zero.
 
 ---
 
@@ -1540,15 +1633,16 @@ Grain activation requires loading events from KurrentDB. For aggregates with lon
 
 ### 16.2 Cluster Security
 
-- **Redpanda** (cluster transport) should be on an internal network, not exposed to the internet.
-- **gRPC** between BFF and actor service should use mutual TLS in production.
+- **Silo-to-silo communication** should use mutual TLS in production. Orleans supports TLS for inter-silo traffic.
+- **PostgreSQL** (clustering + read model) should require authentication and run on an internal network.
 - **KurrentDB** should require authentication and run on an internal network.
+- **Orleans silo ports** (11111, 30000) must not be exposed to the internet — only internal cluster traffic.
 
 ### 16.3 Input Validation
 
 - All commands are validated in the grain before events are emitted.
-- The BFF performs basic input validation (non-empty strings, valid email format) before sending commands.
-- KurrentDB streams are append-only -- events cannot be tampered with after persistence.
+- The API performs basic input validation (non-empty strings, valid email format) before calling grains.
+- KurrentDB streams are append-only — events cannot be tampered with after persistence.
 
 ---
 
@@ -1558,31 +1652,31 @@ These patterns, once established in Epic 1, are reused by all subsequent epics:
 
 | Concern | Implementation | Reused By |
 |---------|---------------|-----------|
-| Virtual actor cluster configuration | Proto.Actor cluster with Redpanda provider, partition identity lookup | Epics 2-6 |
-| Cluster kind registration | `ClusterKind.Get("kind", Props)` pattern | Epics 2-6 (add "product", "task" kinds) |
-| Aggregate grain base with event sourcing | `AggregateGrain<TState>` with `Proto.Persistence.EventStore` | Epics 2-6 |
+| Orleans silo configuration | `UseOrleans()` with PostgreSQL clustering via ADO.NET | Epics 2-6 |
+| Grain type registration | DI-based grain registration (auto-discovered) | Epics 2-6 (add `IProductGrain`, `ITaskGrain`) |
+| Event-sourced grain base | `EventSourcedGrain<TState>` with KurrentDB .NET client | Epics 2-6 |
 | Event envelope with actorId + timestamp | Standardized JSON envelope in grain events | Epics 2-6 |
-| KurrentDB stream append | Shared persistence provider | Epics 2-6 |
-| Redpanda (Proto.Actor cluster transport) | Actor location routing, membership gossip | Epics 2-6 |
+| KurrentDB stream append | Shared `EventStoreClient` via DI | Epics 2-6 |
 | Projector service (KurrentDB subscription, project) | Shared projector framework | Epics 2-6 |
 | BFF session management + Auth0 | Astro.js middleware | Epics 2-6 |
-| Authorization middleware (org membership check) | BFF request pipeline | Epics 2-6 |
+| Authorization middleware (org membership check) | API request pipeline | Epics 2-6 |
 | Kubernetes manifests pattern | Deployment + Service + ConfigMap | Epics 2-6 |
-| Grain passivation via ReceiveTimeout | Configurable timeout per grain kind | Epics 2-6 |
+| Grain deactivation via CollectionAge | Configurable timeout per grain type | Epics 2-6 |
+| Co-hosted API pattern | ASP.NET Core controllers inside Orleans silo | Epics 2-6 |
 
 ### Migration Notes for Epics 2-6
 
 When adding new aggregate types (Product, Task), follow this pattern:
 
-1. **Define the grain class** inheriting from `AggregateGrain<TState>`.
-2. **Register a new cluster kind** in the cluster configuration: `ClusterKind.Get("product", Props.FromProducer(() => new ProductGrain()))`.
+1. **Define the grain interface** inheriting from `IGrainWithGuidKey`.
+2. **Implement the grain class** inheriting from `EventSourcedGrain<TState>`.
 3. **Define events and state** for the new aggregate.
-4. **Define gRPC messages** for the new grain's commands.
+4. **Add API controllers** that use `IGrainFactory.GetGrain<IProductGrain>(productId)`.
 5. **Add a projector handler** for the new stream type.
 6. **Add read model tables** for the new projections.
-7. **Add BFF endpoints** that call `Cluster.GetGrain("product", productId)`.
+7. **Add BFF routes** that call the co-hosted API.
 
-No changes to the cluster topology, Redpanda configuration, or base infrastructure are needed. The virtual actor model scales horizontally by adding more nodes.
+No changes to the cluster topology, PostgreSQL clustering configuration, or base infrastructure are needed. Orleans scales horizontally by adding more silo pods.
 
 ---
 
@@ -1590,18 +1684,18 @@ No changes to the cluster topology, Redpanda configuration, or base infrastructu
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Actor framework | Proto.Actor (virtual actors) | PRD requirement. Virtual actors eliminate the Actor Manager pattern, provide automatic activation, location transparency, and cluster distribution. |
+| Actor framework | Microsoft Orleans | Virtual actors with built-in clustering (PostgreSQL), native ASP.NET Core integration, strongly-typed grain interfaces, large ecosystem, Microsoft-backed. |
 | Event store | KurrentDB (EventStoreDB) | PRD requirement. Purpose-built for event sourcing with stream-based storage. |
-| Event sourcing bridge | Proto.Persistence.EventStore | Official integration between Proto.Actor persistence and KurrentDB. Handles event loading, snapshotting, and state recovery. |
-| Message broker | Redpanda | Proto.Actor cluster transport for actor location routing and membership gossip. NOT used for event distribution -- projectors subscribe to KurrentDB persistent subscriptions directly. |
-| Read model | PostgreSQL | PRD requirement. Mature, reliable, supports the complex queries needed for projections and the cumulative flow (Epic 5). |
+| Event sourcing in grains | Custom `EventSourcedGrain<TState>` base + `EventStore.Client` | Direct KurrentDB integration via official .NET client. Simpler than building a custom `ILogConsistencyProvider` for Orleans' `JournaledGrain`. |
+| Cluster provider | PostgreSQL (ADO.NET) | Reuses existing PostgreSQL infrastructure. No additional message broker dependency. |
+| Read model | PostgreSQL | PRD requirement. Mature, reliable, supports the complex queries needed for projections and the cumulative flow (Epic 5). Also hosts Orleans clustering tables. |
+| API hosting | Co-hosted in Orleans silo (ASP.NET Core) | Reduces network hops. API controllers call grains in-process via `IGrainFactory`. Can be separated later if needed. |
 | Frontend | Astro.js + Tailwind CSS | PRD requirement. SSR-capable, island architecture for selective hydration, excellent performance. |
 | Auth | Auth0 | PRD requirement. Managed service, supports GitHub SSO and future providers. |
 | Serialization | System.Text.Json (JSON) | Native .NET, high performance, no external dependency. |
 | ID generation | UUID v4 | Globally unique, no coordination needed, safe for distributed grain creation. |
 | Session management | HTTP-only cookie (BFF) | Secure, no token exposure to JavaScript, BFF validates JWT server-side. |
-| Cluster provider | Redpanda | Kafka-compatible, high performance, supports Proto.Actor membership gossip out of the box. |
-| Identity lookup | PartitionIdentityLookup | Hash-based partitioning, distributes grains evenly across nodes, handles re-partitioning on node failure. |
+| Grain placement | Default (consistent hash) | Orleans' default placement distributes grains evenly across silos. Custom placement is not needed for Vut's access patterns. |
 
 ---
 
@@ -1611,11 +1705,11 @@ No changes to the cluster topology, Redpanda configuration, or base infrastructu
 
 2. **Grain-to-grain communication:** When an Organization grain needs to validate that a User exists (e.g., for `AcceptInvitation`), should it call the User grain directly, or rely on the read model? Direct grain-to-grain calls provide strong consistency but add latency and coupling. Read model checks are eventually consistent but simpler. Recommendation: use read model checks for cross-aggregate validation; use grain-to-grain calls only when strong consistency is required.
 
-3. **gRPC gateway vs. direct cluster access:** Should the BFF contain Proto.Actor client libraries and communicate directly with the cluster, or should there be a thin gRPC API gateway that wraps the cluster calls? Direct access is simpler but couples the BFF to Proto.Actor. A gateway adds a network hop but decouples the frontend from the actor framework. Recommendation: start with direct access, refactor to gateway if the coupling becomes problematic.
+3. **Co-hosting vs. separate API:** The architecture co-hosts the API inside the Orleans silo for simplicity. If the API needs to scale independently from the grain workload, it can be extracted into a separate Orleans client process. When should this separation be considered?
 
-4. **Concurrency handling for grains:** Proto.Actor processes messages one at a time per grain (actor model guarantee). However, if a grain receives concurrent requests from different BFF instances, they are queued. Is this acceptable for all use cases, or do we need request-response patterns with timeouts?
+4. **Concurrency handling for grains:** Orleans processes calls one at a time per grain (actor model guarantee). However, if a grain receives concurrent requests from different API instances, they are queued. Is this acceptable for all use cases, or do we need request-response patterns with timeouts? (Orleans supports `[Reentrant]` grains for concurrent processing where safe.)
 
-5. **Monitoring and observability:** How should grain activation, passivation, and event processing be monitored? Recommendation: use OpenTelemetry for distributed tracing across the BFF, cluster, and projectors. Export to a Prometheus/Grafana stack.
+5. **Monitoring and observability:** How should grain activation, deactivation, and event processing be monitored? Recommendation: use OpenTelemetry for distributed tracing across the API, silo, and projectors. Export to a Prometheus/Grafana stack. Orleans has built-in `IIncomingGrainCallFilter` and `IOutgoingGrainCallFilter` for adding tracing to grain calls.
 
 6. **Component library selection:** Astro.js + Tailwind CSS is confirmed, but the specific component library is TBD. Options include Headless UI, Radix, or a purpose-built minimal set.
 
@@ -1630,3 +1724,5 @@ No changes to the cluster topology, Redpanda configuration, or base infrastructu
 11. **Minimum data threshold for projections:** How many data points (days of status transitions) are needed before the cumulative flow diagram shows a projected completion date?
 
 12. **Email change flow:** Should users be able to change their verified email after the initial verification? If so, what is the flow?
+
+13. **Orleans version:** Should the project target Orleans 8.x (current stable) or a preview of a newer version? Recommendation: Orleans 8.x (latest stable) targeting .NET 9 or .NET 10.

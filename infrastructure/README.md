@@ -13,12 +13,12 @@ Local infrastructure for the VUT project management SaaS platform. This director
           (Astro.js SSR)   (gRPC)
                   \          /
              Actor Service:5000
-              (Proto.Actor)
-              /     |     \
-     KurrentDB  Redpanda  PostgreSQL
-       :2113     :9092     :5432
-    (Events)  (Cluster)   (Read Model)
-                Transport
+              (Orleans Silo)
+              /            \
+     KurrentDB          PostgreSQL
+       :2113              :5432
+    (Events)      (Read Model + Orleans
+                    Clustering/Storage)
 ```
 
 **Write Path:** Browser -> Frontend/BFF -> Actor Service -> KurrentDB
@@ -30,21 +30,20 @@ Local infrastructure for the VUT project management SaaS platform. This director
 | Service | Image | Port | Purpose |
 |---------|-------|------|---------|
 | KurrentDB | `kurrentplatform/kurrentdb:26.1.0` | 2113 (HTTP), 1113 (TCP) | Event store (event-sourced) |
-| Redpanda | `redpandadata/redpanda:v24.2.2` | 9092 (Kafka), 9644 (Admin) | Proto.Actor cluster transport |
-| PostgreSQL | `postgres:16-alpine` | 5432 | Read model store |
-| Actor Service | `vut/actor-service:latest` | 5000 (gRPC), 5001 (HTTP) | .NET Proto.Actor backend |
+| PostgreSQL | `postgres:16-alpine` | 5432 | Read model store + Orleans clustering |
+| Actor Service | `vut/actor-service:latest` | 5000 (gRPC), 5001 (HTTP), 8888 (Orleans Dashboard) | .NET Orleans backend |
 | Frontend | `vut/frontend:latest` | 3000 (HTTP) | Astro.js SSR + SPA |
 
 ## Resource Budget
 
-| Environment | Available RAM | KurrentDB | Redpanda | PostgreSQL | Actor Svc | Frontend | Total Est. |
-|-------------|--------------|-----------|----------|------------|-----------|----------|------------|
-| **Dev** | ~24 GB | 3 GB | 1 GB | 2 GB | 1 GB | 512 MB | **~7.5 GB** |
-| **Staging** | ~40 GB | 6 GB | 2 GB | 4 GB | 2 GB | 1 GB | **~15 GB** |
-| **Prod** | ~52 GB | 8 GB | 4 GB | 8 GB | 4 GB | 1 GB | **~25 GB** |
+| Environment | Available RAM | KurrentDB | PostgreSQL | Actor Svc | Frontend | Total Est. |
+|-------------|--------------|-----------|------------|-----------|----------|------------|
+| **Dev** | ~24 GB | 3 GB | 2 GB | 1 GB | 512 MB | **~6.5 GB** |
+| **Staging** | ~40 GB | 6 GB | 4 GB | 2 GB | 1 GB | **~13 GB** |
+| **Prod** | ~52 GB | 8 GB | 8 GB | 4 GB | 1 GB | **~21 GB** |
 
 K8s StatefulSet replicas:
-- **Dev:** KurrentDB 3 nodes, Redpanda 3 brokers (use 1-node for lighter dev)
+- **Dev:** KurrentDB 3 nodes (use 1-node for lighter dev)
 - **Staging:** Single-node for all stateful services
 - **Prod:** Full 3-node clusters via K3s
 
@@ -55,7 +54,7 @@ This is the primary way to run the infrastructure for day-to-day development.
 ### Prerequisites
 
 - Docker Engine 24+ and Docker Compose v2
-- ~8 GB free RAM for dev environment
+- ~7 GB free RAM for dev environment
 - Git
 
 ### Start the Platform
@@ -100,7 +99,6 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml down -v
 ```bash
 # View logs
 docker compose logs -f kurrentdb
-docker compose logs -f redpanda
 docker compose logs -f actor-service
 
 # Restart a single service
@@ -117,9 +115,9 @@ docker compose up -d --build actor-service frontend
 | Frontend | http://localhost:3000 |
 | Actor Service (gRPC) | localhost:5000 |
 | Actor Service (HTTP) | localhost:5001 |
+| Orleans Dashboard | http://localhost:8888 |
 | KurrentDB Dashboard | http://localhost:2113 |
 | KurrentDB API | http://localhost:2113/health/live |
-| Redpanda Admin | http://localhost:9644 |
 | PostgreSQL | localhost:5432 |
 
 ### PostgreSQL Connection
@@ -161,7 +159,6 @@ minikube image load vut/frontend:latest
 
 # Pre-load infrastructure images (optional, they'll be pulled otherwise)
 minikube image load kurrentplatform/kurrentdb:26.1.0
-minikube image load redpandadata/redpanda:v24.2.2
 minikube image load postgres:16-alpine
 ```
 
@@ -179,7 +176,6 @@ kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/secrets/
 kubectl apply -f k8s/postgresql/
 kubectl apply -f k8s/kurrentdb/
-kubectl apply -f k8s/redpanda/
 kubectl apply -f k8s/actor-service/
 kubectl apply -f k8s/frontend/
 kubectl apply -f k8s/ingress.yaml
@@ -242,14 +238,11 @@ infrastructure/
     kurrentdb/
       statefulset.yaml          # 3-node event store
       service.yaml
-    redpanda/
-      statefulset.yaml          # 3-broker cluster (Proto.Actor transport)
-      service.yaml
     postgresql/
       statefulset.yaml          # Primary + init SQL ConfigMap
       service.yaml
     actor-service/
-      deployment.yaml           # .NET Proto.Actor backend
+      deployment.yaml           # .NET Orleans backend
       service.yaml
     frontend/
       deployment.yaml           # Astro.js SSR
@@ -266,7 +259,7 @@ infrastructure/
 
 **Container keeps restarting:** Check logs: `docker compose logs <service>`. Most common causes:
 - KurrentDB: insufficient memory (increase `KURRENTDB_MEMORY_LIMIT`)
-- Redpanda: data corruption (delete volume: `docker volume rm vut-redpanda-data`)
+- PostgreSQL: data corruption (delete volume: `docker volume rm vut-postgresql-data`)
 
 **Database tables missing:** The init SQL only runs on first container start. If volumes were created before the init script existed, delete the volume:
 ```bash
@@ -286,6 +279,7 @@ docker compose up -d
 
 - All services run locally on developer machines -- no cloud providers required
 - Docker Compose is the primary development workflow; K8s manifests are for K3s staging/production
+- Orleans uses PostgreSQL for cluster membership and grain state storage -- no separate message broker needed
 - The actor-service and frontend images are placeholders (`vut/actor-service:latest`, `vut/frontend:latest`) until Dockerfiles are created in later tasks
 - For CI, image tags should use commit SHA or build number instead of `latest`
 - Helm chart conversion is a future improvement -- raw manifests are used for Epic 1

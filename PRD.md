@@ -20,9 +20,24 @@ The philosophy is simple: count work, track status transitions, let the data spe
 
 ### Success Metrics
 
-1. Teams can go from signup to a working kanban board in under 5 minutes.
-2. The cumulative flow diagram produces a projected completion date within the first 2 weeks of use (requires enough data points from status transitions).
-3. Zero time-centric features exist in the product -- this is a hard constraint, not a guideline.
+**Product Constraints:**
+1. Zero time-centric features exist in the product -- this is a hard constraint, not a guideline.
+
+**Activation & Onboarding:**
+2. Teams can go from signup to a working kanban board in under 5 minutes.
+3. 60%+ of new signups create at least 1 product and move at least 5 tasks within their first 7 days (activation rate).
+
+**Core Value Delivery:**
+4. The cumulative flow diagram produces a projected completion date within the first 2 weeks of use (requires enough data points from status transitions).
+5. 50%+ of active products have at least one weekly view of the cumulative flow diagram (report adoption).
+
+**Retention & Engagement:**
+6. 70%+ weekly active team rate at 30 days post-signup (team retention).
+7. Average team size per organization reaches 3+ members within 30 days (team adoption).
+
+**Performance:**
+8. Backlog loads in under 1 second for products with up to 10,000 tasks.
+9. Kanban drag-and-drop reflects status change in under 200ms (optimistic update).
 
 ---
 
@@ -154,14 +169,16 @@ Organization > Product > Task
 - Products are proper entities, fully event-sourced (not tags).
 
 **Product Configuration:**
-- When a product is created, the creator defines its initial set of statuses (e.g., "New", "In Progress", "In Review", "Done").
-- Statuses can be added, renamed, or removed later by organization members.
-- The "New" status is special: tasks in "New" status appear in the backlog but NOT on the kanban board.
+- When a product is created, the creator defines its initial set of statuses (e.g., "Backlog", "In Progress", "In Review", "Done").
+- The **first status in the list is the "backlog-only" status.** Tasks in this status appear in the backlog view but are excluded from the kanban board. This is a structural designation, not a naming convention -- the creator can name it anything ("Backlog", "New", "Inbox", etc.), but the first status always serves this role.
+- Statuses can be added, renamed, or removed later by organization members. The backlog-only status can be renamed but cannot be removed or reordered (it always remains the first status).
 
 **Acceptance Criteria:**
 - A user with member or owner role can create a product within their organization.
 - A product has a unique name within its organization.
-- Creating a product requires defining at least two statuses (one of which must be "New" or equivalent starting status).
+- Creating a product requires defining at least two statuses.
+- The first status in the list is automatically designated as the backlog-only status (excluded from kanban board).
+- The backlog-only status can be renamed but cannot be removed or moved from the first position.
 - Tasks cannot exist outside a product.
 
 ---
@@ -174,11 +191,18 @@ Organization > Product > Task
 - A task has:
   - **Title** (required)
   - **Description** (optional, markdown-supported)
-  - **Status** (required, defaults to the product's initial status -- "New")
+  - **Status** (required, defaults to the product's first status -- the backlog-only status)
   - **Tags** (optional, zero or more)
   - **Created timestamp**
   - **Last updated timestamp**
-- Tasks are fully event-sourced. Every change (creation, status change, tag addition/removal, title/description edit) is recorded as an event in the event stream.
+- Tasks are fully event-sourced. Every change (creation, status change, tag addition/removal, title/description edit, deletion) is recorded as an event in the event stream.
+
+**Task Deletion:**
+- Tasks can be deleted by any member of the product's organization.
+- Deletion is a soft delete: a `TaskDeleted` event is recorded, and the task is excluded from the backlog, kanban board, and cumulative flow diagram going forward.
+- Deleted tasks are NOT purged from the event store -- their history is preserved for auditability.
+- Deleted tasks no longer count toward the cumulative flow diagram's projected completion date.
+- Deletion is irreversible in MVP (no "undelete" feature).
 
 **Task Events (minimum set for MVP):**
 | Event | Payload |
@@ -189,6 +213,7 @@ Organization > Product > Task
 | `TaskStatusChanged` | taskId, oldStatus, newStatus, actorId, timestamp |
 | `TagAdded` | taskId, tag, actorId, timestamp |
 | `TagRemoved` | taskId, tag, actorId, timestamp |
+| `TaskDeleted` | taskId, actorId, timestamp |
 
 **Status Transitions:**
 - A task's status can be changed to any other status defined for the product. There are no enforced transition rules in MVP (any status to any status).
@@ -199,6 +224,7 @@ Organization > Product > Task
 - A task's status can be changed to any status defined in the product's configuration.
 - A task can have zero, one, or many tags applied.
 - Tags follow the namespaced format `namespace:value` (e.g., `area:backend`, `type:bug`).
+- A user can delete a task; a `TaskDeleted` event is recorded and the task is excluded from all views.
 - All task mutations are recorded as immutable events.
 
 ---
@@ -247,8 +273,8 @@ Organization > Product > Task
 
 **Active Work, Column-Based**
 
-- The kanban board shows ONLY tasks whose status is NOT "New" (or the product's designated starting status).
-- Each column represents a non-"New" status defined for the product.
+- The kanban board shows ONLY tasks whose status is NOT the product's backlog-only status (the first status in the product's status list).
+- Each column represents a non-backlog-only status defined for the product.
 - Tasks are displayed as cards within their status column.
 - Users can drag-and-drop cards between columns to change status.
 - Dragging a card to a column triggers a `TaskStatusChanged` event.
@@ -262,8 +288,8 @@ Organization > Product > Task
 - This replaces the need for multiple dedicated views -- the user creates their own via saved filters.
 
 **Acceptance Criteria:**
-- Tasks in "New" status never appear on the kanban board.
-- Each non-"New" status gets its own column.
+- Tasks in the backlog-only status never appear on the kanban board.
+- Each non-backlog-only status gets its own column.
 - Drag-and-drop between columns changes the task's status and records the event.
 - A user can create, rename, and delete saved views.
 - Switching between saved views is instantaneous (no page reload).
@@ -310,141 +336,26 @@ This is the primary -- and only -- report in Vut. It visualizes how work flows t
 
 ---
 
-### 4.9 Event Sourcing Foundation
+### 4.9 Architectural Constraints
 
-**Everything Is an Event Stream**
+The following architectural decisions are **product-level constraints** that shape how Vut behaves. Detailed technical design (event schemas, infrastructure, projections) is documented separately in `architecture.md`.
 
-Every entity in Vut is modeled as an event stream. There are no "tables" in the traditional sense — only streams and projections. All state is derived by replaying events. The PostgreSQL read model stores projections of these streams for efficient querying, but the event store (KurrentDB) is the source of truth.
+- **Event-sourced by design:** All state changes (tasks, products, organizations, users) are recorded as immutable events. This is not an implementation detail -- it is a product feature. It enables full auditability, the cumulative flow diagram's historical accuracy, and the ability to rebuild any view from the event history.
+- **Every event captures who and when:** All events must include the actor who triggered it and a UTC timestamp. No exceptions.
+- **Eventual consistency:** The read model (used for backlog, kanban, and reports) is derived from the event stream and may lag slightly behind writes. The product uses optimistic UI updates to mask this delay.
+- **No direct database access by clients:** All data access goes through the API layer to enforce tenant isolation and authorization.
+- **HTTPS only:** All communication is over TLS.
+- **No secrets in events:** Events never contain authentication tokens or sensitive credentials.
 
-**Invariant: Every event must capture who triggered it (`actorId`) and when it occurred (`timestamp`). No exceptions.**
-
-**User Stream:**
-| Event | Payload |
-|---|---|
-| `UserCreated` | userId, displayName, avatarUrl, email, actorId, timestamp |
-| `IdentityLinked` | userId, providerId, providerName, email, actorId, timestamp |
-| `UserProfileUpdated` | userId, displayName, avatarUrl, actorId, timestamp |
-| `EmailVerificationRequested` | userId, email, token, actorId, timestamp |
-| `EmailVerified` | userId, email, actorId, timestamp |
-
-**Organization Stream:**
-Members are part of the organization stream — membership is not a separate entity.
-| Event | Payload |
-|---|---|
-| `OrganizationCreated` | orgId, name, actorId, timestamp |
-| `OrganizationRenamed` | orgId, newName, actorId, timestamp |
-| `MemberInvited` | orgId, inviteeEmail, actorId, timestamp |
-| `MemberJoined` | orgId, userId, actorId, timestamp |
-| `MemberRemoved` | orgId, userId, actorId, timestamp |
-| `MemberRoleChanged` | orgId, userId, oldRole, newRole, actorId, timestamp |
-| `OrganizationDeleted` | orgId, actorId, timestamp |
-
-**Product Stream:**
-Statuses are part of the product stream — they are not a separate entity.
-| Event | Payload |
-|---|---|
-| `ProductCreated` | productId, orgId, name, description, initialStatuses, actorId, timestamp |
-| `ProductRenamed` | productId, newName, actorId, timestamp |
-| `ProductDescriptionChanged` | productId, newDescription, actorId, timestamp |
-| `StatusAdded` | productId, statusName, actorId, timestamp |
-| `StatusRenamed` | productId, oldStatusName, newStatusName, actorId, timestamp |
-| `StatusRemoved` | productId, statusName, actorId, timestamp |
-| `ProductDeleted` | productId, actorId, timestamp |
-
-**Task Stream:**
-Tags are part of the task stream — they are not a separate entity.
-| Event | Payload |
-|---|---|
-| `TaskCreated` | taskId, productId, title, description, actorId, timestamp |
-| `TaskTitleChanged` | taskId, newTitle, actorId, timestamp |
-| `TaskDescriptionChanged` | taskId, newDescription, actorId, timestamp |
-| `TaskStatusChanged` | taskId, oldStatus, newStatus, actorId, timestamp |
-| `TagAdded` | taskId, tag, actorId, timestamp |
-| `TagRemoved` | taskId, tag, actorId, timestamp |
-
-**Event Ordering:**
-- Events are ordered by simple timestamps (UTC).
-- No vector clocks, no causal consistency mechanisms -- timestamps only.
-
-**Projection / Read Model:**
-- PostgreSQL serves as the read model, updated by projecting events from KurrentDB via Redpanda consumers.
-- The read model stores projected views optimized for the queries needed by the backlog, kanban, and cumulative flow diagram.
-- Projections are rebuilt from the event store when needed (e.g., after a schema change).
-- There are no "tables" representing core entities — only projection views derived from streams. Membership, statuses, and tags are projected from their parent entity's stream.
+> **See also:** `architecture.md` for tech stack, component architecture, event schemas, read model projections, security details, and scalability considerations.
 
 ---
 
-## 5. Technical Architecture
+## 5. Security & Authorization
 
-### 5.1 Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Frontend | Astro.js with Tailwind CSS, component library TBD |
-| Backend | .NET with Proto.Actor framework |
-| Event Store | KurrentDB (formerly EventStoreDB) |
-| Read Model | PostgreSQL |
-| Messaging | Redpanda (Kafka-compatible) |
-| Hosting | Kubernetes |
-| Authentication | Auth0 (or similar third-party identity provider), GitHub SSO for MVP |
-| Client-Side Routing | SPA (Single Page Application) |
-
-### 5.2 Core Components
-
-```
-[Browser / SPA]
-    |
-    v
-[API Gateway / BFF]  <-- Astro.js SSR
-    |
-    +---> [Proto.Actor Backend Services]
-    |         |
-    |         +---> [KurrentDB] (event store)
-    |         |
-    |         +---> [Redpanda] (event publishing)
-    |
-    +---> [Read Model API]
-              |
-              +---> [PostgreSQL] (projected read models)
-```
-
-**Component Responsibilities:**
-
-- **Astro.js Frontend:** Renders the SPA, handles routing, manages client-side state. Communicates with the backend via API calls.
-- **Proto.Actor Backend:** Hosts the domain logic as actor-based services. Each aggregate root (User, Organization, Product, Task) is an actor that processes commands and emits events.
-- **KurrentDB:** Stores all events as immutable streams. The source of truth for all state.
-- **Redpanda:** Publishes events to topics for downstream consumers (read model projectors, analytics).
-- **PostgreSQL Read Model:** Stores projected, query-optimized views of the event data. Updated by subscribing to Redpanda topics.
-- **Kubernetes:** Orchestrates all services, manages scaling and deployment.
-
-### 5.3 Read Model Projections (PostgreSQL)
-
-The read model contains projected views derived from event streams. These are not the source of truth — they are query-optimized materializations rebuilt from KurrentDB.
-
-**Projection Views (MVP):**
-
-- **User Projection:** Current state of each user (id, display name, avatar url, email, email verification status). Identity providers are tracked in a separate identity table (one user can have multiple linked providers).
-- **Organization Projection:** Current state of each org, including its member list and roles — projected from the organization stream's member events.
-- **Product Projection:** Current state of each product, including its configured statuses — projected from the product stream's status events.
-- **Task Projection:** Current state of each task, including its tags — projected from the task stream's tag and status events.
-- **Cumulative Flow Snapshot:** Daily aggregated counts of tasks per status per product, rebuilt from `TaskStatusChanged` events. This powers the cumulative flow diagram without requiring real-time event scanning.
-
-### 5.4 Security Considerations
-
-- **Auth:** Third-party identity provider (Auth0). No stored passwords.
+- **Authentication:** Third-party identity provider (Auth0). No stored passwords.
 - **Authorization:** Role-based access at the organization level (owner vs. member). Product access is inherited from org membership.
 - **Tenant Isolation:** All queries are scoped to the user's organization memberships. Cross-org data access is prevented at the API layer.
-- **Event Store:** KurrentDB access is restricted to the backend services; no direct client access.
-- **HTTPS Only:** All communication is over TLS.
-- **No Secrets in Events:** Events never contain authentication tokens or sensitive credentials.
-
-### 5.5 Scalability Considerations
-
-- Proto.Actor provides location-transparent actor distribution, enabling horizontal scaling of domain logic.
-- KurrentDB supports clustering for high availability and partitioned reads.
-- PostgreSQL read model can be scaled with read replicas.
-- Redpanda handles event distribution with Kafka-compatible partitioning.
-- The cumulative flow snapshots table prevents expensive real-time aggregations.
 
 ---
 
@@ -467,17 +378,17 @@ The read model contains projected views derived from event streams. These are no
 
 1. Owner/member navigates to the organization dashboard.
 2. Clicks "Create Product."
-3. Enters product name, description, and defines initial statuses (e.g., "New", "In Progress", "Done").
+3. Enters product name, description, and defines initial statuses (e.g., "Backlog", "In Progress", "Done"). The first status is automatically the backlog-only status.
 4. `ProductCreated` event is emitted with the initial status configuration.
 5. User is taken to the product backlog (empty).
 6. User creates their first task -- enters title and optional description.
-7. `TaskCreated` event is emitted; task appears in backlog with "New" status.
+7. `TaskCreated` event is emitted; task appears in backlog with the first (backlog-only) status.
 
 ### 6.3 Working with the Kanban Board
 
 1. User navigates to a product's kanban board.
-2. Board shows columns for all non-"New" statuses (e.g., "In Progress", "In Review", "Done").
-3. User changes a task's status from "New" to "In Progress" via the backlog or a quick action.
+2. Board shows columns for all statuses except the backlog-only status (e.g., "In Progress", "In Review", "Done").
+3. User changes a task's status from the backlog-only status to "In Progress" via the backlog or a quick action.
 4. The task now appears on the kanban board in the "In Progress" column.
 5. User drags the card from "In Progress" to "In Review."
 6. `TaskStatusChanged` event is recorded; the card moves to the new column.
@@ -551,8 +462,8 @@ The read model contains projected views derived from event streams. These are no
 - Identity provider integration (Auth0 with GitHub SSO for MVP)
 - Organization creation and member management (owners and members)
 - Product creation with configurable statuses
-- Task CRUD with status changes and tags
-- Event sourcing infrastructure (KurrentDB, Proto.Actor, Redpanda)
+- Task CRUD (including deletion) with status changes and tags
+- Event sourcing infrastructure (KurrentDB, Redpanda)
 - PostgreSQL read model with projections
 - Backlog view with filtering and sorting
 - Kanban board with drag-and-drop status changes
@@ -589,17 +500,17 @@ The read model contains projected views derived from event streams. These are no
 
 ## 9. Open Questions
 
-1. **Component library selection:** Astro.js + Tailwind CSS is confirmed, but the specific component library is TBD. Options include Headless UI, Radix, or a purpose-built minimal set.
-2. **Projection recalculation strategy:** When statuses are renamed or removed in a product, how are historical events and the cumulative flow diagram affected? Options: (a) rewrite historical events, (b) maintain a status name mapping, (c) show legacy names for historical data.
-3. **Projection confidence model:** The exact statistical model for the projected completion date (e.g., linear regression on throughput, Monte Carlo simulation) needs to be selected during implementation.
-4. **Organization deletion semantics:** When an organization is deleted, are events soft-deleted (marked as deleted) or hard-deleted from KurrentDB? This affects data retention and recovery.
-5. **Tag namespace registry:** Should tags be strictly validated against known namespaces, or is any `namespace:value` string accepted? The PRD assumes free-form, but a registry would enable better autocomplete and consistency.
-6. **Minimum data threshold for projections:** How many data points (days of status transitions) are needed before the cumulative flow diagram shows a projected completion date? Too few data points produce misleading projections.
-7. **Email change flow:** Should users be able to change their verified email after the initial verification? If so, what's the flow (re-verify, cool-down period, notification to org owners)?
+1. **Projection confidence model:** The exact statistical model for the projected completion date (e.g., linear regression on throughput, Monte Carlo simulation) needs to be selected during implementation.
+2. **Tag namespace registry:** Should tags be strictly validated against known namespaces, or is any `namespace:value` string accepted? The PRD assumes free-form, but a registry would enable better autocomplete and consistency.
+3. **Minimum data threshold for projections:** How many data points (days of status transitions) are needed before the cumulative flow diagram shows a projected completion date? Too few data points produce misleading projections.
+4. **Email change flow:** Should users be able to change their verified email after the initial verification? If so, what's the flow (re-verify, cool-down period, notification to org owners)?
+
+> **Technical open questions** (component library selection, projection recalculation strategy, organization deletion semantics) have been moved to `architecture.md`.
 
 ### Resolved Decisions
 
 - **Email verification strategy:** Vut collects and verifies email internally rather than relying on identity providers. Rationale: providers like GitHub may not return email (user privacy settings), and provider APIs/policies can change without notice. Internal verification ensures Vut always has a verified communication channel for invitations and notifications.
+- **Backlog-only status designation:** The first status in a product's status list is automatically the backlog-only status (excluded from the kanban board). This is a structural rule, not a naming convention. The status can be renamed but not removed or reordered.
 
 ---
 
@@ -622,6 +533,6 @@ The read model contains projected views derived from event streams. These are no
 | Status | A dedicated property on a task indicating its position in the workflow. Defined per product. |
 | Tag | A namespaced label (`namespace:value`) for flexible categorization. |
 | Backlog | A list view of all tasks in a product. |
-| Kanban Board | A column-based view of tasks, excluding tasks in the initial ("New") status. |
+| Kanban Board | A column-based view of tasks, excluding tasks in the backlog-only status (the first status in the product's status list). |
 | Cumulative Flow Diagram | A stacked area chart showing task counts per status over time, with a projected completion date. |
 | Event Stream | An append-only log of events that represents the history of an entity. |

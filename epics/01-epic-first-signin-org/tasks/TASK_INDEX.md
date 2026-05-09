@@ -1,8 +1,10 @@
-# Epic 1 Task Index: First Sign-In & Organization (Virtual Actor Architecture)
+# Epic 1 Task Index: First Sign-In & Organization (Microsoft Orleans Architecture)
 
 ## Overview
 
-This document indexes all tasks for Epic 1, showing dependencies, parallelism opportunities, and the critical path. The architecture uses **Proto.Actor virtual actors (grains)** instead of a manual Actor Manager pattern. Virtual actors are identified by cluster identity (kind + entity ID), auto-activate on first message, and are location-transparent.
+This document indexes all tasks for Epic 1, showing dependencies, parallelism opportunities, and the critical path. The architecture uses **Microsoft Orleans virtual actors (grains)** as the core backend framework. Grains are identified by strongly-typed interfaces and GUID keys, auto-activate on first call, and are location-transparent across silo nodes.
+
+**Key simplification:** Orleans uses the existing PostgreSQL database for cluster membership and grain directory — no external message broker is needed. The API is co-hosted inside the Orleans silo process.
 
 **Total Tasks:** 16
 **Backend Tasks:** 8 (Tasks 01-08, 16)
@@ -18,13 +20,13 @@ PARALLEL WAVE 1 (Start Immediately - No Dependencies):
 
 PARALLEL WAVE 2 (Depends on Wave 1):
   [03] PostgreSQL Schema (Backend)           [P0 - 1 day]   <-- depends on [01]
-  [04] .NET Actor Service Foundation (Backend)[P0 - 3 days]  <-- depends on [01]
+  [04] .NET Orleans Silo Foundation (Backend) [P0 - 3 days]  <-- depends on [01]
   [10] Auth Flow & BFF Session (Frontend)    [P0 - 2.5 days]<-- depends on [02], [09]
 
 PARALLEL WAVE 3 (Depends on Wave 2):
   [05] User Grain (Backend)                  [P1 - 2 days]  <-- depends on [04]
   [06] Organization Grain (Backend)          [P1 - 3 days]  <-- depends on [04]
-  [08] Read Model API (Backend)              [P1 - 2 days]  <-- depends on [03]
+  [08] Co-hosted API Controllers (Backend)   [P1 - 2 days]  <-- depends on [03], [04]
   [11] Org Selector & Sidebar (Frontend)     [P1 - 2 days]  <-- depends on [09], [10]
   [13] BFF API Route Proxies (Frontend)      [P1 - 2 days]  <-- depends on [09], [10]
 
@@ -45,11 +47,11 @@ FINAL WAVE:
 | 01 | Kubernetes Infrastructure | Backend | P0 | 3d | None | Immediately |
 | 02 | Auth0 Tenant Configuration | Backend | P0 | 0.5d | None | Immediately |
 | 03 | PostgreSQL Schema & Migrations | Backend | P0 | 1d | 01 | After K8s |
-| 04 | .NET Actor Service Foundation (Virtual Actor Cluster) | Backend | P0 | 3d | 01 | After K8s |
-| 05 | User Grain Implementation | Backend | P1 | 2d | 04 | After Actor Foundation |
-| 06 | Organization Grain Implementation | Backend | P1 | 3d | 04 | After Actor Foundation |
+| 04 | .NET Orleans Silo Foundation | Backend | P0 | 3d | 01 | After K8s |
+| 05 | User Grain Implementation | Backend | P1 | 2d | 04 | After Silo Foundation |
+| 06 | Organization Grain Implementation | Backend | P1 | 3d | 04 | After Silo Foundation |
 | 07 | Projector Service Implementation | Backend | P1 | 2.5d | 03, 04, 05, 06 | After Grains + Schema |
-| 08 | Read Model API Service | Backend | P1 | 2d | 03 | After Schema |
+| 08 | Co-hosted API Controllers | Backend | P1 | 2d | 03, 04 | After Schema + Silo |
 | 09 | Astro.js Project Setup & UI Shell | Frontend | P0 | 2d | None | Immediately |
 | 10 | Auth Flow & BFF Session Management | Frontend | P0 | 2.5d | 02, 09 | After Auth0 + Setup |
 | 11 | Org Selector & Sidebar Navigation | Frontend | P1 | 2d | 09, 10 | After Auth Flow |
@@ -64,7 +66,7 @@ FINAL WAVE:
 The longest dependency chain determines the minimum time to complete Epic 1:
 
 ```
-[01] K8s (3d) -> [04] Actor Foundation (3d) -> [06] Org Grain (3d) -> [07] Projector (2.5d)
+[01] K8s (3d) -> [04] Silo Foundation (3d) -> [06] Org Grain (3d) -> [07] Projector (2.5d)
                                                                           |
                                                                     +-----+-----+
                                                                     |           |
@@ -79,9 +81,9 @@ With parallelism: approximately 10-11 days with 2 developers.
 
 ### Backend Developer
 1. Start: Task 01 (K8s) + Task 02 (Auth0) in parallel.
-2. Then: Task 03 (Schema) + Task 04 (Actor Foundation -- cluster setup, AggregateGrain base, Proto.Persistence.EventStore) in parallel.
+2. Then: Task 03 (Schema) + Task 04 (Orleans Silo Foundation — UseOrleans(), EventSourcedGrain base, KurrentDB EventStoreClient) in parallel.
 3. Then: Task 05 (User Grain) + Task 06 (Org Grain) in parallel.
-4. Then: Task 08 (Read Model API) + Task 07 (Projector) in parallel.
+4. Then: Task 08 (Co-hosted API Controllers) + Task 07 (Projector) in parallel.
 5. Finally: Task 16 (CI/CD).
 
 ### Frontend Developer
@@ -93,9 +95,9 @@ With parallelism: approximately 10-11 days with 2 developers.
 
 ### Parallelism Summary
 - **Days 1-3:** Backend on K8s, Frontend on Astro Setup, Backend on Auth0.
-- **Days 3-6:** Backend on Actor Foundation + Schema, Frontend on Auth Flow.
+- **Days 3-6:** Backend on Orleans Silo Foundation + Schema, Frontend on Auth Flow.
 - **Days 6-9:** Backend on User+Org Grains, Frontend on Org Selector + BFF Routes.
-- **Days 9-12:** Backend on Projector + Read Model API, Frontend on Org Mgmt + Invitations.
+- **Days 9-12:** Backend on Projector + Co-hosted API, Frontend on Org Mgmt + Invitations.
 - **Days 12-14:** Backend on CI/CD, Frontend on Landing Page.
 
 ## Estimated Total Effort
@@ -109,13 +111,13 @@ With parallelism: approximately 10-11 days with 2 developers.
 
 | Pattern | Implementation | Where |
 |---------|---------------|-------|
-| Virtual Actor Cluster | Proto.Actor with Redpanda cluster provider, PartitionIdentityLookup | Task 04 |
-| Event Sourcing | Proto.Persistence.EventStore bridge to KurrentDB | Task 04 |
-| Base Grain | `AggregateGrain<TState>` with event replay and passivation | Task 04 |
-| Cluster Kinds | `"user"` (Task 05), `"organization"` (Task 06) | Tasks 05, 06 |
-| Grain Passivation | `ReceiveTimeout` (30 min), re-hydrate from KurrentDB on re-activation | Task 04 |
-| gRPC Communication | BFF -> Cluster via `Cluster.GetGrain(kind, identity)` | Task 04 |
-| Projection | KurrentDB persistent subscriptions -> Projector -> PostgreSQL | Task 07 |
+| Virtual Actor Framework | Microsoft Orleans with PostgreSQL (ADO.NET) clustering | Task 04 |
+| Event Sourcing | Custom `EventSourcedGrain<TState>` with direct KurrentDB `EventStore.Client` | Task 04 |
+| Base Grain | `EventSourcedGrain<TState> : Grain` with event replay and `DelayDeactivation` | Task 04 |
+| Grain Interfaces | `IUserGrain : IGrainWithGuidKey` (Task 05), `IOrganizationGrain : IGrainWithGuidKey` (Task 06) | Tasks 05, 06 |
+| Grain Deactivation | `GrainCollectionOptions.CollectionAge` (30 min), re-hydrate from KurrentDB on re-activation | Task 04 |
+| API Hosting | Co-hosted ASP.NET Core controllers in Orleans silo, using `IGrainFactory` for writes | Tasks 04, 08 |
+| Projection | KurrentDB persistent subscriptions -> Projector (.NET Worker) -> PostgreSQL | Task 07 |
 
 ## Event Streams Covered
 

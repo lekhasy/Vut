@@ -1,4 +1,4 @@
-# Task 04: .NET Actor Service Foundation (Virtual Actor Cluster)
+# Task 04: .NET Orleans Silo Foundation
 
 | Field | Value |
 |-------|-------|
@@ -9,17 +9,20 @@
 
 ## Description
 
-Build the foundational .NET actor service using Proto.Actor's virtual actor (grain) cluster model. This includes the Proto.Actor cluster host setup with Redpanda as the cluster provider, the `Proto.Persistence.EventStore` bridge for KurrentDB integration, the `AggregateGrain<TState>` base class that all grain types inherit from, and gRPC service definitions for cluster communication.
+Build the foundational .NET Orleans silo that hosts all virtual actor (grain) types and a co-hosted ASP.NET Core API. This includes the Orleans silo configuration with PostgreSQL as the cluster membership provider via `Orleans.Clustering.AdoNet`, the `EventSourcedGrain<TState>` base class that integrates directly with KurrentDB using the `EventStore.Client` .NET SDK, and the co-hosted ASP.NET Core API controllers that call grains via `IGrainFactory`.
 
-There are **no actor managers** in this design. The Proto.Actor runtime handles grain identity resolution, auto-activation, location transparency, and failover automatically.
+There are **no actor managers** and **no external message broker**. The Orleans runtime handles grain identity resolution, auto-activation, location transparency, and failover automatically. PostgreSQL (already in the stack) provides cluster membership.
 
 ## Architecture Reference
 
-- Architecture doc Section 2 (Why Virtual Actors)
-- Architecture doc Section 4 (Cluster Topology & Placement)
-- Architecture doc Section 5.1 (Base Grain Abstraction)
+- Architecture doc Section 2 (Why Virtual Actors — Orleans)
+- Architecture doc Section 4.1 (Silo Configuration)
+- Architecture doc Section 4.2 (Grain Types)
+- Architecture doc Section 4.4 (Grain Activation Flow)
+- Architecture doc Section 5.1 (Base Grain Abstraction — EventSourcedGrain)
 - Architecture doc Section 5.2 (Grain Lifecycle State Machine)
-- Architecture doc Section 6.1 (Proto.Persistence.EventStore Bridge)
+- Architecture doc Section 6.1 (KurrentDB .NET Client Integration)
+- Architecture doc Section 6.2 (Event Serialization)
 - Architecture doc Section 6.4 (Event Envelope)
 
 ## Technical Requirements
@@ -27,140 +30,244 @@ There are **no actor managers** in this design. The Proto.Actor runtime handles 
 ### Solution Structure
 ```
 src/
-  Vut.ActorService/
+  Vut.Silo/
     Program.cs
-    Vut.ActorService.csproj
+    Vut.Silo.csproj
     Configuration/
       KurrentDbOptions.cs
-      ClusterOptions.cs
     Grains/
-      AggregateGrain.cs
+      EventSourcedGrain.cs
     Events/
       IEvent.cs
       EventTypeMapping.cs
-    Infrastructure/
-      EventSerializer.cs
-    Proto/
-      grain.proto (gRPC service definitions for cluster messages)
+    Controllers/
+      (placeholder — concrete controllers added in Tasks 05/06)
 ```
 
-### Cluster Configuration (`Program.cs`)
+### NuGet Packages
+
+| Package | Purpose |
+|---------|---------|
+| `Microsoft.Orleans.Server` | Orleans silo host, grain runtime |
+| `Microsoft.Orleans.Clustering.AdoNet` | PostgreSQL-based cluster membership |
+| `Npgsql` | ADO.NET provider for PostgreSQL |
+| `EventStore.Client.Grpc.Streams` | KurrentDB .NET client for event sourcing |
+| `Microsoft.AspNetCore.OpenApi` | (optional) Swagger for co-hosted API |
+
+### Silo Configuration (`Program.cs`)
 
 On startup, the service must:
-1. Build the `ActorSystem`.
-2. Configure the Proto.Actor cluster with:
-   - **Cluster name**: `vut-cluster`
-   - **Cluster provider**: Redpanda (Kafka-compatible membership gossip)
-   - **Identity lookup**: `PartitionIdentityLookup` (hash-based partitioning)
-   - **Bootstrap servers**: `vut-redpanda:9092` (from `ClusterOptions`)
-3. Register cluster kinds for each aggregate type:
-   - `"user"` -> `UserGrain` (added in Task 05)
-   - `"organization"` -> `OrganizationGrain` (added in Task 06)
-   - Register placeholders or stubs for Task 05/06 initially.
-4. Start the cluster and block until shutdown.
+1. Create a `WebApplication.CreateBuilder()` host.
+2. Configure Orleans via `builder.UseOrleans(siloBuilder => ...)`:
+   - **Clustering provider**: PostgreSQL via `UseAdoNetClustering` with `Invariant = "Npgsql"`
+   - **ClusterId**: `"vut-cluster"`
+   - **ServiceId**: `"vut"`
+   - **Silo port**: `11111` (silo-to-silo communication)
+   - **Gateway port**: `30000` (Orleans client connections)
+   - **Default grain storage**: `AddMemoryGrainStorageAsDefault()` (grain state lives in KurrentDB, not Orleans storage)
+   - **Grain collection**: `GrainCollectionOptions.CollectionAge = TimeSpan.FromMinutes(30)`
+3. Register `EventStoreClient` as a singleton for KurrentDB access.
+4. Register ASP.NET Core controllers via `builder.Services.AddControllers()`.
+5. Map controllers via `app.MapControllers()`.
+6. Run on port 5000 for HTTP API.
 
 ```csharp
-// Pseudocode -- Program.cs cluster setup
-var clusterConfig = ClusterConfig.Setup(
-    clusterName: "vut-cluster",
-    clusterProvider: new RedpandaProvider(new RedpandaConfig(clusterOptions.RedpandaBootstrapServers)),
-    identityLookup: new PartitionIdentityLookup(),
-    kinds: new[]
-    {
-        ClusterKind.Get("user", GetUserGrainProps(persistenceProvider)),
-        ClusterKind.Get("organization", GetOrganizationGrainProps(persistenceProvider)),
-    }
-);
+// Program.cs — Orleans silo with co-hosted ASP.NET Core API
+var builder = WebApplication.CreateBuilder(args);
 
-var system = new ActorSystem();
-var cluster = new Cluster(system, clusterConfig);
-await cluster.StartAsync();
+builder.UseOrleans(siloBuilder =>
+{
+    siloBuilder
+        .UseAdoNetClustering(options =>
+        {
+            options.ConnectionString = builder.Configuration
+                .GetConnectionString("PostgreSQL");
+            options.Invariant = "Npgsql";
+        })
+        .ConfigureEndpoints(
+            siloPort: 11111,
+            gatewayPort: 30000)
+        .AddMemoryGrainStorageAsDefault()
+        .Configure<ClusterOptions>(options =>
+        {
+            options.ClusterId = "vut-cluster";
+            options.ServiceId = "vut";
+        })
+        .Configure<GrainCollectionOptions>(options =>
+        {
+            options.CollectionAge = TimeSpan.FromMinutes(30);
+        });
+});
+
+// KurrentDB client (singleton, injected into grains via DI)
+builder.Services.AddSingleton(new EventStoreClient(
+    EventStoreClientSettings.Create(
+        builder.Configuration["KurrentDb:ConnectionString"]
+        ?? "esdb://vut-kurrentdb:2113?tls=false")));
+
+// Co-hosted ASP.NET Core API
+builder.Services.AddControllers();
+
+var app = builder.Build();
+app.MapControllers();
+app.Run();
 ```
 
-### Proto.Persistence.EventStore Bridge
+### KurrentDB .NET Client Integration
 
-Use the `Proto.Persistence.EventStore` NuGet package to bridge Proto.Actor's persistence API with KurrentDB streams.
+Each grain interacts with KurrentDB directly using the official `EventStore.Client.Grpc.Streams` NuGet package — there is no intermediary persistence provider layer.
 
 ```csharp
-// Pseudocode -- provider initialization
-var eventStoreSettings = EventStoreClientSettings.Create(
-    kurrentDbOptions.ConnectionString);
-var persistenceProvider = new EventStoreProvider(eventStoreSettings);
+// KurrentDB client registered in DI, injected into grains
+builder.Services.AddSingleton(new EventStoreClient(
+    EventStoreClientSettings.Create(
+        "esdb://vut-kurrentdb:2113?tls=false")));
 ```
 
-Each grain gets its own persistence instance scoped to its stream:
+The `EventStoreClient` is a singleton shared by all grains. Each grain scopes its reads and writes to its own stream:
 - User grains: stream ID = `user-{userId}`
 - Organization grains: stream ID = `organization-{orgId}`
 
-The provider handles event loading, snapshotting, and state recovery transparently.
+### Base Grain Abstraction (`EventSourcedGrain<TState>`)
 
-### Base Grain Abstraction (`AggregateGrain<TState>`)
-
-All aggregate grains inherit from this base class, which handles the event sourcing lifecycle:
+All aggregate grains inherit from this base class, which handles the event sourcing lifecycle with direct KurrentDB integration:
 
 ```csharp
-public abstract class AggregateGrain<TState> : IActor
+public abstract class EventSourcedGrain<TState> : Grain
     where TState : class, new()
 {
-    private readonly IProvider _persistenceProvider;
-    private Persistence _persistence = null!;
+    private readonly EventStoreClient _client;
+    private readonly string _streamId;
     private TState _state = new();
+    private StreamRevision _currentRevision = StreamRevision.None;
 
-    protected AggregateGrain(IProvider persistenceProvider)
+    protected TState State => _state;
+
+    protected EventSourcedGrain(EventStoreClient client, string streamId)
     {
-        _persistenceProvider = persistenceProvider;
+        _client = client;
+        _streamId = streamId;
     }
 
-    // Called on grain activation -- loads events from KurrentDB
-    protected abstract string GetStreamId(string identity);
-
-    public async Task ReceiveAsync(IContext context)
+    public override async Task OnActivateAsync(CancellationToken ct)
     {
-        switch (context.Message)
+        await HydrateFromStream(ct);
+        DelayDeactivation(TimeSpan.FromMinutes(30));
+        await base.OnActivateAsync(ct);
+    }
+
+    private async Task HydrateFromStream(CancellationToken ct)
+    {
+        var result = _client.ReadStreamAsync(
+            Direction.Forwards,
+            _streamId,
+            StreamPosition.Start,
+            cancellationToken: ct);
+
+        if (await result.ReadState == ReadState.StreamNotFound)
+            return; // New aggregate, empty state
+
+        await foreach (var resolved in result)
         {
-            case Started _:
-                var streamId = GetStreamId(context.Self!.Id);
-                _persistence = Persistence.WithEventSourcingAndSnapshotting(
-                    _persistenceProvider,
-                    streamId,
-                    ApplyEvent,
-                    ApplySnapshot,
-                    () => _state);
-                await _persistence.RecoverStateAsync();
-                context.SetReceiveTimeout(TimeSpan.FromMinutes(30));
-                break;
-            case ReceiveTimeout _:
-                // Grain will be passivated by the runtime
-                break;
-            default:
-                await HandleMessage(context);
-                break;
+            var @event = DeserializeEvent(resolved);
+            Apply(_state, @event);
+            _currentRevision = resolved.Event.EventNumber;
         }
+    }
+
+    protected async Task<TResult> EmitEvent<TResult>(
+        object @event,
+        Func<TState, TResult> resultSelector)
+    {
+        var eventData = SerializeEvent(@event);
+        var writeResult = await _client.AppendToStreamAsync(
+            _streamId,
+            _currentRevision,
+            new[] { eventData });
+
+        _currentRevision = writeResult.NextExpectedStreamRevision;
+        Apply(_state, @event);
+        return resultSelector(_state);
     }
 
     protected async Task EmitEvent(object @event)
     {
-        await _persistence.PersistEventAsync(@event);
+        var eventData = SerializeEvent(@event);
+        var writeResult = await _client.AppendToStreamAsync(
+            _streamId,
+            _currentRevision,
+            new[] { eventData });
+
+        _currentRevision = writeResult.NextExpectedStreamRevision;
+        Apply(_state, @event);
     }
 
-    private void ApplyEvent(object @event) => Apply(_state, @event);
-    private void ApplySnapshot(Snapshot snapshot) => _state = (TState)snapshot.State;
-
-    protected TState State => _state;
     protected abstract void Apply(TState state, object @event);
-    protected abstract Task HandleMessage(IContext context);
+
+    private EventData SerializeEvent(object @event)
+    {
+        var typeName = EventTypeMapping.GetTypeName(@event.GetType());
+        var json = JsonSerializer.SerializeToUtf8Bytes(
+            @event, @event.GetType());
+        return new EventData(Uuid.NewUuid(), typeName, json);
+    }
+
+    private object DeserializeEvent(ResolvedEvent resolved)
+    {
+        var type = EventTypeMapping.GetClrType(
+            resolved.Event.EventType);
+        return JsonSerializer.Deserialize(
+            resolved.Event.Data.Span, type)!;
+    }
 }
 ```
 
 **Key points:**
-- No `ActorManagerBase` -- the cluster runtime handles identity resolution and activation.
-- No manual PID dictionary -- `Cluster.GetGrain(kind, identity)` returns the PID.
-- No spawn/hydrate/passivate state machine -- the grain lifecycle is driven by the runtime.
-- Passivation is handled via `ReceiveTimeout` (30 minutes). When the timeout fires, the grain is deactivated. Next message triggers fresh activation and re-hydration from KurrentDB.
+- No external persistence provider — grains talk to KurrentDB directly via `EventStoreClient`.
+- Optimistic concurrency via `_currentRevision` — KurrentDB rejects writes if another process has appended events since the grain last read.
+- `OnActivateAsync()` hydrates state from the event stream on activation.
+- `DelayDeactivation(TimeSpan.FromMinutes(30))` keeps the grain in memory after its last call; `GrainCollectionOptions.CollectionAge` provides the global idle timeout.
+- Each grain method is a separate strongly-typed C# interface method — no `HandleMessage` switch or gRPC proto files.
+
+### Co-hosted ASP.NET Core API
+
+The API is hosted inside the Orleans silo process. Controllers use `IGrainFactory` (injected via DI) to obtain grain references:
+
+```csharp
+[ApiController]
+[Route("api/users")]
+public class UserController : ControllerBase
+{
+    private readonly IGrainFactory _grainFactory;
+
+    public UserController(IGrainFactory grainFactory)
+    {
+        _grainFactory = grainFactory;
+    }
+
+    [HttpPost("create")]
+    public async Task<IActionResult> CreateUser(
+        [FromBody] CreateUserRequest request)
+    {
+        var userId = Guid.NewGuid();
+        var grain = _grainFactory.GetGrain<IUserGrain>(userId);
+        var result = await grain.CreateUser(
+            request.ProviderId,
+            request.ProviderName,
+            request.DisplayName,
+            request.AvatarUrl,
+            request.Email);
+
+        return Ok(result);
+    }
+}
+```
+
+No gRPC serialization or cluster routing is involved. `IGrainFactory` returns a grain reference (proxy). If the grain is on this silo, the call is local. If on another silo, Orleans handles transport transparently.
 
 ### Event Serialization
 - Use `System.Text.Json` with camelCase naming convention.
-- `Proto.Persistence.EventStore` handles serialization/deserialization transparently.
+- The `EventSourcedGrain<TState>` base class handles serialization/deserialization via `SerializeEvent` and `DeserializeEvent` methods.
 - Map event type strings to CLR types via `EventTypeMapping`:
   - `"UserCreated"` -> `UserCreatedEvent`
   - `"UserProfileUpdated"` -> `UserProfileUpdatedEvent`
@@ -168,63 +275,50 @@ public abstract class AggregateGrain<TState> : IActor
   - etc. (all events from architecture doc Sections 5.3 and 5.4).
 - Each event type implements `IEvent` which requires `ActorId` and `Timestamp`.
 
-### gRPC Service Definition (`grain.proto`)
-
-Define gRPC messages for cluster communication. These are used by the BFF to send commands to grains:
-
-```protobuf
-syntax = "proto3";
-
-package vut;
-
-// Generic command request -- routed to grain by cluster kind + identity
-message ClusterCommandRequest {
-  string kind = 1;       // "user" or "organization"
-  string identity = 2;   // userId or orgId (UUID)
-  string command_type = 3;
-  string payload = 4;    // JSON
-}
-
-message ClusterCommandResponse {
-  bool success = 1;
-  string payload = 2;    // JSON result
-  string error = 3;
-}
-
-service GrainService {
-  rpc SendCommand(ClusterCommandRequest) returns (ClusterCommandResponse);
-}
-```
-
-**Note:** The BFF sends commands via `Cluster.GetGrain(kind, identity)` -- this gRPC definition is for the external API surface. Internal cluster communication uses Proto.Actor's built-in transport.
-
 ### Dockerfile
 - Multi-stage build: `mcr.microsoft.com/dotnet/sdk:8.0` for build, `mcr.microsoft.com/dotnet/aspnet:8.0` for runtime.
-- Expose port 5000 (gRPC).
-- Output image: `vut/actor-service`.
+- Expose port 5000 (HTTP API), port 11111 (silo-to-silo), port 30000 (Orleans gateway).
+- Output image: `vut/silo`.
 - Replicas: 3 in production (for grain distribution across cluster nodes).
+
+```dockerfile
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+COPY ["src/Vut.Silo/Vut.Silo.csproj", "Vut.Silo/"]
+RUN dotnet restore "Vut.Silo/Vut.Silo.csproj"
+COPY src/ .
+RUN dotnet publish "Vut.Silo/Vut.Silo.csproj" -c Release -o /app
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+WORKDIR /app
+COPY --from=build /app .
+EXPOSE 5000 11111 30000
+ENTRYPOINT ["dotnet", "Vut.Silo.dll"]
+```
 
 ## Acceptance Criteria
 
-- [ ] `Vut.ActorService` compiles and starts without errors.
-- [ ] Proto.Actor cluster connects to Redpanda and joins `vut-cluster`.
-- [ ] Cluster kinds are registered for `"user"` and `"organization"` (stubs for Task 05/06).
-- [ ] `AggregateGrain<TState>` correctly integrates with `Proto.Persistence.EventStore`.
-- [ ] Grain activation loads events from KurrentDB via the persistence provider.
-- [ ] Grain passivation works via `ReceiveTimeout` (30 minutes).
-- [ ] Events are serialized as JSON with camelCase.
-- [ ] gRPC service is defined and the server listens on port 5000.
-- [ ] Dockerfile builds successfully and produces a working container image.
+- [ ] `Vut.Silo` compiles and starts without errors.
+- [ ] Orleans silo joins `vut-cluster` using PostgreSQL ADO.NET clustering.
+- [ ] `ClusterOptions` configured with `ClusterId = "vut-cluster"` and `ServiceId = "vut"`.
+- [ ] `GrainCollectionOptions.CollectionAge` set to 30 minutes.
+- [ ] `EventSourcedGrain<TState>` correctly hydrates state from KurrentDB via `EventStoreClient` on `OnActivateAsync()`.
+- [ ] `EventSourcedGrain<TState>` persists events to KurrentDB with optimistic concurrency.
+- [ ] `EventStoreClient` registered as singleton in DI container.
+- [ ] Events are serialized as JSON with camelCase via `System.Text.Json`.
+- [ ] ASP.NET Core controllers are co-hosted and serve HTTP on port 5000.
+- [ ] `IGrainFactory` is injectable in API controllers.
+- [ ] Dockerfile builds successfully and produces a working container image exposing ports 5000, 11111, and 30000.
 
 ## Dependencies
 
-- Task 01 (Kubernetes Infrastructure) -- needs KurrentDB and Redpanda running.
-- Can develop and test locally with Docker containers for KurrentDB and Redpanda.
+- Task 01 (Kubernetes Infrastructure) -- needs KurrentDB and PostgreSQL running.
+- Can develop and test locally with Docker containers for KurrentDB and PostgreSQL.
 
 ## Notes
 
-- The actor service is the heart of the write path. It must be reliable and well-tested.
-- Every pod runs the same code and can host any grain kind -- there are no special roles or manager pods.
-- The `Proto.Persistence.EventStore` NuGet package handles event loading, snapshotting, and state recovery. The grain only works with strongly-typed event objects.
-- Snapshotting should be configured for every 50 events to optimize activation time for grains with long event histories (see Architecture doc Section 15.1).
-- This task creates the framework; Tasks 05 and 06 add the concrete User and Organization grains.
+- The silo is the heart of the write path. It must be reliable and well-tested.
+- Every pod runs the same code and can host any grain type -- there are no special roles or manager pods.
+- Orleans clustering tables (`OrleansMembershipTable`, `OrleansMembershipVersionTable`) are created automatically by the ADO.NET clustering provider on first silo startup (see Architecture doc Section 9.3).
+- Snapshotting should be considered for grains with long event histories (every 50 events) to optimize activation time (see Architecture doc Section 15.1).
+- This task creates the framework; Tasks 05 and 06 add the concrete User and Organization grain interfaces, implementations, and API controllers.

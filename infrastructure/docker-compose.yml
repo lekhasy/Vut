@@ -36,41 +36,7 @@ services:
         reservations:
           memory: ${KURRENTDB_MEMORY_RESERVATION:-1G}
 
-  # ─── Redpanda (Proto.Actor cluster transport) ──────────────────
-  redpanda:
-    image: redpandadata/redpanda:v24.2.2
-    container_name: vut-redpanda
-    restart: unless-stopped
-    ports:
-      - "${REDPANDA_KAFKA_PORT:-9092}:9092"
-      - "${REDPANDA_ADMIN_PORT:-9644}:9644"
-    command:
-      - redpanda
-      - start
-      - --smp ${REDPANDA_SMP:-1}
-      - --memory ${REDPANDA_MEMORY:-512M}
-      - --overprovisioned
-      - --kafka-addr internal://0.0.0.0:9092
-      - --advertise-kafka-addr internal://redpanda:9092
-      - --pandaproxy-addr internal://0.0.0.0:8082
-      - --advertise-pandaproxy-addr internal://redpanda:8082
-      - --rpc-addr internal://0.0.0.0:33145
-    volumes:
-      - redpanda-data:/var/lib/redpanda/data
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:9644/v1/status/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          memory: ${REDPANDA_MEMORY_LIMIT:-1G}
-        reservations:
-          memory: ${REDPANDA_MEMORY_RESERVATION:-512M}
-
-  # ─── PostgreSQL (Read Model Store) ──────────────────────────────
+  # ─── PostgreSQL (Read Model Store + Orleans Clustering) ────────
   postgresql:
     image: postgres:16-alpine
     container_name: vut-postgresql
@@ -99,7 +65,7 @@ services:
         reservations:
           memory: ${POSTGRESQL_MEMORY_RESERVATION:-512M}
 
-  # # ─── Actor Service (.NET Proto.Actor backend) ───────────────────
+  # # ─── Actor Service (.NET Orleans backend) ─────────────────────
   # # DISABLED: Uncomment when the actor-service Docker image is ready.
   # actor-service:
   #   image: vut/actor-service:latest
@@ -111,11 +77,13 @@ services:
   #   ports:
   #     - "${ACTOR_SERVICE_PORT:-5000}:5000"
   #     - "${ACTOR_SERVICE_GRPC_PORT:-5001}:5001"
+  #     - "${ORLEANS_DASHBOARD_PORT:-8888}:8888"
   #   environment:
   #     ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
   #     KurrentDB__ConnectionString: ${KURRENTDB_CONNECTION_STRING:-esdb://kurrentdb:2113?tls=false}
-  #     ProtoActor__ClusterProvider: ${PROTOACTOR_CLUSTER_PROVIDER:-Redpanda}
-  #     ProtoActor__RedpandaBootstrapServers: ${PROTOACTOR_REDPANDA_BOOTSTRAP_SERVERS:-redpanda:9092}
+  #     Orleans__ClusterId: ${ORLEANS_CLUSTER_ID:-vut-cluster}
+  #     Orleans__ServiceId: ${ORLEANS_SERVICE_ID:-vut-service}
+  #     Orleans__ClusteringConnectionString: ${ORLEANS_CLUSTERING_CONNECTION_STRING:-Host=postgresql;Database=vut_readmodel;Username=vut_app;Password=vut_dev_password}
   #     Auth0__Domain: ${AUTH0_DOMAIN:-dev-vut.us.auth0.com}
   #     Auth0__Audience: ${AUTH0_AUDIENCE:-https://vut-api-dev}
   #     Auth0__ClientId: ${AUTH0_CLIENT_ID}
@@ -123,8 +91,6 @@ services:
   #     PostgreSQL__ConnectionString: ${POSTGRESQL_CONNECTION_STRING:-Host=postgresql;Database=vut_readmodel;Username=vut_app;Password=vut_dev_password}
   #   depends_on:
   #     kurrentdb:
-  #       condition: service_healthy
-  #     redpanda:
   #       condition: service_healthy
   #     postgresql:
   #       condition: service_healthy
@@ -175,31 +141,6 @@ services:
   #       reservations:
   #         memory: ${FRONTEND_MEMORY_RESERVATION:-128M}
 
-  # ─── Redpanda Console (Redpanda management UI) ──────────────────
-  redpanda-console:
-    image: redpandadata/console:v2.7.2
-    container_name: vut-redpanda-console
-    restart: unless-stopped
-    ports:
-      - "${REDPANDA_CONSOLE_PORT:-8080}:8080"
-    environment:
-      KAFKA_BROKERS: redpanda:9092
-    depends_on:
-      redpanda:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-    deploy:
-      resources:
-        limits:
-          memory: ${REDPANDA_CONSOLE_MEMORY_LIMIT:-512M}
-        reservations:
-          memory: ${REDPANDA_CONSOLE_MEMORY_RESERVATION:-128M}
-
   # ─── pgAdmin (PostgreSQL management UI) ─────────────────────────
   pgadmin:
     image: dpage/pgadmin4:8.14
@@ -231,8 +172,6 @@ services:
 volumes:
   kurrentdb-data:
     name: vut-kurrentdb-data
-  redpanda-data:
-    name: vut-redpanda-data
   postgresql-data:
     name: vut-postgresql-data
   pgadmin-data:

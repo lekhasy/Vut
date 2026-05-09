@@ -9,42 +9,39 @@
 
 ## Description
 
-Set up Dockerfiles for all .NET services and the Astro.js frontend, and create a CI/CD pipeline (GitHub Actions) that builds, tests, and pushes Docker images. The pipeline should run on pull requests and merges to main.
+Set up Dockerfiles for all .NET services (Orleans Silo, Projector Service, Read Model Migrations) and the Astro.js frontend, and create a CI/CD pipeline (GitHub Actions) that builds, tests, and pushes Docker images. The pipeline should run on pull requests and merges to main. The ASP.NET Core API is co-hosted inside the Orleans silo — no separate Read Model API service or Dockerfile is needed.
 
 ## Architecture Reference
 
 - Architecture doc Section 3 (Component Diagram - all deployments)
-- Architecture doc Section 9.5 (Actor Service Deployment)
-- Architecture doc Section 9.6 (Frontend Deployment)
+- Architecture doc Section 9.4 (Orleans Silo Deployment)
+- Architecture doc Section 9.5 (Frontend Deployment)
 - Architecture doc Section 4 (Cluster Topology & Placement)
 
 ## Technical Requirements
 
 ### Dockerfiles
 
-#### Actor Service Dockerfile (`src/Vut.ActorService/Dockerfile`)
+#### Orleans Silo Dockerfile (`src/Vut.Silo/Dockerfile`)
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["Vut.ActorService/Vut.ActorService.csproj", "Vut.ActorService/"]
+COPY ["Vut.Silo/Vut.Silo.csproj", "Vut.Silo/"]
 COPY ["Vut.Shared/Vut.Shared.csproj", "Vut.Shared/"]
-RUN dotnet restore "Vut.ActorService/Vut.ActorService.csproj"
+RUN dotnet restore "Vut.Silo/Vut.Silo.csproj"
 COPY . .
-RUN dotnet publish "Vut.ActorService/Vut.ActorService.csproj" -c Release -o /app/publish
+RUN dotnet publish "Vut.Silo/Vut.Silo.csproj" -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app/publish .
-EXPOSE 5000
-ENTRYPOINT ["dotnet", "Vut.ActorService.dll"]
+EXPOSE 5000 11111 30000
+ENTRYPOINT ["dotnet", "Vut.Silo.dll"]
 ```
 
 #### Projector Service Dockerfile (`src/Vut.ProjectorService/Dockerfile`)
-- Same pattern as Actor Service, different entry point.
+- Same pattern as the Silo Dockerfile, different entry point.
 - No exposed ports (background worker).
-
-#### Read Model API Dockerfile (`src/Vut.ReadModelApi/Dockerfile`)
-- Same pattern, expose port 5001.
 
 #### Read Model Migrations Dockerfile (`src/Vut.ReadModel.Migrations/Dockerfile`)
 - Console app that runs migrations and exits.
@@ -73,11 +70,9 @@ CMD ["node", "./dist/server/entry.mjs"]
 ### Docker Compose (Local Development)
 Create `docker-compose.yml` for local development that starts:
 - KurrentDB (single node).
-- Redpanda (single broker).
-- PostgreSQL.
-- Actor Service (with hot reload or rebuild).
+- PostgreSQL (read model + Orleans clustering).
+- Orleans Silo (with hot reload or rebuild).
 - Projector Service.
-- Read Model API.
 - Frontend (with hot reload).
 
 ```yaml
@@ -91,11 +86,6 @@ services:
       EVENTSTORE_DEV: "true"
       EVENTSTORE_RUN_PROJECTIONS: "None"
 
-  redpanda:
-    image: redpandadata/redpanda:latest
-    ports: ["9092:9092"]
-    command: redpanda start --smp 1 --memory 512M --overprovisioned --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:9092
-
   postgres:
     image: postgres:16
     ports: ["5432:5432"]
@@ -104,36 +94,29 @@ services:
       POSTGRES_USER: vut
       POSTGRES_PASSWORD: vut_dev_password
 
-  actor-service:
-    build: ./src/Vut.ActorService
-    ports: ["5000:5000"]
-    depends_on: [kurrentdb, redpanda]
+  silo:
+    build: ./src/Vut.Silo
+    ports: ["5000:5000", "11111:11111", "30000:30000"]
+    depends_on: [kurrentdb, postgres]
     environment:
-      KurrentDB__ConnectionString: "esdb://kurrentdb:2113?tls=false"
-      ProtoActor__ClusterProvider: "Redpanda"
-      ProtoActor__RedpandaBootstrapServers: "redpanda:9092"
+      KurrentDb__ConnectionString: "esdb://kurrentdb:2113?tls=false"
+      ConnectionStrings__PostgreSQL: "Host=postgres;Database=vut_readmodel;Username=vut;Password=vut_dev_password"
+      Orleans__ClusterId: "vut-cluster"
+      Orleans__ServiceId: "vut"
 
   projector-service:
     build: ./src/Vut.ProjectorService
     depends_on: [kurrentdb, postgres]
     environment:
-      KurrentDB__ConnectionString: "esdb://kurrentdb:2113?tls=false"
-      Postgres__ConnectionString: "Host=postgres;Database=vut_readmodel;Username=vut;Password=vut_dev_password"
-
-  readmodel-api:
-    build: ./src/Vut.ReadModelApi
-    ports: ["5001:5001"]
-    depends_on: [postgres]
-    environment:
-      Postgres__ConnectionString: "Host=postgres;Database=vut_readmodel;Username=vut;Password=vut_dev_password"
+      KurrentDb__ConnectionString: "esdb://kurrentdb:2113?tls=false"
+      ConnectionStrings__PostgreSQL: "Host=postgres;Database=vut_readmodel;Username=vut;Password=vut_dev_password"
 
   frontend:
     build: ./frontend
     ports: ["3000:3000"]
-    depends_on: [actor-service, readmodel-api]
+    depends_on: [silo]
     environment:
-      ACTOR_SERVICE_URL: "http://actor-service:5000"
-      READMODEL_URL: "http://readmodel-api:5001"
+      SILO_API_URL: "http://silo:5000"
 ```
 
 ### GitHub Actions CI Pipeline (`.github/workflows/ci.yml`)
@@ -159,9 +142,8 @@ jobs:
       - name: Build & push Docker images
         if: github.ref == 'refs/heads/main'
         run: |
-          docker build -t vut/actor-service:${{ github.sha }} ./src/Vut.ActorService
+          docker build -t vut/silo:${{ github.sha }} ./src/Vut.Silo
           docker build -t vut/projector-service:${{ github.sha }} ./src/Vut.ProjectorService
-          docker build -t vut/readmodel-api:${{ github.sha }} ./src/Vut.ReadModelApi
 
   frontend:
     runs-on: ubuntu-latest
@@ -188,9 +170,8 @@ docker-compose.yml
   workflows/
     ci.yml
 src/
-  Vut.ActorService/Dockerfile
+  Vut.Silo/Dockerfile
   Vut.ProjectorService/Dockerfile
-  Vut.ReadModelApi/Dockerfile
   Vut.ReadModel.Migrations/Dockerfile
 frontend/
   Dockerfile
@@ -198,12 +179,11 @@ frontend/
 
 ## Acceptance Criteria
 
-- [ ] All 5 Dockerfiles build successfully.
+- [ ] All 4 Dockerfiles build successfully.
 - [ ] `docker-compose up` starts all services and they can communicate.
-- [ ] Actor service connects to KurrentDB inside Docker Compose.
-- [ ] Projector service connects to KurrentDB and PostgreSQL inside Docker Compose (no Redpanda dependency).
-- [ ] Read Model API connects to PostgreSQL inside Docker Compose.
-- [ ] Frontend connects to actor service and read model API inside Docker Compose.
+- [ ] Orleans silo connects to KurrentDB and PostgreSQL inside Docker Compose.
+- [ ] Projector service connects to KurrentDB and PostgreSQL inside Docker Compose.
+- [ ] Frontend connects to the silo API inside Docker Compose.
 - [ ] GitHub Actions CI pipeline runs on pull requests.
 - [ ] CI pipeline builds and tests .NET services.
 - [ ] CI pipeline builds and tests the frontend.

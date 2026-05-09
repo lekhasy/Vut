@@ -103,7 +103,7 @@ while [[ $elapsed -lt $timeout ]]; do
     all_healthy=true
     echo "--- Health check at ${elapsed}s ---"
 
-    for service in kurrentdb redpanda postgresql; do
+    for service in kurrentdb postgresql; do
         result=$(check_health "$service") || true
         if ! echo "$result" | grep -q "\[OK\]"; then
             all_healthy=false
@@ -130,7 +130,7 @@ while [[ $elapsed -lt $timeout ]]; do
         done
 
         echo ""
-        echo ">>> Redpanda ready (Proto.Actor cluster transport)"
+        echo ">>> PostgreSQL ready (Orleans clustering + read model store)"
         echo ""
         echo "Access points:"
         # Only show app service URLs if the containers are running
@@ -141,7 +141,6 @@ while [[ $elapsed -lt $timeout ]]; do
             echo "  Actor Service:  http://localhost:${ACTOR_SERVICE_PORT:-5000}"
         fi
         echo "  KurrentDB:      http://localhost:${KURRENTDB_HTTP_PORT:-2113}"
-        echo "  Redpanda:       localhost:${REDPANDA_KAFKA_PORT:-9092}"
         echo "  PostgreSQL:     localhost:${POSTGRESQL_PORT:-5432}"
         echo ""
         exit 0
