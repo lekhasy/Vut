@@ -22,34 +22,12 @@ An organization member creates a product, names it, writes a description, and de
 - [ ] Any org member (owner or member role) can create a product within their organization.
 - [ ] Creating a product requires a name (unique within the org), an optional description, and at least two statuses.
 - [ ] One of the initial statuses must be the designated starting status (convention: "New"). The UI makes this clear during creation.
-- [ ] `ProductCreated` event is emitted with the full initial status configuration.
 - [ ] The product appears in the organization's product list in the sidebar navigation.
 - [ ] Navigating to a product shows the product landing page (backlog view placeholder; full backlog is Epic 3).
-- [ ] A member can add a new status to a product (emitting `StatusAdded`), rename an existing status (emitting `StatusRenamed`), or remove a status (emitting `StatusRemoved`).
-- [ ] A member can rename the product (`ProductRenamed`) or change its description (`ProductDescriptionChanged`).
+- [ ] A member can add a new status to a product, rename an existing status, or remove a status.
+- [ ] A member can rename the product or change its description.
 - [ ] A product cannot be created outside an organization.
 - [ ] Tasks cannot yet be created (that is Epic 3) -- the product shows an empty state with a prompt.
-
-## Event Streams Introduced
-
-| Stream | Events |
-|--------|--------|
-| Product | `ProductCreated`, `ProductRenamed`, `ProductDescriptionChanged`, `StatusAdded`, `StatusRenamed`, `StatusRemoved`, `ProductDeleted` |
-
-## Projection Views Introduced
-
-| View | Purpose |
-|------|---------|
-| Product Projection | Product name, description, configured statuses (ordered list) |
-
-## Technical Scope
-
-- **Proto.Actor Product actor**: handles create, rename, description change, and status mutations. Validates that status names are unique within the product and that at least two statuses remain.
-- **KurrentDB stream**: `product-{productId}`.
-- **Redpanda topic**: product events.
-- **PostgreSQL projection**: product view with status list.
-- **Astro.js UI**: product creation form (name, description, status builder), product settings page for status management, product list in sidebar.
-- **Sidebar update**: products appear under the currently selected organization.
 
 ## Out of Scope for This Epic
 
@@ -60,7 +38,7 @@ An organization member creates a product, names it, writes a description, and de
 
 ## Estimated Complexity
 
-**Medium** -- The infrastructure is already in place from Epic 1. This Epic adds one new aggregate root (Product), its actor, stream, projection, and CRUD UI.
+**Medium** -- This Epic adds the product concept and its configurable workflow.
 
 ## How to Demo
 

@@ -24,41 +24,17 @@ Team members create tasks, write descriptions, apply namespaced tags, and manage
 ## Acceptance Criteria
 
 - [ ] A user can create a task in any product they have access to. Required field: title. Optional: description (markdown), tags.
-- [ ] `TaskCreated` event is emitted with taskId, productId, title, description, actorId, timestamp.
 - [ ] The task's status defaults to the product's starting status ("New").
-- [ ] A user can edit a task's title inline (emitting `TaskTitleChanged`).
-- [ ] A user can edit a task's description inline with markdown preview (emitting `TaskDescriptionChanged`).
-- [ ] A user can add a tag in `namespace:value` format (emitting `TagAdded`). The tag is stored as a plain string.
-- [ ] A user can remove a tag (emitting `TagRemoved`).
+- [ ] A user can edit a task's title inline.
+- [ ] A user can edit a task's description inline with markdown preview.
+- [ ] A user can add a tag in `namespace:value` format.
+- [ ] A user can remove a tag.
 - [ ] Tag autocomplete suggests tags previously used in the same product, scoped by namespace prefix (e.g., typing `area:` suggests `area:frontend`, `area:backend`).
-- [ ] A user can change a task's status to any status defined for the product (emitting `TaskStatusChanged` with oldStatus and newStatus).
+- [ ] A user can change a task's status to any status defined for the product.
 - [ ] The backlog view displays all tasks in the product in a list with columns: title, status, tags, created date, last updated.
 - [ ] Filters: status (single or multiple selection), tags (include/exclude by namespace:value), text search (title and description).
 - [ ] Sorting: created date, last updated, title, status. Default: created date descending.
 - [ ] The backlog view loads in under 1 second for products with up to 10,000 tasks.
-- [ ] All mutations are recorded as immutable events in the task stream. No in-place updates.
-
-## Event Streams Introduced
-
-| Stream | Events |
-|--------|--------|
-| Task | `TaskCreated`, `TaskTitleChanged`, `TaskDescriptionChanged`, `TaskStatusChanged`, `TagAdded`, `TagRemoved` |
-
-## Projection Views Introduced
-
-| View | Purpose |
-|------|---------|
-| Task Projection | Current state of each task: title, description, status, tags, created/updated timestamps |
-| Tag Index (Product-scoped) | Unique tags per product for autocomplete; derived from `TagAdded` events |
-
-## Technical Scope
-
-- **Proto.Actor Task actor**: handles create, title change, description change, status change, tag add/remove. Validates that status values exist in the product's configuration and tag format matches `namespace:value` pattern.
-- **KurrentDB stream**: `task-{taskId}`.
-- **Redpanda topic**: task events.
-- **PostgreSQL projections**: task view (current state), tag index per product.
-- **Astro.js UI**: backlog list view with inline editing, tag input with autocomplete, filter panel, sort controls, "New Task" quick-create form.
-- **Client-side filtering/sorting**: for responsiveness, filter and sort operate on client-held data with server-side pagination/query support for large datasets.
 
 ## Out of Scope for This Epic
 
@@ -70,7 +46,7 @@ Team members create tasks, write descriptions, apply namespaced tags, and manage
 
 ## Estimated Complexity
 
-**Large** -- This is the most feature-rich data-entry Epic. It introduces the Task aggregate, six event types, inline editing, tag autocomplete, and a full filter/sort backlog UI.
+**Large** -- This is the most feature-rich data-entry Epic: task creation, inline editing, tag autocomplete, and full filter/sort capabilities.
 
 ## How to Demo
 
@@ -78,7 +54,7 @@ Team members create tasks, write descriptions, apply namespaced tags, and manage
 2. Click "New Task." Enter title: "Implement login screen." Add description in markdown. Add tag `area:frontend`. Submit.
 3. The task appears in the backlog with "New" status.
 4. Create a second task: "Fix API timeout." Tag: `type:bug`. Create a third: "Design onboarding flow." Tag: `area:design`.
-5. Inline-edit the first task's title to "Implement mobile login screen." Verify `TaskTitleChanged` event.
+5. Inline-edit the first task's title to "Implement mobile login screen."
 6. Add tag `priority:high` to the bug task. Verify autocomplete suggests `priority:` from the tag index after typing `p`.
 7. Filter the backlog to show only `type:bug`. One task appears.
 8. Sort by last updated. Recently edited tasks appear first.

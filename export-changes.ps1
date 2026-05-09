@@ -1,12 +1,12 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Exports all uncommitted changes in this repo to a patch file on the Desktop,
-    then reverts the working directory to match origin.
+    Exports committed code changes on the current branch (compared to local main)
+    to a diff file. Only the diff is included — no commit messages. Staged or
+    unstaged working-tree changes are ignored. The local repo is left untouched.
 
 .PARAMETER OutputFile
-    Path for the output patch file. Defaults to Desktop\changes.patch
-    NOTE: Must be outside the repo to survive git clean.
+    Path for the output diff file. Defaults to changes.patch next to the repo.
 
 .EXAMPLE
     .\export-changes.ps1
@@ -25,48 +25,47 @@ function Write-Fail([string]$msg) { Write-Host "`n    FAILED: $msg" -ForegroundC
 
 Set-Location $PSScriptRoot
 
-# ── Check for changes ─────────────────────────────────────────────────────────
+# ── Validate branch ───────────────────────────────────────────────────────────
 
-Write-Step "Checking for changes"
-$status = git status --porcelain
-if (-not $status) {
-    Write-Fail "No changes detected. Nothing to export."
+Write-Step "Checking current branch"
+$currentBranch = git rev-parse --abbrev-ref HEAD
+if ($LASTEXITCODE -ne 0) { Write-Fail "Not a git repository"; exit 1 }
+
+if ($currentBranch -eq "main") {
+    Write-Fail "Already on 'main'. Switch to a feature branch first."
     exit 1
 }
 
-Write-Host "    Changes found:"
-$status | ForEach-Object { Write-Host "      $_" }
+Write-Success "Current branch: $currentBranch"
 
-# ── Stage and export ──────────────────────────────────────────────────────────
+# ── Check for committed differences against main ─────────────────────────────
 
-Write-Step "Creating patch: $OutputFile"
-git add --all
-if ($LASTEXITCODE -ne 0) { Write-Fail "git add failed"; exit 1 }
+Write-Step "Comparing '$currentBranch' against local 'main'"
+$mergeBase = git merge-base main HEAD
+if ($LASTEXITCODE -ne 0) { Write-Fail "Could not find common ancestor with 'main'. Does 'main' branch exist?"; exit 1 }
 
-git diff --cached --binary > $OutputFile
+$diffStat = git diff --stat $mergeBase HEAD
+if (-not $diffStat) {
+    Write-Fail "No committed changes found between 'main' and '$currentBranch'."
+    exit 1
+}
+
+Write-Host "    Changed files:"
+$diffStat | ForEach-Object { Write-Host "      $_" }
+
+# ── Export diff ───────────────────────────────────────────────────────────────
+
+Write-Step "Creating diff: $OutputFile"
+git diff --binary --output=$OutputFile $mergeBase HEAD
 if ($LASTEXITCODE -ne 0) { Write-Fail "git diff failed"; exit 1 }
 
 $patchSize = (Get-Item $OutputFile).Length
 if ($patchSize -eq 0) {
-    Write-Fail "Patch file is empty — nothing was staged."
-    git reset HEAD | Out-Null
+    Write-Fail "Diff file is empty."
     exit 1
 }
 
-Write-Success "Patch created ($patchSize bytes) at: $OutputFile"
+Write-Success "Diff created ($patchSize bytes) at: $OutputFile"
 
-# Unstage — leave working directory intact until patch is confirmed saved
-git reset HEAD | Out-Null
-
-# ── Revert this repo ──────────────────────────────────────────────────────────
-
-Write-Step "Reverting this repo to match origin"
-git checkout -- . 2>&1 | Out-Null
-git clean -fd   2>&1 | Out-Null
-git pull
-if ($LASTEXITCODE -ne 0) { Write-Fail "git pull failed"; exit 1 }
-
-Write-Success "Reverted and pulled"
-
-Write-Host "`n✓ Done. Patch saved to: $OutputFile" -ForegroundColor Green
+Write-Host "`n✓ Done. Diff saved to: $OutputFile" -ForegroundColor Green
 Write-Host "  Copy this file to the other repo and run import-changes.ps1`n"

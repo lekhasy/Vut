@@ -4,7 +4,7 @@
 
 ### Slicing Strategy
 
-Each Epic is a **vertical slice** that delivers standalone, demonstrable value to real users. No Epic is a "layer" (no "Backend API", no "Frontend UI", no "Database Setup"). Every Epic spans the full stack -- event streams, projections, backend actors, and frontend UI -- so that a user can sign in, interact, and benefit.
+Each Epic is a **vertical slice** that delivers standalone, demonstrable value to real users. No Epic is a "layer". Every Epic spans all the work needed so that a user can sign in, interact, and benefit.
 
 The Epics are ordered by dependency: earlier Epics establish the foundation that later Epics build on. Each Epic assumes the infrastructure from previous Epics exists but is independently deployable.
 
@@ -47,29 +47,11 @@ Epic 4 and Epic 5 both depend on Epic 3 (tasks must exist to visualize or move t
 
 ---
 
-## Technical Context (Cross-Cutting)
-
-These concerns are not Epics themselves but are established progressively as part of the Epics that need them:
-
-| Concern | Introduced In |
-|---------|---------------|
-| Event sourcing infrastructure (KurrentDB, streams, projections) | Epic 1 |
-| Proto.Actor actors for aggregate roots | Epic 1 |
-| Redpanda event publishing + PostgreSQL read model projectors | Epic 1 |
-| Auth0 integration + GitHub SSO (multi-provider identity support) | Epic 1 |
-| Email verification (6-digit code, 15-min expiry, platform access gate) | Epic 1 |
-| Multi-provider identity linking with auto-link by email | Epic 1 |
-| Astro.js SPA shell, routing, Tailwind design system | Epic 1 |
-| Kubernetes deployment manifests | Epic 1 |
-
----
-
 ## Definition of Done (Per Epic)
 
 An Epic is done when:
 
 1. All acceptance criteria in the Epic file are met.
 2. The feature is usable end-to-end by the target persona(s) listed in the Epic.
-3. Events are correctly emitted to KurrentDB and projected to PostgreSQL.
-4. The UI follows the design guidelines from the PRD (sidebar nav, toast notifications, inline editing where applicable).
-5. No time-centric features have been introduced (hard constraint).
+3. The UI follows the design guidelines from the PRD (sidebar nav, toast notifications, inline editing where applicable).
+4. No time-centric features have been introduced (hard constraint).

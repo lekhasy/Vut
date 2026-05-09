@@ -30,31 +30,12 @@ Team leads and stakeholders view a stacked-area cumulative flow diagram showing 
 - [ ] The chart renders correctly with as few as 1 day of data (may show a single data point; projection is hidden or marked as "insufficient data").
 - [ ] A projected completion date is displayed as a vertical line or annotation on the chart, with a clear label (e.g., "Projected: Mar 15, 2026").
 - [ ] The projection includes a confidence range (e.g., "Likely range: Mar 10 - Mar 22") derived from throughput variance.
-- [ ] The projection method uses historical throughput (rate of tasks reaching the final status) calculated purely from `TaskStatusChanged` events. No story points, no estimates.
+- [ ] The projection method uses historical throughput (rate of tasks reaching the final status). No story points, no estimates.
 - [ ] Tag-based filtering: a filter control allows selecting tags to include. Only tasks matching the selected tags contribute to the chart and projection.
 - [ ] Changing the tag filter recalculates and redraws the chart and projection in real time (under 2 seconds).
 - [ ] The projection is hidden or shows an "insufficient data" message when fewer than N data points exist (N to be determined during implementation; suggested: 5 days of status transitions).
 - [ ] All product members can view the report; it is read-only.
 - [ ] Color contrast between status bands meets WCAG 2.1 AA guidelines.
-
-## Event Streams Used
-
-No new event types. This Epic consumes the existing `TaskStatusChanged` events from the Task stream.
-
-## Projection Views Introduced
-
-| View | Purpose |
-|------|---------|
-| Cumulative Flow Snapshot | Daily aggregated counts of tasks per status per product. Rebuilt from `TaskStatusChanged` events. Enables chart rendering without scanning the full event history. |
-
-## Technical Scope
-
-- **PostgreSQL projection**: a daily snapshot table (`cumulative_flow_snapshot`) storing: productId, date, status, taskCount. Updated by a Redpanda consumer that processes `TaskStatusChanged` events and increments/decrements daily counts.
-- **Projection rebuild**: a mechanism to rebuild the snapshot from scratch by replaying all `TaskStatusChanged` events for a product (needed after schema changes or data corrections).
-- **Throughput calculation**: query the snapshot for the rate of tasks reaching the final status per day; derive average throughput and variance.
-- **Projection algorithm**: linear extrapolation using average throughput, with a confidence range based on throughput variance. (Monte Carlo simulation is a Phase 2 enhancement.)
-- **Astro.js UI**: chart rendering library (e.g., Chart.js, D3.js, or Apache ECharts), tag filter control, projection annotation, "insufficient data" state.
-- **API endpoint**: returns cumulative flow data for a product, optionally filtered by tags, including the projected completion date and confidence range.
 
 ## Out of Scope for This Epic
 
@@ -65,7 +46,7 @@ No new event types. This Epic consumes the existing `TaskStatusChanged` events f
 
 ## Estimated Complexity
 
-**Large** -- This is the signature feature of Vut. The cumulative flow snapshot projection, throughput calculation, projection algorithm, and interactive tag-filtered chart represent significant work across the full stack.
+**Large** -- This is the signature feature of Vut. The cumulative flow diagram, throughput calculation, projection algorithm, and interactive tag-filtered chart represent significant work.
 
 ## How to Demo
 

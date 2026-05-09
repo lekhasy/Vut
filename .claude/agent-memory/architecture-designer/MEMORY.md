@@ -1,2 +1,0 @@
-- [Vut Virtual Actor Architecture Redesign](project_vut_virtual_actor_redesign.md) -- Epic 1 redesign from Actor Manager to Proto.Actor virtual actors with KurrentDB
-- [User Profile - Sy Le](user_syle.md) -- Vut architect/developer, early-stage codebase, prefers comprehensive Mermaid-rich architecture docs

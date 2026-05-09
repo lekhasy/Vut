@@ -24,7 +24,7 @@ Team members view active work as columns on a kanban board and drag task cards b
 - [ ] The kanban board displays one column for each status defined for the product, excluding the starting status ("New").
 - [ ] Tasks in "New" status do not appear on the kanban board under any circumstance.
 - [ ] Each task card shows: title, tags (as badges), and a visual indicator of its current status column.
-- [ ] Dragging a card from column A to column B emits a `TaskStatusChanged` event (oldStatus = A's status, newStatus = B's status) and moves the card in the UI.
+- [ ] Dragging a card from column A to column B updates the task's status and moves the card in the UI.
 - [ ] The drag-and-drop interaction provides visual feedback: the card lifts from its column, a drop zone highlights, and the card animates into the new column.
 - [ ] An "Add from Backlog" affordance (e.g., a mini-backlog drawer or a "+" at the top of the first column) allows moving a "New" task to the first active status without navigating away.
 - [ ] Clicking a card opens a detail side panel showing title, description (rendered markdown), tags, and status. Title and description can be edited inline from this panel.
@@ -32,25 +32,6 @@ Team members view active work as columns on a kanban board and drag task cards b
 - [ ] Keyboard navigation: Tab/arrow keys move focus between cards; Enter opens the detail panel; Escape closes it.
 - [ ] The board is the secondary navigation view for a product (accessible via tab or sidebar link, alongside Backlog and Report).
 - [ ] Basic filters (by tags, text search) are available on the board, with a clear indication when filters are active.
-
-## Event Streams Introduced
-
-No new event types. This Epic consumes existing `TaskStatusChanged` events and emits them via drag-and-drop.
-
-## Projection Views Used
-
-| View | Purpose |
-|------|---------|
-| Task Projection | Current status, title, tags for rendering cards in columns |
-| Product Projection | Status list for column headers |
-
-## Technical Scope
-
-- **Astro.js UI**: kanban board layout, drag-and-drop library integration (e.g., dnd-kit, react-beautiful-dnd equivalent), card components, detail side panel, "Add from Backlog" drawer.
-- **Proto.Actor**: no new actors. Task actor handles `TaskStatusChanged` commands from board interactions.
-- **Optimistic update logic**: client-side state management that applies the status change immediately, reverts on failure.
-- **Accessibility**: keyboard-navigable board, ARIA labels on columns and cards, focus management.
-- **Responsive**: columns scroll horizontally on narrower viewports; cards stack vertically within columns.
 
 ## Out of Scope for This Epic
 
@@ -61,7 +42,7 @@ No new event types. This Epic consumes existing `TaskStatusChanged` events and e
 
 ## Estimated Complexity
 
-**Medium-Large** -- The drag-and-drop interaction, optimistic updates, and keyboard accessibility represent significant frontend complexity. The backend changes are minimal (reusing the Task actor's status change command).
+**Medium-Large** -- The drag-and-drop interaction, optimistic updates, and keyboard accessibility represent significant interaction complexity.
 
 ## How to Demo
 

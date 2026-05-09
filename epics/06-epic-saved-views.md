@@ -32,29 +32,6 @@ Team members save their frequently used kanban filter and sort configurations as
 - [ ] When no saved view is active, the board shows the default (unfiltered, default sort) state.
 - [ ] Modifying filters while a saved view is active shows a visual indicator that the current state differs from the saved view (e.g., "Modified" badge, or an offer to update the saved view).
 
-## Event Streams Used
-
-Saved views are a user preference, not a domain event. They are stored as a projection of user-product-scoped preferences. For consistency with the event-sourced architecture, view mutations can be modeled as:
-
-| Stream | Events |
-|--------|--------|
-| User Preferences (per product) | `ViewSaved`, `ViewRenamed`, `ViewDeleted` |
-
-Alternatively, saved views can be stored directly in the PostgreSQL read model as user preference records if the team decides this level of state does not warrant event sourcing.
-
-## Projection Views Introduced
-
-| View | Purpose |
-|------|---------|
-| Saved View (User-Product scoped) | Name, filter config, sort config for each saved kanban view |
-
-## Technical Scope
-
-- **Storage**: Event-sourced user preference stream OR direct PostgreSQL table for saved views (team decision).
-- **Astro.js UI**: saved view list (tabs or dropdown), "Save this view" button, rename and delete controls, "modified" indicator, active view highlighting.
-- **Client-side state**: filter and sort state management that can be serialized to/from a saved view configuration.
-- **API endpoint**: CRUD for saved views scoped to user + product.
-
 ## Out of Scope for This Epic
 
 - Shared/team-level saved views (Phase 2).
@@ -63,7 +40,7 @@ Alternatively, saved views can be stored directly in the PostgreSQL read model a
 
 ## Estimated Complexity
 
-**Small-Medium** -- This is a focused feature built entirely on top of the kanban board from Epic 4. The primary work is UI interaction design (tabs/dropdown, save/rename/delete UX) and client-side state serialization.
+**Small-Medium** -- This is a focused feature built on the kanban board from Epic 4. The primary work is interaction design for saving, switching, and managing views.
 
 ## How to Demo
 

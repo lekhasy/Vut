@@ -38,7 +38,7 @@ if (-not (Test-Path $PatchFile)) {
     exit 1
 }
 
-git apply --check $PatchFile 2>&1
+git apply --check --3way --whitespace=fix $PatchFile 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Fail "Patch does not apply cleanly. Aborting."
     exit 1
@@ -49,7 +49,7 @@ Write-Success "Patch is valid"
 # ── Apply patch ───────────────────────────────────────────────────────────────
 
 Write-Step "Applying patch"
-git apply --binary $PatchFile
+git apply --binary --3way --whitespace=fix $PatchFile
 if ($LASTEXITCODE -ne 0) { Write-Fail "git apply failed"; exit 1 }
 
 Write-Success "Patch applied"
