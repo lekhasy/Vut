@@ -28,10 +28,6 @@ jobs:
   # ── Build & push silo image ──────────────────────────────────────
   build-silo:
     runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      contains(toJSON(github.event.commits.*.modified), 'backend/') ||
-      contains(toJSON(github.event.commits.*.added), 'backend/')
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
     steps:
@@ -65,10 +61,6 @@ jobs:
   # ── Build & push frontend image ─────────────────────────────────
   build-frontend:
     runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      contains(toJSON(github.event.commits.*.modified), 'frontend/') ||
-      contains(toJSON(github.event.commits.*.added), 'frontend/')
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
     steps:
