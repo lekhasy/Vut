@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: silo
-          image: ghcr.io/lekhasy/vut/silo:latest
+          image: ghcr.io/lekhasy/vut/silo:55fe912
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
