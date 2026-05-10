@@ -34,6 +34,9 @@ src/
     Queries/
       UserQueries.cs              # Dapper/raw SQL read queries
       OrgQueries.cs
+    Services/
+      IEmailService.cs            # Abstraction for sending emails
+      ResendEmailService.cs       # Resend SDK implementation
     Models/
       UserDto.cs
       OrganizationDto.cs
@@ -144,6 +147,7 @@ Note: `email` may be `null` if the identity provider did not return one.
 
 **POST /api/organizations/{orgId}/members/invite**
 - Invites a member via the `IOrganizationGrain`.
+- After the grain confirms the invitation, sends an invitation email via **Resend** (using `IEmailService`).
 
 **POST /api/organizations/{orgId}/members/accept**
 - Accepts an invitation via the `IOrganizationGrain`.
@@ -181,6 +185,13 @@ Note: `email` may be `null` if the identity provider did not return one.
 - Obtain grain references via `_grainFactory.GetGrain<IUserGrain>(userId)` or `_grainFactory.GetGrain<IOrganizationGrain>(orgId)`.
 - Orleans handles grain activation, placement, and routing transparently.
 
+### Email Sending (Resend)
+- Inject `IEmailService` (backed by `ResendEmailService`) into controllers that send emails.
+- **Email verification** (`POST /api/users/{userId}/verify-email`): After the UserGrain returns the 6-digit verification code, the controller sends the code to the user's email via Resend.
+- **Member invitation** (`POST /api/organizations/{orgId}/members/invite`): After the OrgGrain confirms the invitation, the controller sends an invitation email via Resend with a link to `https://vut.app/invite/{orgId}`.
+- `ResendEmailService` uses the `Resend` .NET SDK with the API key from configuration (`Resend:ApiKey`).
+- Wrap Resend calls in try/catch — email delivery failure should be logged but should NOT fail the API request (the grain event is already persisted).
+
 ### Cross-Origin (CORS)
 - Allow requests from the Astro.js BFF origin.
 - The API is internal to the cluster but should support CORS for local dev.
@@ -203,6 +214,9 @@ Note: `email` may be `null` if the identity provider did not return one.
 - [ ] All responses follow consistent JSON format (camelCase).
 - [ ] Error responses follow a consistent format: `{ "error": "NOT_FOUND", "message": "..." }`.
 - [ ] Controllers are co-hosted in the silo process and accessible on port 5000.
+- [ ] Email verification endpoint sends verification code via Resend after grain call succeeds.
+- [ ] Member invitation endpoint sends invitation email via Resend after grain call succeeds.
+- [ ] Resend email delivery failures are logged but do not fail the API request.
 
 ## Dependencies
 

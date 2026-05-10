@@ -25,6 +25,7 @@ Set up the complete K3s (lightweight Kubernetes) infrastructure for the Vut plat
 ### Secrets
 - Create `k8s/secrets/vut-postgresql-secret.yaml` (base64-encoded username/password for PostgreSQL).
 - Create `k8s/secrets/vut-auth0-secret.yaml` with keys: `domain`, `audience`, `client-id`, `client-secret`.
+- Create `k8s/secrets/vut-resend-secret.yaml` with key: `api-key` (Resend API key for sending emails).
 - Secrets must be templated for dev vs. prod (use envsubst or Helm values in future).
 
 ### KurrentDB StatefulSet
@@ -55,6 +56,7 @@ Set up the complete K3s (lightweight Kubernetes) infrastructure for the Vut plat
   - `Orleans__ClusterId`: `vut-cluster`.
   - `Orleans__ServiceId`: `vut`.
   - `Auth0__Domain`, `Auth0__Audience`: from `vut-auth0-secret`.
+  - `Resend__ApiKey`: from `vut-resend-secret`.
 
 ### Projector Service Deployment
 - `k8s/projector-service/deployment.yaml` and `k8s/projector-service/service.yaml`.

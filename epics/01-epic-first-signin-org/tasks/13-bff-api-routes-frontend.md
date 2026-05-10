@@ -76,7 +76,7 @@ POST http://{SILO_API_URL}/api/users/{userId}/verify-email
   "email": "user@example.com"
 }
 ```
-- The co-hosted API invokes the UserGrain which generates a 6-digit code and emits `EmailVerificationRequested`. The backend sends the email via SMTP.
+- The co-hosted API invokes the UserGrain which generates a 6-digit code and emits `EmailVerificationRequested`. The backend sends the email via Resend.
 
 #### POST /api/users/me/verify-email/confirm
 - Body: `{ code: string }`.

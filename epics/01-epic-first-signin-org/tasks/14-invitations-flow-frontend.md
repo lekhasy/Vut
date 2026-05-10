@@ -156,7 +156,7 @@ Response (200):
 
 ## Notes
 
-- For MVP, email sending may not be implemented on the backend. The invitation system should work entirely in-app: the invitee discovers their invitation after logging in. Email is an enhancement.
+- The backend sends invitation emails via **Resend**. The invitee also discovers their invitation in-app after logging in (the invitation banner). Email delivery via Resend is the primary notification channel.
 - The invitation banner should not be intrusive -- a subtle notification badge or toast is sufficient. Do not block the user from their dashboard.
 - Consider the case where a user has pending invitations from multiple organizations. The list should handle this gracefully.
 - The `email` field in the accept/decline request comes from the user's session (their verified email from Auth0). The BFF should inject this automatically rather than requiring the frontend to send it.

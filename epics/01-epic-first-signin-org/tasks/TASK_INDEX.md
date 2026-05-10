@@ -125,6 +125,7 @@ With parallelism: approximately 10-11 days with 2 developers.
 | Grain Deactivation | `GrainCollectionOptions.CollectionAge` (30 min), re-hydrate from KurrentDB on re-activation | Task 04 |
 | API Hosting | Co-hosted ASP.NET Core controllers in Orleans silo, using `IGrainFactory` for writes | Tasks 04, 08 |
 | Projection | KurrentDB persistent subscriptions -> Projector (.NET Worker) -> PostgreSQL | Task 07 |
+| Email Service | Resend — verification codes and invitation emails sent from co-hosted API | Tasks 04, 08 |
 
 ## Event Streams Covered
 

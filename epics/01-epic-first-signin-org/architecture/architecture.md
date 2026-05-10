@@ -18,7 +18,7 @@ graph TB
         Google["Google OAuth"]
         MS["Microsoft OAuth"]
         Auth0["Auth0"]
-        SMTP["Email Service (SMTP)"]
+        RESEND["Resend<br/>(Email API)"]
         CF["Cloudflare Edge<br/>(vut.app DNS + TLS)"]
     end
 
@@ -77,7 +77,7 @@ graph TB
     PU --> UI2
     PO --> OP
     PO --> OMP
-    OA --> SMTP
+    OA --> RESEND
 ```
 
 The BFF communicates with a co-hosted ASP.NET Core API that lives inside the Orleans silo process. The API uses `IGrainFactory` to obtain grain references. Grains are auto-activated by the Orleans runtime on first call — no manual routing or external broker required.
@@ -1015,7 +1015,7 @@ sequenceDiagram
     participant K as KurrentDB
     participant PJ as Projector
     participant PG as PostgreSQL
-    participant SMTP as Email Service
+    participant Resend as Resend (Email API)
 
     User->>Browser: Enter email on /verify-email, submit
     Browser->>BFF: POST /api/users/me/verify-email { email }
@@ -1025,8 +1025,8 @@ sequenceDiagram
     Grain->>Grain: Generate 6-digit code, set expiry (15 min)
     Grain->>K: Append EmailVerificationRequested to user-{userId}
     K-->>Grain: OK
-    Grain-->>API: OK (returns token for SMTP)
-    API->>SMTP: Send verification email with code
+    Grain-->>API: OK (returns verification code)
+    API->>Resend: Send verification email with code
     API-->>BFF: 200 OK
 
     User->>Browser: Enter code from email
@@ -1132,7 +1132,7 @@ sequenceDiagram
     participant K as KurrentDB
     participant PJ as Org Projector
     participant PG as PostgreSQL
-    participant SMTP as Email Service
+    participant Resend as Resend (Email API)
 
     Owner->>Browser1: Invite member (email)
     Browser1->>BFF: POST /api/orgs/{orgId}/members/invite { email }
@@ -1147,7 +1147,7 @@ sequenceDiagram
     K->>PJ: Persistent subscription delivers MemberInvited
     PJ->>PG: INSERT INTO org_invitation_projection
 
-    API->>SMTP: Send invitation email
+    API->>Resend: Send invitation email
     API-->>BFF: OK
 
     Note over Invitee: Invitee receives email, clicks link
@@ -2114,6 +2114,7 @@ No changes to the cluster topology, PostgreSQL clustering configuration, or base
 | Serialization | System.Text.Json (JSON) | Native .NET, high performance, no external dependency. |
 | ID generation | UUID v4 | Globally unique, no coordination needed, safe for distributed grain creation. |
 | Session management | HTTP-only cookie (BFF) | Secure, no token exposure to JavaScript, BFF validates JWT server-side. |
+| Email service | Resend | Modern email API with .NET SDK. 3,000 emails/month free tier — sufficient for verification codes and invitation emails. Simple REST/SDK integration, no SMTP relay configuration needed. |
 | Grain placement | Default (consistent hash) | Orleans' default placement distributes grains evenly across silos. Custom placement is not needed for Vut's access patterns. |
 
 ---

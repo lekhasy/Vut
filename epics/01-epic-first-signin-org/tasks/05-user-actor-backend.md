@@ -257,7 +257,7 @@ public class UserGrain : EventSourcedGrain<UserState>, IUserGrain
 1. Generate a 6-digit random code as the verification token.
 2. Set token expiry to 15 minutes from now (set in `Apply`).
 3. Emit `EmailVerificationRequestedEvent`.
-4. Return the token (the API controller sends the email via SMTP after receiving this).
+4. Return the token (the API controller sends the email via Resend after receiving this).
 
 #### `VerifyEmail`
 1. Validate token matches `EmailVerificationToken` in state and hasn't expired.

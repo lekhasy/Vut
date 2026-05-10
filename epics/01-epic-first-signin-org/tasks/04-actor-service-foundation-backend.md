@@ -52,6 +52,7 @@ src/
 | `Microsoft.Orleans.Clustering.AdoNet` | PostgreSQL-based cluster membership |
 | `Npgsql` | ADO.NET provider for PostgreSQL |
 | `EventStore.Client.Grpc.Streams` | KurrentDB .NET client for event sourcing |
+| `Resend` | Resend .NET SDK for sending verification and invitation emails |
 | `Microsoft.AspNetCore.OpenApi` | (optional) Swagger for co-hosted API |
 
 ### Silo Configuration (`Program.cs`)
@@ -67,7 +68,8 @@ On startup, the service must:
    - **Default grain storage**: `AddMemoryGrainStorageAsDefault()` (grain state lives in KurrentDB, not Orleans storage)
    - **Grain collection**: `GrainCollectionOptions.CollectionAge = TimeSpan.FromMinutes(30)`
 3. Register `EventStoreClient` as a singleton for KurrentDB access.
-4. Register ASP.NET Core controllers via `builder.Services.AddControllers()`.
+4. Register `ResendClient` as a singleton for sending emails (verification codes, invitation emails). API key from configuration (`Resend:ApiKey`).
+5. Register ASP.NET Core controllers via `builder.Services.AddControllers()`.
 5. Map controllers via `app.MapControllers()`.
 6. Run on port 5000 for HTTP API.
 
