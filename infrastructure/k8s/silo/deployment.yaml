@@ -69,6 +69,11 @@ spec:
                 secretKeyRef:
                   name: vut-auth0-secret
                   key: client-secret
+            - name: Resend__ApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: vut-resend-secret
+                  key: api-key
           resources:
             requests:
               cpu: 250m

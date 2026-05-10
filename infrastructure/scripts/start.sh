@@ -83,18 +83,20 @@ interval=5
 
 check_health() {
     local service="$1"
-    local healthy
-    healthy=$(docker compose $COMPOSE_FILES $ENV_ARG ps --format json 2>/dev/null \
-        | jq -r "select(.Service == \"$service\") | .Health" 2>/dev/null || echo "unknown")
+    local container_name="vut-${service}"
+    local status
 
-    if [[ "$healthy" == "healthy" ]]; then
+    # Use docker inspect directly — no jq dependency needed
+    status=$(docker inspect --format='{{.State.Health.Status}}' "$container_name" 2>/dev/null || echo "unknown")
+
+    if [[ "$status" == "healthy" ]]; then
         echo "  [OK]   $service"
         return 0
-    elif [[ "$healthy" == "unhealthy" ]]; then
+    elif [[ "$status" == "unhealthy" ]]; then
         echo "  [FAIL] $service (unhealthy)"
         return 1
     else
-        echo "  [WAIT] $service ($healthy)"
+        echo "  [WAIT] $service ($status)"
         return 2
     fi
 }

@@ -5,6 +5,9 @@
 
 services:
   kurrentdb:
+    # Run as root to avoid "/home/kurrent permission denied" on WSL/Linux.
+    # The kurrent user (UID 1001) can't write to its home dir on some filesystems.
+    user: "0:0"
     environment:
       EVENTSTORE_CLUSTER_SIZE: "1"
     deploy:
