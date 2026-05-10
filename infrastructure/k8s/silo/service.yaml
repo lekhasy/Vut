@@ -1,24 +1,28 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: vut-actor-service
+  name: vut-silo
   namespace: vut
   labels:
     app.kubernetes.io/part-of: vut
     app.kubernetes.io/component: backend
-    app.kubernetes.io/name: actor-service
+    app.kubernetes.io/name: silo
 spec:
   type: ClusterIP
   ports:
-    - name: grpc
+    - name: http
       port: 5000
       targetPort: 5000
       protocol: TCP
-    - name: http
-      port: 5001
-      targetPort: 5001
+    - name: silo
+      port: 11111
+      targetPort: 11111
+      protocol: TCP
+    - name: gateway
+      port: 30000
+      targetPort: 30000
       protocol: TCP
   selector:
     app.kubernetes.io/part-of: vut
     app.kubernetes.io/component: backend
-    app.kubernetes.io/name: actor-service
+    app.kubernetes.io/name: silo

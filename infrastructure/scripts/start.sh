@@ -120,7 +120,7 @@ while [[ $elapsed -lt $timeout ]]; do
 
         # Check application services if they exist
         echo ">>> Checking application services..."
-        for service in actor-service frontend; do
+        for service in silo projector-service frontend; do
             container=$(docker ps --filter "name=vut-${service}" --format "{{.Names}}" 2>/dev/null || true)
             if [[ -n "$container" ]]; then
                 check_health "$service" || true
@@ -137,8 +137,8 @@ while [[ $elapsed -lt $timeout ]]; do
         if docker ps --filter "name=vut-frontend" --format "{{.Names}}" | grep -q vut-frontend 2>/dev/null; then
             echo "  Frontend:       http://localhost:${FRONTEND_PORT:-3000}"
         fi
-        if docker ps --filter "name=vut-actor-service" --format "{{.Names}}" | grep -q vut-actor-service 2>/dev/null; then
-            echo "  Actor Service:  http://localhost:${ACTOR_SERVICE_PORT:-5000}"
+        if docker ps --filter "name=vut-silo" --format "{{.Names}}" | grep -q vut-silo 2>/dev/null; then
+            echo "  Silo (API):     http://localhost:${SILO_API_PORT:-5000}"
         fi
         echo "  KurrentDB:      http://localhost:${KURRENTDB_HTTP_PORT:-2113}"
         echo "  PostgreSQL:     localhost:${POSTGRESQL_PORT:-5432}"

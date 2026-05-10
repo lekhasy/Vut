@@ -197,7 +197,8 @@ frontend/
 
 ## Notes
 
-- Docker Compose is the recommended local development setup. It is faster and lighter than running Kubernetes locally.
-- For Kubernetes deployment, the CI pipeline should push images to a container registry (Docker Hub, GitHub Container Registry, or ECR). The registry configuration can be added when deployment targets are finalized.
+- Docker Compose is the recommended local development setup. It is faster and lighter than running the full K3s stack for iterative development.
+- For K3s deployment, images can be imported directly via `k3s ctr images import <image>.tar` or pushed to a local registry. The CI pipeline should build images tagged by commit SHA.
 - Consider adding a `docker-compose.dev.yml` override that mounts source directories for hot reload during development.
-- The CI pipeline does NOT deploy to Kubernetes in Epic 1. Deployment is manual (`kubectl apply`) until CD is set up.
+- The CI pipeline does NOT deploy to K3s in Epic 1. Deployment is manual (`k3s kubectl apply`) until CD is set up.
+- The deployment target is a single dev machine running K3s with Cloudflare Tunnel for internet access via `vut.app`. No cloud infrastructure is needed.

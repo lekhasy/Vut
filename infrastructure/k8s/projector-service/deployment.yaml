@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vut-projector-service
+  namespace: vut
+  labels:
+    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/component: projector
+    app.kubernetes.io/name: projector-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: vut
+      app.kubernetes.io/component: projector
+      app.kubernetes.io/name: projector-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: vut
+        app.kubernetes.io/component: projector
+        app.kubernetes.io/name: projector-service
+    spec:
+      containers:
+        - name: projector-service
+          image: ghcr.io/lekhasy/vut/projector-service:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: KurrentDb__ConnectionString
+              value: "esdb://vut-kurrentdb:2113?tls=false"
+            - name: ConnectionStrings__PostgreSQL
+              value: "Host=vut-postgresql;Database=vut_readmodel;Username=vut_app;Password=vut_dev_password"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

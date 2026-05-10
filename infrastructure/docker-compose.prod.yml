@@ -26,22 +26,31 @@ services:
         reservations:
           memory: 2G
 
-  actor-service:
+  silo:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
     deploy:
-      replicas: 2
+      replicas: 1
       resources:
         limits:
           memory: 4G
         reservations:
           memory: 1G
 
+  projector-service:
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
   frontend:
     environment:
       NODE_ENV: production
     deploy:
-      replicas: 2
+      replicas: 1
       resources:
         limits:
           memory: 1G

@@ -1,0 +1,34 @@
+# ArgoCD Application — watches infrastructure/k8s/ for manifest changes.
+# Install ArgoCD in K3s first:
+#   kubectl create namespace argocd
+#   kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+#
+# Then apply this manifest:
+#   kubectl apply -f infrastructure/k8s/argocd/application.yaml
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vut
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: vut
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/lekhasy/Vut.git
+    targetRevision: main
+    path: infrastructure/k8s
+    directory:
+      recurse: true
+      exclude: "argocd/*"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vut
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true

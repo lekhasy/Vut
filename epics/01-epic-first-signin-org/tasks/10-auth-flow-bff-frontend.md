@@ -119,7 +119,7 @@ AUTH0_CLIENT_SECRET=secret123
 AUTH0_AUDIENCE=https://api.vut.dev
 SESSION_SECRET=<32-byte-base64-key>
 SILO_API_URL=http://vut-silo:5000
-BASE_URL=http://localhost:3000
+BASE_URL=http://localhost:3000          # Dev; use https://vut.app for production (Cloudflare Tunnel)
 ```
 
 ### File Structure

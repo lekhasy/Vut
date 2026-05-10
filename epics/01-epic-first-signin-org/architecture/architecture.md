@@ -6,7 +6,9 @@ Epic 1 establishes the entire infrastructure footprint of Vut. Every subsequent 
 
 The architecture uses **Microsoft Orleans virtual actors (grains)** as the core backend framework. Orleans grains are identified by strongly-typed interfaces and keys (GUIDs), auto-activate on first call, and are location-transparent across silo nodes. There are no manager actors, no manual PID lookup, and no manual spawning logic.
 
-**Key simplification:** Orleans uses the existing PostgreSQL database for cluster membership and grain directory — no external message broker is needed. This keeps the infrastructure lean and reduces operational overhead.
+**Deployment model:** The platform runs on a single developer machine using **K3s** (lightweight Kubernetes) to orchestrate all services. Orleans silos use `UseAdoNetClustering()` with PostgreSQL for cluster membership from day one, even with a single silo. This means scaling to multiple machines later requires zero code changes — just join additional K3s nodes to the cluster via **Tailscale VPN** and Orleans automatically discovers new silos through the shared PostgreSQL membership table. No cloud infrastructure is needed; the entire system runs locally with production-grade orchestration.
+
+**Internet access:** The dev machine has no static IP. Users reach `vut.app` via **Cloudflare Tunnel** — a `cloudflared` daemon runs inside the K3s cluster and establishes an outbound-only encrypted connection to Cloudflare's edge network. Cloudflare terminates TLS, provides DDoS protection, and proxies traffic back through the tunnel to the K3s Traefik ingress. No port forwarding, firewall rules, or static IP required.
 
 ```mermaid
 graph TB
@@ -17,6 +19,7 @@ graph TB
         MS["Microsoft OAuth"]
         Auth0["Auth0"]
         SMTP["Email Service (SMTP)"]
+        CF["Cloudflare Edge<br/>(vut.app DNS + TLS)"]
     end
 
     subgraph Vut Platform
@@ -44,16 +47,20 @@ graph TB
             UI2["user_identity"]
             OP["org_projection"]
             OMP["org_member_projection"]
-            CLU["orleans_membership<br/>orleans_reminders"]
+            OM["orleans_membership"]
         end
 
         subgraph Projectors["Projector Services"]
             PU["User Projector"]
             PO["Org Projector"]
         end
+
+        CFD["cloudflared<br/>(tunnel daemon)"]
     end
 
-    User --> UI
+    User -->|HTTPS| CF
+    CF -->|"Cloudflare Tunnel<br/>(outbound-only)"| CFD
+    CFD --> UI
     UI --> BFF
     BFF --> Auth0
     Auth0 --> GH
@@ -119,44 +126,91 @@ These trade-offs are acceptable because:
 
 ```mermaid
 graph TB
-    subgraph Kubernetes Cluster
+    CF["Cloudflare Edge<br/>(vut.app)"]
+    GHCR["ghcr.io<br/>(Container Registry)"]
+    GH["GitHub Repo<br/>(K8s manifests)"]
+
+    subgraph "K3s Cluster (Single Dev Machine)"
+        subgraph "Namespace: argocd"
+            ARGO["ArgoCD<br/>(GitOps Controller)"]
+        end
+
         subgraph "Namespace: vut"
-            ING["Ingress Controller<br/>(NGINX / Traefik)"]
+            CFD["cloudflared<br/>(Tunnel Daemon)"]
+            ING["Traefik Ingress<br/>(K3s built-in)"]
 
             subgraph "Deployment: vut-frontend"
-                FE["Astro.js SSR Pods<br/>(BFF + Static)"]
+                FE["Astro.js SSR Pod<br/>(BFF + Static)"]
             end
 
             subgraph "Deployment: vut-silo"
-                SL["Orleans Silo Pods<br/>(ASP.NET Core + Grains)"]
+                SL["Orleans Silo Pod<br/>(ASP.NET Core + Grains)"]
             end
 
             subgraph "Deployment: vut-projector-service"
-                PS["Projector Pods<br/>(User + Org Projectors)"]
+                PS["Projector Pod<br/>(User + Org Projectors)"]
             end
 
             subgraph "StatefulSet: vut-kurrentdb"
-                KDB["KurrentDB<br/>(3-node cluster)"]
+                KDB["KurrentDB<br/>(single node)"]
             end
 
             subgraph "StatefulSet: vut-postgresql"
-                PG["PostgreSQL<br/>(Primary + Replica)<br/>Read Model + Orleans Clustering"]
+                PG["PostgreSQL<br/>(single instance)<br/>Read Model + Orleans Clustering"]
             end
         end
     end
 
+    CF -->|"Cloudflare Tunnel<br/>(outbound-initiated)"| CFD
+    CFD --> ING
     ING --> FE
     FE -->|HTTP / gRPC| SL
     SL -->|"Orleans Clustering<br/>(ADO.NET)"| PG
     SL -->|"KurrentDB .NET Client"| KDB
     KDB -->|"Persistent Subscription"| PS
     PS --> PG
+    GH -->|"poll / webhook"| ARGO
+    ARGO -->|"sync manifests"| SL
+    ARGO -->|"sync manifests"| FE
+    GHCR -.->|"pull images"| SL
+    GHCR -.->|"pull images"| FE
 ```
 
 **Key design decisions:**
-- Orleans uses PostgreSQL (already in the stack) for cluster membership via `Orleans.Clustering.AdoNet`. No external message broker needed.
+- **Cloudflare Tunnel** exposes `vut.app` to the internet without a static IP. The `cloudflared` daemon runs as a K3s deployment and initiates an outbound connection to Cloudflare — no inbound ports need to be opened on the dev machine's router.
+- Orleans uses PostgreSQL (already in the stack) for cluster membership via `Orleans.Clustering.AdoNet`. This is configured from day one even on a single node, so adding more silos later requires zero code changes.
 - The silo is a homogeneous Orleans cluster node running ASP.NET Core. Every pod runs the same code and can host any grain type.
 - The API layer is **co-hosted** inside the silo — no separate API service needed. The BFF calls the co-hosted API endpoints, which use `IGrainFactory` to access grains.
+- K3s bundles Traefik as the default ingress controller — no separate NGINX installation needed.
+
+**Scaling to multiple machines (future):**
+```mermaid
+graph TB
+    subgraph "Tailscale VPN Mesh"
+        subgraph "Machine A (K3s Server)"
+            SL1["Orleans Silo"]
+            PG1["PostgreSQL"]
+            KDB1["KurrentDB"]
+        end
+
+        subgraph "Machine B (K3s Agent)"
+            SL2["Orleans Silo"]
+            PS2["Projector"]
+        end
+
+        subgraph "Machine C (K3s Agent)"
+            SL3["Orleans Silo"]
+            FE3["Frontend"]
+        end
+    end
+
+    SL1 <-->|"Tailscale<br/>encrypted mesh"| SL2
+    SL2 <-->|"Tailscale<br/>encrypted mesh"| SL3
+    SL1 <--> SL3
+    SL2 -->|ADO.NET| PG1
+    SL3 -->|ADO.NET| PG1
+```
+When scaling is needed, additional developer machines join the K3s cluster via Tailscale. Orleans discovers new silos through the PostgreSQL membership table. Grains automatically rebalance across all available silos.
 
 ---
 
@@ -166,7 +220,7 @@ graph TB
 
 Every `vut-silo` pod joins the Orleans cluster on startup. The cluster is configured with:
 
-- **Clustering Provider**: PostgreSQL via `Orleans.Clustering.AdoNet` (membership table in the existing PostgreSQL instance)
+- **Clustering Provider**: PostgreSQL via `Orleans.Clustering.AdoNet` (membership table in the existing PostgreSQL instance). This is used even on a single node — when additional K3s nodes join via Tailscale, new silos register themselves in the same membership table automatically.
 - **Grain Directory**: Orleans' built-in distributed grain directory (hash-based placement)
 - **Grain Types**: Registered via dependency injection at startup
 
@@ -225,10 +279,37 @@ Future epics will register additional grain types:
 
 ```mermaid
 graph LR
-    subgraph "Orleans Cluster (3 silos)"
+    subgraph "K3s Cluster (Single Machine — Initial)"
         N1["Silo A<br/>vut-silo-0"]
-        N2["Silo B<br/>vut-silo-1"]
-        N3["Silo C<br/>vut-silo-2"]
+    end
+
+    subgraph "Grain Placement"
+        I1["IUserGrain/a1b2c3..."] --> N1
+        I2["IOrganizationGrain/f7e6d5..."] --> N1
+        I3["IUserGrain/9z8y7x..."] --> N1
+    end
+
+    subgraph "Shared State"
+        PG["PostgreSQL<br/>orleans_membership table"]
+    end
+
+    N1 -.->|heartbeat| PG
+```
+
+With a single silo, all grains are placed on that silo. The membership table still tracks the silo's heartbeat, maintaining the same protocol used in multi-silo deployments. When additional machines join the K3s cluster via Tailscale, silos are distributed across machines:
+
+```mermaid
+graph LR
+    subgraph "K3s Cluster (Multi-Machine — Future)"
+        subgraph "Machine A"
+            N1["Silo A"]
+        end
+        subgraph "Machine B (via Tailscale)"
+            N2["Silo B"]
+        end
+        subgraph "Machine C (via Tailscale)"
+            N3["Silo C"]
+        end
     end
 
     subgraph "Grain Placement (Consistent Hash Ring)"
@@ -1118,9 +1199,19 @@ sequenceDiagram
 
 ---
 
-## 9. Infrastructure Setup (Kubernetes)
+## 9. Infrastructure Setup (K3s)
 
-### 9.1 Namespace and Resource Quotas
+### 9.1 K3s Installation
+
+The platform runs on **K3s**, a lightweight certified Kubernetes distribution. K3s ships as a single binary, bundles Traefik as an ingress controller, and uses SQLite for its internal state (not to be confused with PostgreSQL used by the application).
+
+```bash
+# Install K3s on the dev machine (Linux/macOS via WSL2 on Windows)
+curl -sfL https://get.k3s.io | sh -
+
+# Verify installation
+sudo k3s kubectl get nodes
+```
 
 All Vut services run in the `vut` namespace.
 
@@ -1134,7 +1225,113 @@ metadata:
     app.kubernetes.io/part-of: vut
 ```
 
-### 9.2 KurrentDB StatefulSet
+### 9.2 Cloudflare Tunnel (Internet Ingress)
+
+`cloudflared` runs as a K3s deployment and establishes an outbound-only connection to Cloudflare's edge network. Cloudflare DNS for `vut.app` points to this tunnel — no static IP, no port forwarding needed.
+
+**Setup:**
+1. Create a Cloudflare Tunnel in the Cloudflare Zero Trust dashboard (or via CLI).
+2. Store the tunnel credentials as a K8s secret.
+3. Deploy `cloudflared` to the cluster.
+
+```yaml
+# k8s/cloudflared/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cloudflared-credentials
+  namespace: vut
+type: Opaque
+data:
+  credentials.json: <base64-encoded tunnel credentials>
+```
+
+```yaml
+# k8s/cloudflared/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+  namespace: vut
+data:
+  config.yaml: |
+    tunnel: <tunnel-id>
+    credentials-file: /etc/cloudflared/credentials.json
+    ingress:
+      - hostname: vut.app
+        service: http://traefik.kube-system.svc.cluster.local:80
+      - hostname: "*.vut.app"
+        service: http://traefik.kube-system.svc.cluster.local:80
+      - service: http_status:404
+```
+
+```yaml
+# k8s/cloudflared/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: vut
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cloudflared
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+    spec:
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:latest
+          args: ["tunnel", "--config", "/etc/cloudflared/config.yaml", "run"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloudflared/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: credentials
+              mountPath: /etc/cloudflared/credentials.json
+              subPath: credentials.json
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: cloudflared-config
+        - name: credentials
+          secret:
+            secretName: cloudflared-credentials
+```
+
+**DNS configuration:** In the Cloudflare dashboard, create CNAME records pointing `vut.app` and `*.vut.app` to `<tunnel-id>.cfargotunnel.com`. Cloudflare handles TLS termination and DDoS protection at the edge.
+
+**Traffic flow:**
+```
+User → vut.app (Cloudflare DNS) → Cloudflare Edge (TLS termination)
+  → Cloudflare Tunnel → cloudflared pod (K3s) → Traefik Ingress → vut-frontend
+```
+
+### 9.3 Scaling to Multiple Machines (Tailscale + K3s)
+
+When additional machines are needed, use **Tailscale** to create a flat mesh VPN and join K3s agent nodes:
+
+```bash
+# On each machine: install Tailscale and join the network
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up --authkey=tskey-auth-XXXX
+
+# On the K3s server (Machine A): get the join token
+sudo cat /var/lib/rancher/k3s/server/node-token
+
+# On agent machines (B, C, ...): join the cluster using Tailscale IP
+curl -sfL https://get.k3s.io | K3S_URL=https://<tailscale-ip-of-server>:6443 \
+  K3S_TOKEN=<node-token> sh -
+```
+
+This is a future step — the initial deployment runs everything on a single machine. The K3s + Tailscale architecture ensures this scaling requires no application code changes.
+
+### 9.4 KurrentDB StatefulSet
 
 ```yaml
 # k8s/kurrentdb/statefulset.yaml (sketch)
@@ -1144,7 +1341,7 @@ metadata:
   name: vut-kurrentdb
   namespace: vut
 spec:
-  replicas: 3
+  replicas: 1  # Single node for local development
   serviceName: vut-kurrentdb
   selector:
     matchLabels:
@@ -1158,8 +1355,8 @@ spec:
             - containerPort: 2113  # HTTP/API
             - containerPort: 1113  # TCP
           env:
-            - name: EVENTSTORE_CLUSTER_SIZE
-              value: "3"
+            - name: EVENTSTORE_INSECURE
+              value: "true"
             - name: EVENTSTORE_RUN_PROJECTIONS
               value: "None"  # We project in .NET consumers
             - name: EVENTSTORE_DB
@@ -1172,12 +1369,13 @@ spec:
         name: data
       spec:
         accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path  # K3s default storage class
         resources:
           requests:
             storage: 10Gi
 ```
 
-### 9.3 PostgreSQL StatefulSet
+### 9.5 PostgreSQL StatefulSet
 
 PostgreSQL serves double duty: Orleans clustering tables AND read model projections.
 
@@ -1189,7 +1387,7 @@ metadata:
   name: vut-postgresql
   namespace: vut
 spec:
-  replicas: 1  # Primary; read replica added later
+  replicas: 1
   serviceName: vut-postgresql
   selector:
     matchLabels:
@@ -1214,11 +1412,23 @@ spec:
                 secretKeyRef:
                   name: vut-postgresql-secret
                   key: password
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 5Gi
 ```
 
 **Note:** Orleans clustering tables (`OrleansMembershipTable`, `OrleansMembershipVersionTable`) are created automatically by the Orleans ADO.NET clustering provider on first silo startup.
 
-### 9.4 Orleans Silo Deployment
+### 9.6 Orleans Silo Deployment
 
 ```yaml
 # k8s/silo/deployment.yaml (sketch)
@@ -1228,7 +1438,7 @@ metadata:
   name: vut-silo
   namespace: vut
 spec:
-  replicas: 3  # Multiple silos for grain distribution
+  replicas: 1  # Single silo on single machine; increase when scaling
   selector:
     matchLabels:
       app: vut-silo
@@ -1236,7 +1446,7 @@ spec:
     spec:
       containers:
         - name: silo
-          image: vut/silo:latest
+          image: ghcr.io/lekhasy/vut/silo:latest
           ports:
             - containerPort: 5000  # HTTP API
             - containerPort: 11111 # Orleans silo-to-silo
@@ -1262,9 +1472,9 @@ spec:
                   key: audience
 ```
 
-**Note:** The silo is scaled to 3 replicas for grain distribution. Each pod joins the Orleans cluster (discovered via the PostgreSQL membership table) and can host any grain type. Grains are distributed across silos by consistent hash placement.
+**Note:** The silo starts with 1 replica on a single machine. When additional K3s nodes join via Tailscale, increase replicas and K8s schedules new silo pods across available nodes. Orleans discovers new silos via the PostgreSQL membership table — no configuration changes needed.
 
-### 9.5 Frontend Deployment (Astro.js BFF)
+### 9.7 Frontend Deployment (Astro.js BFF)
 
 ```yaml
 # k8s/frontend/deployment.yaml (sketch)
@@ -1274,7 +1484,7 @@ metadata:
   name: vut-frontend
   namespace: vut
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: vut-frontend
@@ -1282,7 +1492,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: vut/frontend:latest
+          image: ghcr.io/lekhasy/vut/frontend:latest
           ports:
             - containerPort: 3000
           env:
@@ -1303,6 +1513,204 @@ spec:
                 secretKeyRef:
                   name: vut-auth0-secret
                   key: client-secret
+```
+
+### 9.8 GitOps CI/CD Pipeline (GitHub Actions + ArgoCD)
+
+The deployment pipeline follows **GitOps** principles: every change starts from a git commit on GitHub, images are built by GitHub Actions, stored on ghcr.io, and ArgoCD automatically syncs the K3s cluster to match the desired state in git.
+
+#### 9.8.1 Pipeline Flow
+
+```mermaid
+graph LR
+    subgraph "GitHub (Cloud)"
+        GIT["Git Push<br/>(code change)"]
+        GA["GitHub Actions<br/>(CI Runner)"]
+        GHCR["ghcr.io<br/>(Container Registry)"]
+        REPO["Git Repo<br/>(K8s manifests)"]
+    end
+
+    subgraph "K3s Cluster (Dev Machine)"
+        ARGO["ArgoCD<br/>(GitOps Controller)"]
+        ING["Traefik Ingress"]
+        SILO["vut-silo"]
+        FE["vut-frontend"]
+        PROJ["vut-projector"]
+    end
+
+    GIT -->|triggers| GA
+    GA -->|build & push image| GHCR
+    GA -->|update image tag| REPO
+    REPO -->|poll / webhook| ARGO
+    ARGO -->|sync manifests| SILO
+    ARGO -->|sync manifests| FE
+    ARGO -->|sync manifests| PROJ
+    GHCR -->|pull images| SILO
+    GHCR -->|pull images| FE
+    GHCR -->|pull images| PROJ
+```
+
+#### 9.8.2 GitHub Actions Workflow
+
+```yaml
+# .github/workflows/ci.yaml
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/lekhasy/vut
+
+jobs:
+  build-silo:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push silo image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/silo:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}/silo:latest
+
+      - name: Update K8s manifest with new image tag
+        run: |
+          sed -i "s|image: ${{ env.IMAGE_PREFIX }}/silo:.*|image: ${{ env.IMAGE_PREFIX }}/silo:${{ github.sha }}|" \
+            k8s/silo/deployment.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/
+          git commit -m "chore: update silo image to ${{ github.sha }}" || true
+          git push
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/frontend:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}/frontend:latest
+
+      - name: Update K8s manifest with new image tag
+        run: |
+          sed -i "s|image: ${{ env.IMAGE_PREFIX }}/frontend:.*|image: ${{ env.IMAGE_PREFIX }}/frontend:${{ github.sha }}|" \
+            k8s/frontend/deployment.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add k8s/
+          git commit -m "chore: update frontend image to ${{ github.sha }}" || true
+          git push
+```
+
+**Note:** For an open-source repository, GitHub Actions runners and ghcr.io storage are free with no minute limits.
+
+#### 9.8.3 ArgoCD Installation & Configuration
+
+```bash
+# Install ArgoCD into the K3s cluster
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# Expose ArgoCD UI via Cloudflare Tunnel (optional: add to cloudflared config)
+# Or access locally:
+kubectl port-forward svc/argocd-server -n argocd 8080:443
+```
+
+#### 9.8.4 ArgoCD Application Manifest
+
+```yaml
+# k8s/argocd/application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vut
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/lekhasy/Vut.git
+    targetRevision: main
+    path: k8s
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: vut
+  syncPolicy:
+    automated:
+      prune: true      # Remove resources deleted from git
+      selfHeal: true    # Revert manual changes to match git
+    syncOptions:
+      - CreateNamespace=true
+```
+
+**Key behaviors:**
+- **Automated sync**: ArgoCD polls the git repo (default: every 3 minutes) and applies any changes to K8s manifests.
+- **Self-heal**: If someone manually changes a resource in K3s, ArgoCD reverts it to match git — git is the single source of truth.
+- **Prune**: Resources removed from git are deleted from the cluster.
+- **Webhook (optional)**: Configure a GitHub webhook to ArgoCD for instant sync on push instead of waiting for the poll interval.
+
+#### 9.8.5 Deployment Flow (End-to-End)
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant GH as GitHub
+    participant GA as GitHub Actions
+    participant GHCR as ghcr.io
+    participant Argo as ArgoCD (K3s)
+    participant K3s as K3s Cluster
+
+    Dev->>GH: git push (code change)
+    GH->>GA: Trigger CI workflow
+    GA->>GA: Build Docker image
+    GA->>GHCR: Push image (tagged with commit SHA)
+    GA->>GH: Update K8s manifest (new image tag)
+    GA->>GH: git push (manifest change)
+
+    Note over Argo: Poll every 3 min (or webhook)
+    Argo->>GH: Detect manifest change
+    Argo->>Argo: Compare desired vs live state
+    Argo->>K3s: Apply updated manifests
+    K3s->>GHCR: Pull new image
+    K3s->>K3s: Rolling update (zero-downtime)
 ```
 
 ---
@@ -1563,6 +1971,7 @@ sequenceDiagram
 - Orleans detects silo failure via the membership protocol (PostgreSQL-backed heartbeats).
 - Grains re-activate on surviving silos by re-hydrating from KurrentDB — state is never lost.
 - The client receives a transparent retry; the grain appears to survive the failure.
+- On a single-machine K3s deployment, K8s restarts crashed pods automatically. When scaled to multiple machines via Tailscale, Orleans re-places grains on silos running on other machines if one machine goes offline.
 
 ### 14.2 Timeout & Retry Strategy
 
@@ -1610,13 +2019,14 @@ Grain activation requires loading events from KurrentDB. For aggregates with lon
 - Grain calls within the same silo are local (in-process). Grain calls across silos use Orleans' binary serialization protocol.
 - KurrentDB appends are single-digit millisecond latency for small events.
 - The write path (API → grain → KurrentDB) should complete in under 50ms for most commands.
+- On a single-machine deployment, all grain calls are local (one silo). When scaled to multiple machines via Tailscale, cross-silo calls traverse the Tailscale mesh (typically 1-10ms latency on a LAN, 10-50ms over WAN). This is acceptable for Vut's workload.
 
 ### 15.4 Co-hosting Performance Benefit
 
 By co-hosting the API and Orleans silo in the same process:
 - Local grain calls avoid network serialization entirely.
 - The Orleans gateway port (30000) allows cross-silo calls when a grain is on a different silo.
-- For a 3-silo cluster, approximately 1/3 of grain calls will be local (on average), reducing latency for those calls to near-zero.
+- On a single-machine deployment, 100% of grain calls are local. When scaled across machines, approximately 1/N of grain calls will be local (where N is the number of silos), reducing latency for those calls to near-zero.
 
 ---
 
@@ -1633,10 +2043,13 @@ By co-hosting the API and Orleans silo in the same process:
 
 ### 16.2 Cluster Security
 
+- **Cloudflare Tunnel** is the only path from the internet to the K3s cluster. The `cloudflared` daemon initiates an outbound-only connection — no inbound ports are opened on the dev machine's router or firewall. Cloudflare provides DDoS protection, TLS termination, and bot mitigation at the edge.
+- **K3s internal traffic** uses mutual TLS by default for Kubernetes API communication.
 - **Silo-to-silo communication** should use mutual TLS in production. Orleans supports TLS for inter-silo traffic.
-- **PostgreSQL** (clustering + read model) should require authentication and run on an internal network.
-- **KurrentDB** should require authentication and run on an internal network.
-- **Orleans silo ports** (11111, 30000) must not be exposed to the internet — only internal cluster traffic.
+- **PostgreSQL** (clustering + read model) should require authentication. On a single machine, it runs within the K3s cluster network.
+- **KurrentDB** should require authentication and is only accessible within the K3s cluster network.
+- **Orleans silo ports** (11111, 30000) must not be exposed outside the cluster — only internal K3s traffic.
+- **Tailscale (multi-machine scaling)**: When machines are connected via Tailscale, all traffic between nodes is encrypted end-to-end (WireGuard). Tailscale ACLs should restrict access to the K3s cluster ports. No additional VPN or network configuration is needed — Tailscale handles NAT traversal and encryption transparently.
 
 ### 16.3 Input Validation
 
@@ -1660,7 +2073,7 @@ These patterns, once established in Epic 1, are reused by all subsequent epics:
 | Projector service (KurrentDB subscription, project) | Shared projector framework | Epics 2-6 |
 | BFF session management + Auth0 | Astro.js middleware | Epics 2-6 |
 | Authorization middleware (org membership check) | API request pipeline | Epics 2-6 |
-| Kubernetes manifests pattern | Deployment + Service + ConfigMap | Epics 2-6 |
+| K3s manifests pattern | Deployment + Service + ConfigMap (Tailscale for multi-machine) | Epics 2-6 |
 | Grain deactivation via CollectionAge | Configurable timeout per grain type | Epics 2-6 |
 | Co-hosted API pattern | ASP.NET Core controllers inside Orleans silo | Epics 2-6 |
 
@@ -1676,7 +2089,7 @@ When adding new aggregate types (Product, Task), follow this pattern:
 6. **Add read model tables** for the new projections.
 7. **Add BFF routes** that call the co-hosted API.
 
-No changes to the cluster topology, PostgreSQL clustering configuration, or base infrastructure are needed. Orleans scales horizontally by adding more silo pods.
+No changes to the cluster topology, PostgreSQL clustering configuration, or base infrastructure are needed. Orleans scales horizontally by adding more silo pods. When scaling to multiple machines, join new K3s agent nodes via Tailscale and increase silo replicas.
 
 ---
 
@@ -1687,7 +2100,13 @@ No changes to the cluster topology, PostgreSQL clustering configuration, or base
 | Actor framework | Microsoft Orleans | Virtual actors with built-in clustering (PostgreSQL), native ASP.NET Core integration, strongly-typed grain interfaces, large ecosystem, Microsoft-backed. |
 | Event store | KurrentDB (EventStoreDB) | PRD requirement. Purpose-built for event sourcing with stream-based storage. |
 | Event sourcing in grains | Custom `EventSourcedGrain<TState>` base + `EventStore.Client` | Direct KurrentDB integration via official .NET client. Simpler than building a custom `ILogConsistencyProvider` for Orleans' `JournaledGrain`. |
-| Cluster provider | PostgreSQL (ADO.NET) | Reuses existing PostgreSQL infrastructure. No additional message broker dependency. |
+| Cluster provider | PostgreSQL (ADO.NET) | Reuses existing PostgreSQL infrastructure. No additional message broker dependency. Enables zero-config multi-silo scaling. |
+| Container orchestration | K3s (lightweight Kubernetes) | Single-binary K8s distribution. Runs on a single dev machine with minimal resources. Bundled Traefik ingress. Same K8s API as production — manifests are portable. |
+| Multi-machine networking | Tailscale (future) | WireGuard-based mesh VPN. Zero-config NAT traversal, end-to-end encryption, flat network for K3s node joining. |
+| Internet ingress | Cloudflare Tunnel | Outbound-only tunnel from K3s to Cloudflare edge. No static IP or port forwarding needed. Free tier includes DDoS protection, TLS termination, and custom domain support (`vut.app`). |
+| CI/CD pipeline | GitHub Actions | Free unlimited minutes for open-source repos. Builds Docker images and pushes to ghcr.io on every push to `main`. |
+| Container registry | ghcr.io (GitHub Container Registry) | Free for public repos. Tightly integrated with GitHub Actions — authenticates with `GITHUB_TOKEN`, no extra credentials. |
+| GitOps controller | ArgoCD | Watches the git repo for K8s manifest changes and auto-syncs to K3s. Self-heal and prune ensure the cluster always matches git. Web UI for deployment visibility. |
 | Read model | PostgreSQL | PRD requirement. Mature, reliable, supports the complex queries needed for projections and the cumulative flow (Epic 5). Also hosts Orleans clustering tables. |
 | API hosting | Co-hosted in Orleans silo (ASP.NET Core) | Reduces network hops. API controllers call grains in-process via `IGrainFactory`. Can be separated later if needed. |
 | Frontend | Astro.js + Tailwind CSS | PRD requirement. SSR-capable, island architecture for selective hydration, excellent performance. |
@@ -1726,3 +2145,9 @@ No changes to the cluster topology, PostgreSQL clustering configuration, or base
 12. **Email change flow:** Should users be able to change their verified email after the initial verification? If so, what is the flow?
 
 13. **Orleans version:** Should the project target Orleans 8.x (current stable) or a preview of a newer version? Recommendation: Orleans 8.x (latest stable) targeting .NET 9 or .NET 10.
+
+14. **Multi-machine storage strategy:** When scaling to multiple machines via Tailscale, should PostgreSQL and KurrentDB remain on a single "primary" machine, or should they be replicated? Recommendation: keep stateful services on a single designated machine initially; use PostgreSQL streaming replication and KurrentDB clustering only if availability requirements justify the operational complexity.
+
+15. **K3s persistent storage across machines:** K3s' default `local-path` provisioner binds PVCs to the node where they were created. When scaling to multiple machines, should Longhorn or another distributed storage solution be used for StatefulSet volumes?
+
+16. **Always-on node designation:** In a multi-machine Tailscale cluster, should one machine be designated as "always-on" (e.g., a NAS or home server) for stateful services, or should all machines be treated equally?

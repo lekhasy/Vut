@@ -6,6 +6,8 @@ This document indexes all tasks for Epic 1, showing dependencies, parallelism op
 
 **Key simplification:** Orleans uses the existing PostgreSQL database for cluster membership and grain directory — no external message broker is needed. The API is co-hosted inside the Orleans silo process.
 
+**Deployment model:** The platform runs on a **single developer machine** using **K3s** (lightweight Kubernetes). All services start with 1 replica. Internet access is via **Cloudflare Tunnel** (`vut.app`) — no static IP required. Future scaling to additional machines uses **Tailscale** VPN mesh to join K3s agent nodes, with zero application code changes.
+
 **Total Tasks:** 16
 **Backend Tasks:** 8 (Tasks 01-08, 16)
 **Frontend Tasks:** 7 (Tasks 09-15)
@@ -14,7 +16,7 @@ This document indexes all tasks for Epic 1, showing dependencies, parallelism op
 
 ```
 PARALLEL WAVE 1 (Start Immediately - No Dependencies):
-  [01] K8s Infrastructure (Backend)         [P0 - 3 days]
+  [01] K3s Infrastructure (Backend)              [P0 - 3 days]
   [02] Auth0 Tenant Setup (Backend)          [P0 - 0.5 days]
   [09] Astro.js Project Setup (Frontend)     [P0 - 2 days]
 
@@ -44,7 +46,7 @@ FINAL WAVE:
 
 | # | Task | Developer | Priority | Effort | Dependencies | Can Start |
 |---|------|-----------|----------|--------|--------------|-----------|
-| 01 | Kubernetes Infrastructure | Backend | P0 | 3d | None | Immediately |
+| 01 | K3s Infrastructure | Backend | P0 | 3d | None | Immediately |
 | 02 | Auth0 Tenant Configuration | Backend | P0 | 0.5d | None | Immediately |
 | 03 | PostgreSQL Schema & Migrations | Backend | P0 | 1d | 01 | After K8s |
 | 04 | .NET Orleans Silo Foundation | Backend | P0 | 3d | 01 | After K8s |
@@ -66,7 +68,7 @@ FINAL WAVE:
 The longest dependency chain determines the minimum time to complete Epic 1:
 
 ```
-[01] K8s (3d) -> [04] Silo Foundation (3d) -> [06] Org Grain (3d) -> [07] Projector (2.5d)
+[01] K3s (3d) -> [04] Silo Foundation (3d) -> [06] Org Grain (3d) -> [07] Projector (2.5d)
                                                                           |
                                                                     +-----+-----+
                                                                     |           |
@@ -94,7 +96,7 @@ With parallelism: approximately 10-11 days with 2 developers.
 5. Then: Task 15 (Landing Page).
 
 ### Parallelism Summary
-- **Days 1-3:** Backend on K8s, Frontend on Astro Setup, Backend on Auth0.
+- **Days 1-3:** Backend on K3s + Cloudflare Tunnel, Frontend on Astro Setup, Backend on Auth0.
 - **Days 3-6:** Backend on Orleans Silo Foundation + Schema, Frontend on Auth Flow.
 - **Days 6-9:** Backend on User+Org Grains, Frontend on Org Selector + BFF Routes.
 - **Days 9-12:** Backend on Projector + Co-hosted API, Frontend on Org Mgmt + Invitations.
@@ -111,7 +113,12 @@ With parallelism: approximately 10-11 days with 2 developers.
 
 | Pattern | Implementation | Where |
 |---------|---------------|-------|
+| Container Orchestration | K3s (lightweight Kubernetes) on single dev machine | Task 01 |
+| Internet Ingress | Cloudflare Tunnel — outbound-only, no static IP, `vut.app` domain | Task 01 |
+| Ingress Controller | Traefik (bundled with K3s) | Task 01 |
+| Multi-Machine Scaling | Tailscale VPN mesh + K3s agent join (future) | Task 01 (notes) |
 | Virtual Actor Framework | Microsoft Orleans with PostgreSQL (ADO.NET) clustering | Task 04 |
+| Cluster Membership | `UseAdoNetClustering()` from day one — never `UseLocalhostClustering()` | Task 04 |
 | Event Sourcing | Custom `EventSourcedGrain<TState>` with direct KurrentDB `EventStore.Client` | Task 04 |
 | Base Grain | `EventSourcedGrain<TState> : Grain` with event replay and `DelayDeactivation` | Task 04 |
 | Grain Interfaces | `IUserGrain : IGrainWithGuidKey` (Task 05), `IOrganizationGrain : IGrainWithGuidKey` (Task 06) | Tasks 05, 06 |

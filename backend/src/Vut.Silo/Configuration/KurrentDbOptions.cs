@@ -1,7 +1,7 @@
 namespace Vut.Silo.Configuration;
 
 /// <summary>
-/// Configuration options for connecting to KurrentDB (EventStoreDB).
+/// Configuration options for connecting to KurrentDB.
 /// </summary>
 public sealed class KurrentDbOptions
 {
@@ -11,8 +11,13 @@ public sealed class KurrentDbOptions
     public const string SectionName = "KurrentDb";
 
     /// <summary>
+    /// The default connection string used when no configuration is provided.
+    /// </summary>
+    public const string DefaultConnectionString = "kurrentdb://localhost:2113?tls=false";
+
+    /// <summary>
     /// The connection string for the KurrentDB instance.
     /// </summary>
-    /// <example>esdb://vut-kurrentdb:2113?tls=false</example>
-    public string ConnectionString { get; set; } = "esdb://localhost:2113?tls=false";
+    /// <example>kurrentdb://vut-kurrentdb:2113?tls=false</example>
+    public string ConnectionString { get; set; } = DefaultConnectionString;
 }

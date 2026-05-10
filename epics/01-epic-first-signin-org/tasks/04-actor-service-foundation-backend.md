@@ -59,7 +59,7 @@ src/
 On startup, the service must:
 1. Create a `WebApplication.CreateBuilder()` host.
 2. Configure Orleans via `builder.UseOrleans(siloBuilder => ...)`:
-   - **Clustering provider**: PostgreSQL via `UseAdoNetClustering` with `Invariant = "Npgsql"`
+   - **Clustering provider**: PostgreSQL via `UseAdoNetClustering` with `Invariant = "Npgsql"`. **Do NOT use `UseLocalhostClustering()` even for local development** — ADO.NET clustering is used from day one so scaling to multiple silos requires zero code changes.
    - **ClusterId**: `"vut-cluster"`
    - **ServiceId**: `"vut"`
    - **Silo port**: `11111` (silo-to-silo communication)
@@ -279,7 +279,7 @@ No gRPC serialization or cluster routing is involved. `IGrainFactory` returns a 
 - Multi-stage build: `mcr.microsoft.com/dotnet/sdk:8.0` for build, `mcr.microsoft.com/dotnet/aspnet:8.0` for runtime.
 - Expose port 5000 (HTTP API), port 11111 (silo-to-silo), port 30000 (Orleans gateway).
 - Output image: `vut/silo`.
-- Replicas: 3 in production (for grain distribution across cluster nodes).
+- Replicas: **1** on single-machine K3s deployment (increase when scaling via Tailscale).
 
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
@@ -319,6 +319,7 @@ ENTRYPOINT ["dotnet", "Vut.Silo.dll"]
 
 - The silo is the heart of the write path. It must be reliable and well-tested.
 - Every pod runs the same code and can host any grain type -- there are no special roles or manager pods.
-- Orleans clustering tables (`OrleansMembershipTable`, `OrleansMembershipVersionTable`) are created automatically by the ADO.NET clustering provider on first silo startup (see Architecture doc Section 9.3).
+- **Do NOT use `UseLocalhostClustering()`** even during local development. Always use `UseAdoNetClustering()` with PostgreSQL. This ensures scaling to multiple silos (same machine or across machines via Tailscale) requires zero code changes — just increase replicas.
+- Orleans clustering tables (`OrleansMembershipTable`, `OrleansMembershipVersionTable`) are created automatically by the ADO.NET clustering provider on first silo startup (see Architecture doc Section 9.4).
 - Snapshotting should be considered for grains with long event histories (every 50 events) to optimize activation time (see Architecture doc Section 15.1).
 - This task creates the framework; Tasks 05 and 06 add the concrete User and Organization grain interfaces, implementations, and API controllers.

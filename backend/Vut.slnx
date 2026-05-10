@@ -4,4 +4,7 @@
     <Project Path="src/Vut.ReadModel/Vut.ReadModel.csproj" />
     <Project Path="src/Vut.ReadModel.Migrations/Vut.ReadModel.Migrations.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Vut.Silo.Tests/Vut.Silo.Tests.csproj" />
+  </Folder>
 </Solution>

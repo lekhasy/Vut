@@ -1,0 +1,133 @@
+# VUT Platform — CI/CD Pipeline
+# Builds Docker images for silo and frontend, pushes to ghcr.io,
+# and updates K8s manifest image tags so ArgoCD can deploy.
+#
+# Triggers on pushes to main that change backend or frontend source.
+# Uses the built-in GITHUB_TOKEN for ghcr.io auth (no extra secrets needed).
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - ".github/workflows/ci.yaml"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/lekhasy/vut
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # ── Build & push silo image ──────────────────────────────────────
+  build-silo:
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      contains(toJSON(github.event.commits.*.modified), 'backend/') ||
+      contains(toJSON(github.event.commits.*.added), 'backend/')
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/silo
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: backend/src
+          file: backend/src/Vut.Silo/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # ── Build & push frontend image ─────────────────────────────────
+  build-frontend:
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      contains(toJSON(github.event.commits.*.modified), 'frontend/') ||
+      contains(toJSON(github.event.commits.*.added), 'frontend/')
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/frontend
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  # ── Update K8s manifests with new image tags ─────────────────────
+  update-manifests:
+    runs-on: ubuntu-latest
+    needs: [build-silo, build-frontend]
+    if: always() && (needs.build-silo.result == 'success' || needs.build-frontend.result == 'success')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update silo image tag
+        if: needs.build-silo.result == 'success'
+        run: |
+          SHA="${GITHUB_SHA::7}"
+          sed -i "s|image: ghcr.io/lekhasy/vut/silo:.*|image: ghcr.io/lekhasy/vut/silo:${SHA}|" \
+            infrastructure/k8s/silo/deployment.yaml
+
+      - name: Update frontend image tag
+        if: needs.build-frontend.result == 'success'
+        run: |
+          SHA="${GITHUB_SHA::7}"
+          sed -i "s|image: ghcr.io/lekhasy/vut/frontend:.*|image: ghcr.io/lekhasy/vut/frontend:${SHA}|" \
+            infrastructure/k8s/frontend/deployment.yaml
+
+      - name: Commit manifest changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add infrastructure/k8s/
+          git diff --cached --quiet && echo "No manifest changes" && exit 0
+          git commit -m "ci: update image tags to ${GITHUB_SHA::7}"
+          git push

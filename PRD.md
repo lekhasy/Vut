@@ -49,6 +49,7 @@ The philosophy is simple: count work, track status transitions, let the data spe
 - Deliver a single report -- the cumulative flow diagram with projected completion date -- that replaces the need for velocity charts, burn-downs, and story points.
 - Support multi-tenant, multi-org usage via GitHub SSO, following GitHub's organization model.
 - Build on an event-sourced architecture so that all state changes are auditable, replayable, and suitable for the analytical needs of the cumulative flow report.
+- **Self-hostable on developer machines:** The entire stack (frontend, backend, event store, read model, messaging) must be hostable on the team's own machines with no dependency on any cloud provider. This is a cost constraint -- the team must be able to develop, demo, and run Vut without paying for cloud infrastructure. Availability and redundancy details are left to the architecture.
 - Ship an MVP that is immediately useful for a single team managing a product backlog and kanban board.
 
 ### Non-Goals (Explicitly Out of Scope)
@@ -61,6 +62,7 @@ The philosophy is simple: count work, track status transitions, let the data spe
 - **No multiple report types** -- the cumulative flow diagram is the only report for MVP.
 - **No custom fields** -- tags and status cover categorization needs; no arbitrary field builder.
 - **No email/password authentication** -- Third-party identity provider only (GitHub SSO for MVP).
+- **No cloud provider dependency** -- the platform must be self-hostable on the team's own machines. No AWS, Azure, GCP, or any managed cloud service is required to run Vut. Cloud deployment is a future option, not a requirement.
 - **No mobile applications** -- web-only for MVP.
 - **No public API** -- internal use only for MVP. Can be exposed later.
 - **No integrations with other tools** -- no Slack, no Jira import, no CI/CD hooks for MVP.
@@ -341,6 +343,7 @@ This is the primary -- and only -- report in Vut. It visualizes how work flows t
 The following architectural decisions are **product-level constraints** that shape how Vut behaves. Detailed technical design (event schemas, infrastructure, projections) is documented separately in `architecture.md`.
 
 - **Event-sourced by design:** All state changes (tasks, products, organizations, users) are recorded as immutable events. This is not an implementation detail -- it is a product feature. It enables full auditability, the cumulative flow diagram's historical accuracy, and the ability to rebuild any view from the event history.
+- **Self-hostable on developer machines:** The entire stack must be hostable on the team's own machines with no cloud provider or managed service required. This keeps operating costs at zero during development and early adoption. Deployment topology and availability details are defined in `architecture.md`.
 - **Every event captures who and when:** All events must include the actor who triggered it and a UTC timestamp. No exceptions.
 - **Eventual consistency:** The read model (used for backlog, kanban, and reports) is derived from the event stream and may lag slightly behind writes. The product uses optimistic UI updates to mask this delay.
 - **No direct database access by clients:** All data access goes through the API layer to enforce tenant isolation and authorization.
@@ -470,6 +473,7 @@ The following architectural decisions are **product-level constraints** that sha
 - Saved filters/views on the kanban board
 - Cumulative flow diagram with projected completion date
 - Tag-based filtering on the report
+- Self-hosted deployment setup for the team's own machines (no cloud dependency)
 
 ### Phase 2: Collaboration & Refinement
 

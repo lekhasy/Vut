@@ -21,9 +21,9 @@ Configure the Auth0 tenant for Vut: enable GitHub as the sole social connection,
 ### Auth0 Application Setup
 1. Create a new "Regular Web Application" in Auth0 (this is the BFF/server-side app).
 2. Configure the following:
-   - **Allowed Callback URLs:** `http://localhost:3000/auth/callback` (dev), production URL (prod).
-   - **Allowed Logout URLs:** `http://localhost:3000` (dev), production URL (prod).
-   - **Allowed Web Origins:** `http://localhost:3000` (dev).
+   - **Allowed Callback URLs:** `http://localhost:3000/auth/callback` (dev), `https://vut.app/auth/callback` (prod via Cloudflare Tunnel).
+   - **Allowed Logout URLs:** `http://localhost:3000` (dev), `https://vut.app` (prod).
+   - **Allowed Web Origins:** `http://localhost:3000` (dev), `https://vut.app` (prod).
    - **Grant Types:** Authorization Code, Refresh Token.
    - **Token Endpoint Authentication Method:** Defaults to `client_secret_post` for Regular Web Applications (no configuration needed).
 3. Note the **Client ID** and **Client Secret** -- these go into `vut-auth0-secret` in Kubernetes.

@@ -22,7 +22,7 @@ services:
         reservations:
           memory: 1G
 
-  actor-service:
+  silo:
     environment:
       ASPNETCORE_ENVIRONMENT: Staging
     deploy:
@@ -31,6 +31,14 @@ services:
           memory: 2G
         reservations:
           memory: 512M
+
+  projector-service:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 128M
 
   frontend:
     environment:

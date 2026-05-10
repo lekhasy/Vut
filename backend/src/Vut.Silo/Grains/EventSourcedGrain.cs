@@ -1,12 +1,12 @@
 using System.Text.Json;
-using EventStore.Client;
+using KurrentDB.Client;
 using Vut.Silo.Events;
 
 namespace Vut.Silo.Grains;
 
 /// <summary>
-/// Base class for all event-sourced grains. Integrates directly with KurrentDB
-/// using <see cref="EventStoreClient"/> for event persistence and hydration.
+/// Base class for all event-sourced grains. Integrates with KurrentDB
+/// via <see cref="IEventStreamClient"/> for event persistence and hydration.
 /// </summary>
 /// <typeparam name="TState">
 /// The aggregate state type. Must be a reference type with a parameterless constructor.
@@ -18,8 +18,13 @@ namespace Vut.Silo.Grains;
 /// which persist to KurrentDB with optimistic concurrency before applying to in-memory state.
 /// </para>
 /// <para>
-/// Optimistic concurrency is enforced via <c>_currentRevision</c>. KurrentDB rejects writes
+/// Optimistic concurrency is enforced via <c>_currentStreamState</c>. KurrentDB rejects writes
 /// if another process has appended events since the grain last read.
+/// </para>
+/// <para>
+/// Derived classes must implement <see cref="BuildStreamId"/> to construct the KurrentDB
+/// stream identifier from the grain's key. This is called during activation, when the
+/// grain context (and thus the grain key) is available.
 /// </para>
 /// </remarks>
 public abstract class EventSourcedGrain<TState> : Grain
@@ -31,10 +36,10 @@ public abstract class EventSourcedGrain<TState> : Grain
         PropertyNameCaseInsensitive = true
     };
 
-    private readonly EventStoreClient _client;
-    private readonly string _streamId;
+    private readonly IEventStreamClient _eventStreamClient;
+    private string _streamId = string.Empty;
     private TState _state = new();
-    private StreamRevision _currentRevision = StreamRevision.None;
+    private StreamState _currentStreamState = StreamState.NoStream;
 
     /// <summary>
     /// Gets the current aggregate state, hydrated from the event stream.
@@ -42,22 +47,28 @@ public abstract class EventSourcedGrain<TState> : Grain
     protected TState State => _state;
 
     /// <summary>
-    /// Gets the KurrentDB stream identifier for this grain.
+    /// Gets the KurrentDB stream identifier for this grain,
+    /// resolved during activation via <see cref="BuildStreamId"/>.
     /// </summary>
     protected string StreamId => _streamId;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EventSourcedGrain{TState}"/> class.
     /// </summary>
-    /// <param name="client">The KurrentDB client for event stream operations.</param>
-    /// <param name="streamId">
-    /// The KurrentDB stream identifier (e.g., "user-{userId}" or "organization-{orgId}").
-    /// </param>
-    protected EventSourcedGrain(EventStoreClient client, string streamId)
+    /// <param name="eventStreamClient">The event stream client for persistence operations.</param>
+    protected EventSourcedGrain(IEventStreamClient eventStreamClient)
     {
-        _client = client ?? throw new ArgumentNullException(nameof(client));
-        _streamId = streamId ?? throw new ArgumentNullException(nameof(streamId));
+        _eventStreamClient = eventStreamClient ?? throw new ArgumentNullException(nameof(eventStreamClient));
     }
+
+    /// <summary>
+    /// Constructs the KurrentDB stream identifier for this grain.
+    /// Called once during grain activation when the grain context is available.
+    /// </summary>
+    /// <returns>
+    /// The stream identifier (e.g., "user-{userId}" or "organization-{orgId}").
+    /// </returns>
+    protected abstract string BuildStreamId();
 
     /// <summary>
     /// Called when the grain is activated. Hydrates state from the KurrentDB event stream
@@ -66,6 +77,7 @@ public abstract class EventSourcedGrain<TState> : Grain
     /// <param name="cancellationToken">A token to observe for cancellation.</param>
     public override async Task OnActivateAsync(CancellationToken cancellationToken)
     {
+        _streamId = BuildStreamId();
         await HydrateFromStream(cancellationToken);
         DelayDeactivation(TimeSpan.FromMinutes(30));
         await base.OnActivateAsync(cancellationToken);
@@ -88,13 +100,9 @@ public abstract class EventSourcedGrain<TState> : Grain
         CancellationToken cancellationToken = default)
     {
         var eventData = SerializeEvent(@event);
-        var writeResult = await _client.AppendToStreamAsync(
-            _streamId,
-            _currentRevision,
-            [eventData],
-            cancellationToken: cancellationToken);
+        _currentStreamState = await _eventStreamClient.AppendToStreamAsync(
+            _streamId, _currentStreamState, eventData, cancellationToken);
 
-        _currentRevision = writeResult.NextExpectedStreamRevision;
         Apply(_state, @event);
         return resultSelector(_state);
     }
@@ -109,13 +117,9 @@ public abstract class EventSourcedGrain<TState> : Grain
         CancellationToken cancellationToken = default)
     {
         var eventData = SerializeEvent(@event);
-        var writeResult = await _client.AppendToStreamAsync(
-            _streamId,
-            _currentRevision,
-            [eventData],
-            cancellationToken: cancellationToken);
+        _currentStreamState = await _eventStreamClient.AppendToStreamAsync(
+            _streamId, _currentStreamState, eventData, cancellationToken);
 
-        _currentRevision = writeResult.NextExpectedStreamRevision;
         Apply(_state, @event);
     }
 
@@ -130,20 +134,12 @@ public abstract class EventSourcedGrain<TState> : Grain
 
     private async Task HydrateFromStream(CancellationToken cancellationToken)
     {
-        var result = _client.ReadStreamAsync(
-            Direction.Forwards,
-            _streamId,
-            StreamPosition.Start,
-            cancellationToken: cancellationToken);
-
-        if (await result.ReadState == ReadState.StreamNotFound)
-            return;
-
-        await foreach (var resolved in result)
+        await foreach (var streamEvent in _eventStreamClient.ReadStreamForwardAsync(
+            _streamId, cancellationToken))
         {
-            var @event = DeserializeEvent(resolved);
+            var @event = DeserializeEvent(streamEvent);
             Apply(_state, @event);
-            _currentRevision = new StreamRevision(resolved.Event.EventNumber.ToUInt64());
+            _currentStreamState = streamEvent.Position;
         }
     }
 
@@ -155,13 +151,13 @@ public abstract class EventSourcedGrain<TState> : Grain
         return new EventData(Uuid.NewUuid(), typeName, json);
     }
 
-    private static IEvent DeserializeEvent(ResolvedEvent resolved)
+    private static IEvent DeserializeEvent(StreamEvent streamEvent)
     {
-        var type = EventTypeMapping.GetClrType(resolved.Event.EventType);
+        var type = EventTypeMapping.GetClrType(streamEvent.EventType);
         return (IEvent)(JsonSerializer.Deserialize(
-            resolved.Event.Data.Span, type, JsonOptions)
+            streamEvent.Data.Span, type, JsonOptions)
             ?? throw new InvalidOperationException(
-                $"Failed to deserialize event '{resolved.Event.EventType}' " +
-                $"from stream '{resolved.Event.EventStreamId}'."));
+                $"Failed to deserialize event '{streamEvent.EventType}' " +
+                $"from stream '{streamEvent.StreamId}'."));
     }
 }

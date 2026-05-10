@@ -1,4 +1,4 @@
-using EventStore.Client;
+using KurrentDB.Client;
 using Orleans.Configuration;
 using Vut.Silo.Configuration;
 using Vut.Silo.Events;
@@ -31,19 +31,20 @@ builder.UseOrleans(siloBuilder =>
 });
 
 // ─── KurrentDB Client (singleton, injected into grains via DI) ──
-var kurrentDbOptions = builder.Configuration
+var kurrentDbConnectionString = builder.Configuration
     .GetSection(KurrentDbOptions.SectionName)
-    .Get<KurrentDbOptions>() ?? new KurrentDbOptions();
+    .Get<KurrentDbOptions>()?.ConnectionString
+    ?? KurrentDbOptions.DefaultConnectionString;
 
-builder.Services.AddSingleton(
-    new EventStoreClient(
-        EventStoreClientSettings.Create(kurrentDbOptions.ConnectionString)));
+builder.Services.AddKurrentDBClient(kurrentDbConnectionString);
+builder.Services.AddSingleton<IEventStreamClient, KurrentDbStreamClient>();
 
 // ─── Event Type Registrations ────────────────────────────────────
-// Concrete event types are registered here by Tasks 05/06.
-// Example:
-//   EventTypeMapping.Register<UserCreatedEvent>("UserCreated");
-//   EventTypeMapping.Register<OrganizationCreatedEvent>("OrganizationCreated");
+EventTypeMapping.Register<UserCreatedEvent>("UserCreated");
+EventTypeMapping.Register<IdentityLinkedEvent>("IdentityLinked");
+EventTypeMapping.Register<UserProfileUpdatedEvent>("UserProfileUpdated");
+EventTypeMapping.Register<EmailVerificationRequestedEvent>("EmailVerificationRequested");
+EventTypeMapping.Register<EmailVerifiedEvent>("EmailVerified");
 EventTypeMapping.Freeze();
 
 // ─── Co-hosted ASP.NET Core API ──────────────────────────────────

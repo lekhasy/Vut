@@ -1,0 +1,22 @@
+# Cloudflare Tunnel configuration
+# Replace <TUNNEL_ID> with your actual tunnel ID from `cloudflared tunnel create vut`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+  namespace: vut
+  labels:
+    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/component: tunnel
+    app.kubernetes.io/name: cloudflared
+data:
+  config.yaml: |
+    tunnel: <TUNNEL_ID>
+    credentials-file: /etc/cloudflared/credentials.json
+    no-autoupdate: true
+    ingress:
+      - hostname: vut.app
+        service: http://traefik.kube-system.svc.cluster.local:80
+      - hostname: "*.vut.app"
+        service: http://traefik.kube-system.svc.cluster.local:80
+      - service: http_status:404

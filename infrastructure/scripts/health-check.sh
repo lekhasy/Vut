@@ -105,7 +105,8 @@ echo ""
 
 # 2. Check application services
 echo "--- Application Services ---"
-check_docker_service "actor-service"
+check_docker_service "silo"
+check_docker_service "projector-service"
 check_docker_service "frontend"
 echo ""
 

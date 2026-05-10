@@ -1,0 +1,15 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import EmptyState from '../components/ui/EmptyState.astro';
+import Button from '../components/ui/Button.astro';
+---
+
+<AppLayout title="Dashboard" pageTitle="Dashboard">
+  <EmptyState
+    title="Welcome to Vut"
+    description="Get started by creating your first organization or accepting an invitation."
+    icon="inbox"
+  >
+    <Button variant="primary">Create Organization</Button>
+  </EmptyState>
+</AppLayout>

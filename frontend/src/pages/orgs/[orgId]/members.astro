@@ -1,0 +1,18 @@
+---
+import AppLayout from '../../../layouts/AppLayout.astro';
+import EmptyState from '../../../components/ui/EmptyState.astro';
+
+export function getStaticPaths() {
+  return [{ params: { orgId: 'placeholder' } }];
+}
+
+const { orgId } = Astro.params;
+---
+
+<AppLayout title="Members" pageTitle="Members">
+  <EmptyState
+    title="Team Members"
+    description={`Members of organization ${orgId}. This page will be built in a future task.`}
+    icon="inbox"
+  />
+</AppLayout>

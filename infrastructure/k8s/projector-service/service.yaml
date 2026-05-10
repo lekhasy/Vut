@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vut-projector-service
+  namespace: vut
+  labels:
+    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/component: projector
+    app.kubernetes.io/name: projector-service
+spec:
+  # Headless service — the projector is a background worker with no exposed ports.
+  # This service exists for DNS resolution and label selection within the cluster.
+  clusterIP: None
+  selector:
+    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/component: projector
+    app.kubernetes.io/name: projector-service

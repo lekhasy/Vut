@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/component: frontend
     app.kubernetes.io/name: frontend
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/part-of: vut
@@ -23,8 +23,8 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: vut/frontend:latest
-          imagePullPolicy: Never  # For local dev (minikube/kind)
+          image: ghcr.io/lekhasy/vut/frontend:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 3000
@@ -32,10 +32,8 @@ spec:
           env:
             - name: NODE_ENV
               value: "development"
-            - name: ACTOR_SERVICE_URL
-              value: "http://vut-actor-service:5000"
-            - name: READMODEL_URL
-              value: "http://vut-actor-service:5001"
+            - name: SILO_API_URL
+              value: "http://vut-silo:5000"
             - name: AUTH0_DOMAIN
               valueFrom:
                 secretKeyRef:

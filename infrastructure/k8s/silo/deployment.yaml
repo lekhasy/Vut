@@ -1,36 +1,39 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vut-actor-service
+  name: vut-silo
   namespace: vut
   labels:
     app.kubernetes.io/part-of: vut
     app.kubernetes.io/component: backend
-    app.kubernetes.io/name: actor-service
+    app.kubernetes.io/name: silo
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/part-of: vut
       app.kubernetes.io/component: backend
-      app.kubernetes.io/name: actor-service
+      app.kubernetes.io/name: silo
   template:
     metadata:
       labels:
         app.kubernetes.io/part-of: vut
         app.kubernetes.io/component: backend
-        app.kubernetes.io/name: actor-service
+        app.kubernetes.io/name: silo
     spec:
       containers:
-        - name: actor-service
-          image: vut/actor-service:latest
-          imagePullPolicy: Never  # For local dev (minikube/kind)
+        - name: silo
+          image: ghcr.io/lekhasy/vut/silo:latest
+          imagePullPolicy: IfNotPresent
           ports:
-            - name: grpc
+            - name: http
               containerPort: 5000
               protocol: TCP
-            - name: http
-              containerPort: 5001
+            - name: silo
+              containerPort: 11111
+              protocol: TCP
+            - name: gateway
+              containerPort: 30000
               protocol: TCP
             - name: orleans-dash
               containerPort: 8888
@@ -38,14 +41,14 @@ spec:
           env:
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
-            - name: KurrentDB__ConnectionString
+            - name: KurrentDb__ConnectionString
               value: "esdb://vut-kurrentdb:2113?tls=false"
+            - name: ConnectionStrings__PostgreSQL
+              value: "Host=vut-postgresql;Database=vut_readmodel;Username=vut_app;Password=vut_dev_password"
             - name: Orleans__ClusterId
               value: "vut-cluster"
             - name: Orleans__ServiceId
-              value: "vut-service"
-            - name: Orleans__ClusteringConnectionString
-              value: "Host=vut-postgresql;Database=vut_readmodel;Username=vut_app;Password=vut_dev_password"
+              value: "vut"
             - name: Auth0__Domain
               valueFrom:
                 secretKeyRef:
@@ -66,8 +69,6 @@ spec:
                 secretKeyRef:
                   name: vut-auth0-secret
                   key: client-secret
-            - name: PostgreSQL__ConnectionString
-              value: "Host=vut-postgresql;Database=vut_readmodel;Username=vut_app;Password=vut_dev_password"
           resources:
             requests:
               cpu: 250m
@@ -78,7 +79,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /health
-              port: 5001
+              port: 5000
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
@@ -86,7 +87,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: 5001
+              port: 5000
             initialDelaySeconds: 45
             periodSeconds: 15
             timeoutSeconds: 5

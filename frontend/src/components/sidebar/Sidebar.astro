@@ -1,0 +1,111 @@
+---
+import NavItem from './NavItem.astro';
+import OrgSelector from './OrgSelector.astro';
+
+interface Props {
+  currentPath?: string;
+}
+
+const { currentPath = '/' } = Astro.props;
+---
+
+<!-- Mobile overlay -->
+<div
+  id="sidebar-overlay"
+  class="fixed inset-0 z-30 bg-black/50 hidden lg:hidden"
+  aria-hidden="true"
+></div>
+
+<aside
+  id="sidebar"
+  class="fixed inset-y-0 left-0 z-40 flex w-60 -translate-x-full flex-col border-r border-[var(--color-border)] bg-[var(--color-bg)] transition-transform lg:translate-x-0"
+  aria-label="Main navigation"
+>
+  <!-- Logo -->
+  <div class="flex h-14 items-center gap-2 border-b border-[var(--color-border)] px-4">
+    <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white font-bold text-lg">
+      V
+    </span>
+    <span class="text-lg font-bold text-[var(--color-text)]">Vut</span>
+  </div>
+
+  <!-- Org Selector -->
+  <div class="py-3">
+    <OrgSelector />
+  </div>
+
+  <!-- Navigation -->
+  <nav class="flex-1 space-y-1 overflow-y-auto px-3">
+    <NavItem href="/dashboard" label="Dashboard" active={currentPath === '/dashboard'}>
+      <svg slot="icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" />
+      </svg>
+    </NavItem>
+
+    <NavItem href="#" label="Members" active={currentPath.includes('/members')}>
+      <svg slot="icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+      </svg>
+    </NavItem>
+
+    <NavItem href="#" label="Settings" active={currentPath.includes('/settings')}>
+      <svg slot="icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+      </svg>
+    </NavItem>
+  </nav>
+
+  <!-- User section -->
+  <div class="border-t border-[var(--color-border)] p-3">
+    <div class="flex items-center gap-3">
+      <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white text-sm font-medium">
+        ?
+      </span>
+      <div class="flex-1 min-w-0">
+        <p class="truncate text-sm font-medium text-[var(--color-text)]">Not signed in</p>
+      </div>
+      <a
+        href="/auth/login"
+        class="text-[var(--color-text-secondary)] hover:text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-brand-500 rounded p-1"
+        title="Sign in"
+        aria-label="Sign in"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd" />
+        </svg>
+      </a>
+    </div>
+  </div>
+</aside>
+
+<script>
+  function setupSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    const openBtn = document.getElementById('sidebar-open');
+
+    function open() {
+      sidebar?.classList.remove('-translate-x-full');
+      overlay?.classList.remove('hidden');
+    }
+
+    function close() {
+      sidebar?.classList.add('-translate-x-full');
+      overlay?.classList.add('hidden');
+    }
+
+    openBtn?.addEventListener('click', open);
+    overlay?.addEventListener('click', close);
+
+    // Expose for external use
+    (window as any).toggleSidebar = () => {
+      if (sidebar?.classList.contains('-translate-x-full')) {
+        open();
+      } else {
+        close();
+      }
+    };
+  }
+
+  setupSidebar();
+</script>

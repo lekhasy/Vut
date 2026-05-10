@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# VUT Platform - K8s Development Setup Script
+# VUT Platform - K8s Development Setup Script (K3s)
 #
-# Applies all manifests to a local minikube/kind cluster and waits for
+# Applies all manifests to a local K3s cluster and waits for
 # all pods to become Ready.
 #
 # Prerequisites:
-#   - minikube or kind running
-#   - kubectl configured to use the cluster
-#   - Images pre-loaded into the cluster (docker build ... && minikube image load ...)
+#   - K3s installed: curl -sfL https://get.k3s.io | sh -
+#   - kubectl configured (K3s sets this up automatically)
+#   - Images pre-loaded into K3s (sudo k3s ctr images import ...)
 #
 # Usage:
 #   ./k8s/dev-setup.sh
@@ -48,7 +48,7 @@ info "Creating secrets..."
 kubectl apply -f "$K8S_DIR/secrets/"
 ok "Secrets applied."
 
-# 3. Create PostgreSQL (with ConfigMap for init SQL)
+# 3. Create PostgreSQL
 info "Creating PostgreSQL..."
 kubectl apply -f "$K8S_DIR/postgresql/"
 ok "PostgreSQL StatefulSet and Service applied."
@@ -85,7 +85,7 @@ while [[ $ELAPSED -lt $MAX_WAIT ]]; do
         all_ready=false
     fi
 
-    # Check KurrentDB (need at least 1 for development)
+    # Check KurrentDB
     kdb_ready=$(check_pod_ready "app.kubernetes.io/name=kurrentdb")
     if [[ "$kdb_ready" -ge 1 ]]; then
         ok "KurrentDB: $kdb_ready pod(s) running"
@@ -114,18 +114,29 @@ if ! $all_ready; then
     exit 1
 fi
 
-# 6. Create application services (Actor Service + Frontend)
+# 6. Create application services (Silo + Projector + Frontend)
 info "Creating application services..."
-kubectl apply -f "$K8S_DIR/actor-service/"
+kubectl apply -f "$K8S_DIR/silo/"
+kubectl apply -f "$K8S_DIR/projector-service/"
 kubectl apply -f "$K8S_DIR/frontend/"
-ok "Actor Service and Frontend deployments applied."
+ok "Silo, Projector Service, and Frontend deployments applied."
 
 # 7. Create Ingress
 info "Creating Ingress..."
 kubectl apply -f "$K8S_DIR/ingress.yaml"
-ok "Ingress applied."
+ok "Traefik Ingress applied."
 
-# 8. Final health check
+# 8. Create Cloudflare Tunnel (optional — skip if secrets not configured)
+if kubectl get secret -n vut cloudflared-tunnel-credentials &>/dev/null 2>&1; then
+    info "Creating Cloudflare Tunnel..."
+    kubectl apply -f "$K8S_DIR/cloudflared/"
+    ok "Cloudflared deployment applied."
+else
+    info "Deploying Cloudflare Tunnel manifests (credentials may need updating)..."
+    kubectl apply -f "$K8S_DIR/cloudflared/" 2>/dev/null || warn "Cloudflared skipped — configure secret first."
+fi
+
+# 9. Final health check
 echo ""
 info "Final health check..."
 echo ""
@@ -160,19 +171,23 @@ fi
 
 echo ""
 echo "=========================================="
-echo " VUT Platform K8s setup complete!"
+echo " VUT Platform K3s setup complete!"
 echo "=========================================="
 echo ""
-echo "Access points (via port-forward or ingress):"
+echo "Access points:"
 echo ""
-echo "  kubectl port-forward -n vut svc/vut-frontend 3000:3000"
-echo "  kubectl port-forward -n vut svc/vut-actor-service 5000:5000"
-echo "  kubectl port-forward -n vut svc/vut-kurrentdb 2113:2113"
+echo "  Via Cloudflare Tunnel (if configured):"
+echo "    https://vut.app"
+echo ""
+echo "  Via port-forward (local dev):"
+echo "    kubectl port-forward -n vut svc/vut-frontend 3000:3000"
+echo "    kubectl port-forward -n vut svc/vut-silo 5000:5000"
+echo "    kubectl port-forward -n vut svc/vut-kurrentdb 2113:2113"
 echo ""
 echo "View logs:"
 echo "  kubectl logs -f -n vut -l app.kubernetes.io/component=eventstore"
-echo "  kubectl logs -f -n vut -l app.kubernetes.io/component=messaging"
 echo "  kubectl logs -f -n vut -l app.kubernetes.io/component=database"
 echo "  kubectl logs -f -n vut -l app.kubernetes.io/component=backend"
 echo "  kubectl logs -f -n vut -l app.kubernetes.io/component=frontend"
+echo "  kubectl logs -f -n vut -l app.kubernetes.io/component=tunnel"
 echo ""

@@ -1,0 +1,42 @@
+---
+/**
+ * Toast notification component.
+ * Use via JS: window.showToast('message', 'success' | 'error' | 'info')
+ */
+---
+
+<div id="toast-container" class="fixed top-4 right-4 z-[60] flex flex-col gap-2 pointer-events-none" aria-live="polite"></div>
+
+<script>
+  type ToastVariant = 'success' | 'error' | 'info';
+
+  const variantStyles: Record<ToastVariant, string> = {
+    success: 'bg-green-600 text-white',
+    error: 'bg-red-600 text-white',
+    info: 'bg-brand-600 text-white',
+  };
+
+  (window as any).showToast = (message: string, variant: ToastVariant = 'info', duration = 4000) => {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `pointer-events-auto px-4 py-3 rounded-lg shadow-lg text-sm font-medium transition-all transform translate-x-full ${variantStyles[variant]}`;
+    toast.setAttribute('role', 'status');
+    toast.textContent = message;
+    container.appendChild(toast);
+
+    // Animate in
+    requestAnimationFrame(() => {
+      toast.classList.remove('translate-x-full');
+      toast.classList.add('translate-x-0');
+    });
+
+    // Auto-dismiss
+    setTimeout(() => {
+      toast.classList.remove('translate-x-0');
+      toast.classList.add('translate-x-full');
+      toast.addEventListener('transitionend', () => toast.remove());
+    }, duration);
+  };
+</script>

@@ -1,0 +1,55 @@
+---
+interface Props {
+  id: string;
+  label?: string;
+  class?: string;
+}
+
+const { id, label, class: className = '' } = Astro.props;
+---
+
+<div class:list={['relative inline-block', className]}>
+  <button
+    id={`${id}-trigger`}
+    class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text)] hover:bg-[var(--color-surface)] focus:outline-none focus:ring-2 focus:ring-brand-500"
+    aria-haspopup="true"
+    aria-expanded="false"
+    aria-controls={`${id}-menu`}
+  >
+    {label && <span>{label}</span>}
+    <slot name="trigger" />
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+    </svg>
+  </button>
+
+  <div
+    id={`${id}-menu`}
+    class="absolute left-0 z-10 mt-1 hidden w-56 origin-top-left rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] shadow-lg"
+    role="menu"
+  >
+    <div class="py-1">
+      <slot />
+    </div>
+  </div>
+</div>
+
+<script define:vars={{ id }}>
+  const trigger = document.getElementById(`${id}-trigger`);
+  const menu = document.getElementById(`${id}-menu`);
+
+  if (trigger && menu) {
+    trigger.addEventListener('click', () => {
+      const expanded = trigger.getAttribute('aria-expanded') === 'true';
+      trigger.setAttribute('aria-expanded', String(!expanded));
+      menu.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!trigger.contains(e.target) && !menu.contains(e.target)) {
+        trigger.setAttribute('aria-expanded', 'false');
+        menu.classList.add('hidden');
+      }
+    });
+  }
+</script>
