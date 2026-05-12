@@ -65,12 +65,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: velucid-auth0-secret
-                  key: AUTH0_APP_CLIENT_ID
+                  key: AUTH0_CLIENT_ID
             - name: Auth0__ClientSecret
               valueFrom:
                 secretKeyRef:
                   name: velucid-auth0-secret
-                  key: AUTH0_APP_CLIENT_SECRET
+                  key: AUTH0_CLIENT_SECRET
             - name: Resend__ApiKey
               valueFrom:
                 secretKeyRef:

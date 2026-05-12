@@ -164,8 +164,8 @@ Ensure these keys exist in the **Production** environment of your Infisical proj
 |-----|---------|-------------|
 | `AUTH0_DOMAIN` | Frontend, Silo | Auth0 tenant domain |
 | `AUTH0_AUDIENCE` | Frontend, Silo | Auth0 API identifier |
-| `AUTH0_APP_CLIENT_ID` | Frontend, Silo | Auth0 application client ID |
-| `AUTH0_APP_CLIENT_SECRET` | Frontend, Silo | Auth0 application client secret |
+| `AUTH0_CLIENT_ID` | Frontend, Silo | Auth0 application client ID |
+| `AUTH0_CLIENT_SECRET` | Frontend, Silo | Auth0 application client secret |
 | `POSTGRES_USERNAME` | PostgreSQL | Database username |
 | `POSTGRES_PASSWORD` | PostgreSQL | Database password |
 | `RESEND_API_KEY` | Silo | Resend email API key |
