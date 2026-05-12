@@ -173,19 +173,47 @@ else
 fi
 
 # Ensure the machine identity secret exists
-if ! $KUBECTL get secret infisical-machine-identity -n velucid &>/dev/null; then
-    warn "Infisical machine identity secret not found in velucid namespace."
-    echo ""
-    echo "  Create it with:"
-    echo "    sudo k3s kubectl create namespace velucid  # if not exists"
-    echo "    sudo k3s kubectl create secret generic infisical-machine-identity \\"
-    echo "      -n velucid \\"
-    echo "      --from-literal=clientId=<YOUR_MACHINE_IDENTITY_CLIENT_ID> \\"
-    echo "      --from-literal=clientSecret=<YOUR_MACHINE_IDENTITY_CLIENT_SECRET>"
-    echo ""
+if $KUBECTL get namespace velucid &>/dev/null; then
+    if ! $KUBECTL get secret infisical-machine-identity -n velucid &>/dev/null; then
+        warn "Infisical machine identity secret not found in velucid namespace."
+        echo ""
+        echo "  Create it with:"
+        echo "    sudo k3s kubectl create secret generic infisical-machine-identity \\"
+        echo "      -n velucid \\"
+        echo "      --from-literal=clientId=<YOUR_MACHINE_IDENTITY_CLIENT_ID> \\"
+        echo "      --from-literal=clientSecret=<YOUR_MACHINE_IDENTITY_CLIENT_SECRET>"
+        echo ""
+    fi
 fi
 
-# ── 5. Wait for Velucid pods ────────────────────────────────────────
+# ── 5. Ensure Stakater Reloader is installed ────────────────────────
+
+info "Checking Stakater Reloader..."
+
+if ! $KUBECTL get deployment reloader-reloader -n reloader &>/dev/null 2>&1; then
+    info "Reloader not found — installing via Helm..."
+
+    if ! command -v helm &>/dev/null; then
+        info "Installing Helm..."
+        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    fi
+
+    helm repo add stakater https://stakater.github.io/stakater-charts 2>/dev/null || true
+    helm repo update stakater
+
+    helm upgrade --install reloader stakater/reloader \
+        --namespace reloader \
+        --create-namespace \
+        --wait --timeout 120s
+
+    ok "Stakater Reloader installed"
+else
+    ok "Stakater Reloader is installed"
+fi
+
+echo ""
+
+# ── 6. Wait for Velucid pods ────────────────────────────────────────
 
 info "Waiting for Velucid namespace pods..."
 
@@ -228,7 +256,7 @@ fi
 
 echo ""
 
-# ── 6. Show status ──────────────────────────────────────────────────
+# ── 7. Show status ──────────────────────────────────────────────────
 
 echo "=========================================="
 echo " Pod Status"
