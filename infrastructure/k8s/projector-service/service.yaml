@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: vut-projector-service
-  namespace: vut
+  name: velucid-projector-service
+  namespace: velucid
   labels:
-    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/part-of: velucid
     app.kubernetes.io/component: projector
     app.kubernetes.io/name: projector-service
 spec:
@@ -12,6 +12,6 @@ spec:
   # This service exists for DNS resolution and label selection within the cluster.
   clusterIP: None
   selector:
-    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/part-of: velucid
     app.kubernetes.io/component: projector
     app.kubernetes.io/name: projector-service

@@ -1,4 +1,4 @@
-# Product Requirements Document: Vut
+# Product Requirements Document: Velucid
 
 ## 1. Overview
 
@@ -8,7 +8,7 @@ Project management tools are built on time-centric estimation: story points, spr
 
 ### Product Vision
 
-Vut is a **#noestimate project management platform** -- a multi-tenant SaaS product where work is tracked by flow, not by time. There are no story points, no sprints, no velocity, and no time tracking. Instead, Vut provides a single, powerful signal: **a cumulative flow diagram that shows how work flows through your process and projects when it will be done.** Everything else -- the backlog, the kanban board, the tags -- exists to make that signal accurate.
+Velucid is a **#noestimate project management platform** -- a multi-tenant SaaS product where work is tracked by flow, not by time. There are no story points, no sprints, no velocity, and no time tracking. Instead, Velucid provides a single, powerful signal: **a cumulative flow diagram that shows how work flows through your process and projects when it will be done.** Everything else -- the backlog, the kanban board, the tags -- exists to make that signal accurate.
 
 The philosophy is simple: count work, track status transitions, let the data speak. No guessing, no rituals, no theater.
 
@@ -49,7 +49,7 @@ The philosophy is simple: count work, track status transitions, let the data spe
 - Deliver a single report -- the cumulative flow diagram with projected completion date -- that replaces the need for velocity charts, burn-downs, and story points.
 - Support multi-tenant, multi-org usage via GitHub SSO, following GitHub's organization model.
 - Build on an event-sourced architecture so that all state changes are auditable, replayable, and suitable for the analytical needs of the cumulative flow report.
-- **Self-hostable on developer machines:** The entire stack (frontend, backend, event store, read model, messaging) must be hostable on the team's own machines with no dependency on any cloud provider. This is a cost constraint -- the team must be able to develop, demo, and run Vut without paying for cloud infrastructure. Availability and redundancy details are left to the architecture.
+- **Self-hostable on developer machines:** The entire stack (frontend, backend, event store, read model, messaging) must be hostable on the team's own machines with no dependency on any cloud provider. This is a cost constraint -- the team must be able to develop, demo, and run Velucid without paying for cloud infrastructure. Availability and redundancy details are left to the architecture.
 - Ship an MVP that is immediately useful for a single team managing a product backlog and kanban board.
 
 ### Non-Goals (Explicitly Out of Scope)
@@ -62,7 +62,7 @@ The philosophy is simple: count work, track status transitions, let the data spe
 - **No multiple report types** -- the cumulative flow diagram is the only report for MVP.
 - **No custom fields** -- tags and status cover categorization needs; no arbitrary field builder.
 - **No email/password authentication** -- Third-party identity provider only (GitHub SSO for MVP).
-- **No cloud provider dependency** -- the platform must be self-hostable on the team's own machines. No AWS, Azure, GCP, or any managed cloud service is required to run Vut. Cloud deployment is a future option, not a requirement.
+- **No cloud provider dependency** -- the platform must be self-hostable on the team's own machines. No AWS, Azure, GCP, or any managed cloud service is required to run Velucid. Cloud deployment is a future option, not a requirement.
 - **No mobile applications** -- web-only for MVP.
 - **No public API** -- internal use only for MVP. Can be exposed later.
 - **No integrations with other tools** -- no Slack, no Jira import, no CI/CD hooks for MVP.
@@ -101,17 +101,17 @@ The philosophy is simple: count work, track status transitions, let the data spe
 - Authentication is handled by a third-party identity provider (e.g., Auth0) to support multiple login methods now and in the future.
 - **MVP:** GitHub SSO is the only enabled login method. Other providers (Google, Microsoft, etc.) can be enabled later via the identity provider configuration.
 - No username/password registration. No email-based signup. Users must authenticate through a supported third-party provider.
-- On first login, a Vut user profile is created from the provider's profile (display name, avatar).
-- The identity provider handles all credential management; Vut does not store passwords.
-- The system supports multiple identity providers per user (e.g., a user can link both GitHub and Google to the same Vut account). Auto-linking by email is performed when a new provider's email matches an existing user.
+- On first login, a Velucid user profile is created from the provider's profile (display name, avatar).
+- The identity provider handles all credential management; Velucid does not store passwords.
+- The system supports multiple identity providers per user (e.g., a user can link both GitHub and Google to the same Velucid account). Auto-linking by email is performed when a new provider's email matches an existing user.
 
 **Email Verification (Required Before Platform Access):**
 
-Identity providers may not always return a verified email (e.g., GitHub users can hide their email). Vut cannot rely on third-party providers for email delivery. Therefore:
+Identity providers may not always return a verified email (e.g., GitHub users can hide their email). Velucid cannot rely on third-party providers for email delivery. Therefore:
 
 - After first login (or any login where email is not yet verified), the user is redirected to an email verification page before accessing any platform features.
 - The user must provide their email address on the verification page. If the identity provider supplied an email, it is pre-filled but the user can change it.
-- Vut sends a verification code (6-digit) to the provided email address. The code expires after 15 minutes.
+- Velucid sends a verification code (6-digit) to the provided email address. The code expires after 15 minutes.
 - The user enters the code on the verification page to confirm ownership.
 - **Email verification is a gate for all platform actions:** creating organizations, joining organizations, creating products, managing tasks — none of these are available until the email is verified.
 - Once verified, the user is not asked again unless they explicitly change their email (a future feature).
@@ -132,7 +132,7 @@ Identity providers may not always return a verified email (e.g., GitHub users ca
 
 **GitHub-Style Organization Model**
 
-Organizations in Vut follow the same pattern as GitHub organizations:
+Organizations in Velucid follow the same pattern as GitHub organizations:
 
 - A user can create organizations.
 - A user can belong to multiple organizations.
@@ -302,7 +302,7 @@ Organization > Product > Task
 
 **The Core Report**
 
-This is the primary -- and only -- report in Vut. It visualizes how work flows through the process over time and projects a completion date.
+This is the primary -- and only -- report in Velucid. It visualizes how work flows through the process over time and projects a completion date.
 
 **What It Shows:**
 - An area/stacked chart where each colored band represents a status.
@@ -340,7 +340,7 @@ This is the primary -- and only -- report in Vut. It visualizes how work flows t
 
 ### 4.9 Architectural Constraints
 
-The following architectural decisions are **product-level constraints** that shape how Vut behaves. Detailed technical design (event schemas, infrastructure, projections) is documented separately in `architecture.md`.
+The following architectural decisions are **product-level constraints** that shape how Velucid behaves. Detailed technical design (event schemas, infrastructure, projections) is documented separately in `architecture.md`.
 
 - **Event-sourced by design:** All state changes (tasks, products, organizations, users) are recorded as immutable events. This is not an implementation detail -- it is a product feature. It enables full auditability, the cumulative flow diagram's historical accuracy, and the ability to rebuild any view from the event history.
 - **Self-hostable on developer machines:** The entire stack must be hostable on the team's own machines with no cloud provider or managed service required. This keeps operating costs at zero during development and early adoption. Deployment topology and availability details are defined in `architecture.md`.
@@ -366,12 +366,12 @@ The following architectural decisions are **product-level constraints** that sha
 
 ### 6.1 First-Time User Onboarding
 
-1. User clicks "Sign in with GitHub" on the Vut landing page.
-2. Auth0 handles the GitHub OAuth flow; user is redirected back to Vut.
-3. Vut creates a user profile from GitHub data (`UserCreated` + `IdentityLinked` events).
+1. User clicks "Sign in with GitHub" on the Velucid landing page.
+2. Auth0 handles the GitHub OAuth flow; user is redirected back to Velucid.
+3. Velucid creates a user profile from GitHub data (`UserCreated` + `IdentityLinked` events).
 4. User is redirected to the email verification page.
 5. User enters their email address (pre-filled if GitHub provided one) and clicks "Send Code."
-6. Vut sends a 6-digit verification code to the email (`EmailVerificationRequested` event).
+6. Velucid sends a 6-digit verification code to the email (`EmailVerificationRequested` event).
 7. User enters the code. On success, `EmailVerified` event is emitted.
 8. User sees an empty state with a prompt to create or join an organization.
 9. User creates their first organization (`OrganizationCreated` event).
@@ -429,7 +429,7 @@ The following architectural decisions are **product-level constraints** that sha
 ### 7.1 Design Philosophy
 
 - **Fast and minimal:** The UI should feel instant. No loading spinners for routine interactions. Optimistic updates where possible.
-- **Opinionated but flexible:** Vut has strong opinions about workflow (no time tracking, status-driven flow), but is flexible about categorization (free-form tags).
+- **Opinionated but flexible:** Velucid has strong opinions about workflow (no time tracking, status-driven flow), but is flexible about categorization (free-form tags).
 - **Data over ceremony:** The cumulative flow diagram is the hero element. Every other UI element exists to make the data in that chart accurate.
 
 ### 7.2 Platform
@@ -513,7 +513,7 @@ The following architectural decisions are **product-level constraints** that sha
 
 ### Resolved Decisions
 
-- **Email verification strategy:** Vut collects and verifies email internally rather than relying on identity providers. Rationale: providers like GitHub may not return email (user privacy settings), and provider APIs/policies can change without notice. Internal verification ensures Vut always has a verified communication channel for invitations and notifications.
+- **Email verification strategy:** Velucid collects and verifies email internally rather than relying on identity providers. Rationale: providers like GitHub may not return email (user privacy settings), and provider APIs/policies can change without notice. Internal verification ensures Velucid always has a verified communication channel for invitations and notifications.
 - **Backlog-only status designation:** The first status in a product's status list is automatically the backlog-only status (excluded from the kanban board). This is a structural rule, not a naming convention. The status can be renamed but not removed or reordered.
 
 ---
@@ -524,7 +524,7 @@ The following architectural decisions are **product-level constraints** that sha
 
 - **#noestimate movement:** The product philosophy is rooted in the #noestimate movement, which challenges the value of time-based estimation in software development.
 - **GitHub organization model:** Multi-tenancy, roles, and org membership follow GitHub's established pattern.
-- **Kanban method:** The cumulative flow diagram is a core Kanban metric. Vut adopts this without adopting the full Kanban method's prescriptive elements.
+- **Kanban method:** The cumulative flow diagram is a core Kanban metric. Velucid adopts this without adopting the full Kanban method's prescriptive elements.
 - **Event sourcing:** The architecture follows event-sourcing principles as described by Martin Fowler and implemented in systems like KurrentDB.
 
 ### Key Terminology

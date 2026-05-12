@@ -116,10 +116,10 @@ Create `src/middleware.ts` (or `src/middleware/index.ts`) that runs on every req
 AUTH0_DOMAIN=xxx.us.auth0.com
 AUTH0_CLIENT_ID=abc123
 AUTH0_CLIENT_SECRET=secret123
-AUTH0_AUDIENCE=https://api.vut.dev
+AUTH0_AUDIENCE=https://api.velucid.dev
 SESSION_SECRET=<32-byte-base64-key>
-SILO_API_URL=http://vut-silo:5000
-BASE_URL=http://localhost:3000          # Dev; use https://vut.app for production (Cloudflare Tunnel)
+SILO_API_URL=http://velucid-silo:5000
+BASE_URL=http://localhost:3000          # Dev; use https://velucid.app for production (Cloudflare Tunnel)
 ```
 
 ### File Structure

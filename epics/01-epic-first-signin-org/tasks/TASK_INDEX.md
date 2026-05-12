@@ -6,7 +6,7 @@ This document indexes all tasks for Epic 1, showing dependencies, parallelism op
 
 **Key simplification:** Orleans uses the existing PostgreSQL database for cluster membership and grain directory — no external message broker is needed. The API is co-hosted inside the Orleans silo process.
 
-**Deployment model:** The platform runs on a **single developer machine** using **K3s** (lightweight Kubernetes). All services start with 1 replica. Internet access is via **Cloudflare Tunnel** (`vut.app`) — no static IP required. Future scaling to additional machines uses **Tailscale** VPN mesh to join K3s agent nodes, with zero application code changes.
+**Deployment model:** The platform runs on a **single developer machine** using **K3s** (lightweight Kubernetes). All services start with 1 replica. Internet access is via **Cloudflare Tunnel** (`velucid.app`) — no static IP required. Future scaling to additional machines uses **Tailscale** VPN mesh to join K3s agent nodes, with zero application code changes.
 
 **Total Tasks:** 16
 **Backend Tasks:** 8 (Tasks 01-08, 16)
@@ -114,7 +114,7 @@ With parallelism: approximately 10-11 days with 2 developers.
 | Pattern | Implementation | Where |
 |---------|---------------|-------|
 | Container Orchestration | K3s (lightweight Kubernetes) on single dev machine | Task 01 |
-| Internet Ingress | Cloudflare Tunnel — outbound-only, no static IP, `vut.app` domain | Task 01 |
+| Internet Ingress | Cloudflare Tunnel — outbound-only, no static IP, `velucid.app` domain | Task 01 |
 | Ingress Controller | Traefik (bundled with K3s) | Task 01 |
 | Multi-Machine Scaling | Tailscale VPN mesh + K3s agent join (future) | Task 01 (notes) |
 | Virtual Actor Framework | Microsoft Orleans with PostgreSQL (ADO.NET) clustering | Task 04 |

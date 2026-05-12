@@ -9,7 +9,7 @@
 
 ## Description
 
-Configure the Auth0 tenant for Vut: enable GitHub as the sole social connection, register the application, configure callback/logout URLs, and define the API identifier (audience). Document the configuration so it can be reproduced by any developer.
+Configure the Auth0 tenant for Velucid: enable GitHub as the sole social connection, register the application, configure callback/logout URLs, and define the API identifier (audience). Document the configuration so it can be reproduced by any developer.
 
 ## Architecture Reference
 
@@ -21,12 +21,12 @@ Configure the Auth0 tenant for Vut: enable GitHub as the sole social connection,
 ### Auth0 Application Setup
 1. Create a new "Regular Web Application" in Auth0 (this is the BFF/server-side app).
 2. Configure the following:
-   - **Allowed Callback URLs:** `http://localhost:3000/auth/callback` (dev), `https://vut.app/auth/callback` (prod via Cloudflare Tunnel).
-   - **Allowed Logout URLs:** `http://localhost:3000` (dev), `https://vut.app` (prod).
-   - **Allowed Web Origins:** `http://localhost:3000` (dev), `https://vut.app` (prod).
+   - **Allowed Callback URLs:** `http://localhost:3000/auth/callback` (dev), `https://velucid.app/auth/callback` (prod via Cloudflare Tunnel).
+   - **Allowed Logout URLs:** `http://localhost:3000` (dev), `https://velucid.app` (prod).
+   - **Allowed Web Origins:** `http://localhost:3000` (dev), `https://velucid.app` (prod).
    - **Grant Types:** Authorization Code, Refresh Token.
    - **Token Endpoint Authentication Method:** Defaults to `client_secret_post` for Regular Web Applications (no configuration needed).
-3. Note the **Client ID** and **Client Secret** -- these go into `vut-auth0-secret` in Kubernetes.
+3. Note the **Client ID** and **Client Secret** -- these go into `velucid-auth0-secret` in Kubernetes.
 
 ### GitHub Connection
 1. In Auth0 > Authentication > Social, enable **GitHub**.
@@ -36,8 +36,8 @@ Configure the Auth0 tenant for Vut: enable GitHub as the sole social connection,
 4. Ensure the GitHub connection requests scopes: `read:user`, `user:email`. Note: `user:email` is requested as best-effort — GitHub users may have no public email, so email from any identity provider must be treated as nullable.
 
 ### API Identifier (Audience)
-1. In Auth0 > Applications > APIs, create an API named "Vut API".
-2. Set the **Identifier** (audience) to something like `https://api.vut.dev` (this is a logical identifier, not a real URL).
+1. In Auth0 > Applications > APIs, create an API named "Velucid API".
+2. Set the **Identifier** (audience) to something like `https://api.velucid.dev` (this is a logical identifier, not a real URL).
 3. Enable "Allow Offline Access" for refresh tokens.
 4. Set token expiration: Access Token 15 min. Note: ID Token lifetime is configured at the Application level, not here.
 
@@ -55,7 +55,7 @@ Configure the Auth0 tenant for Vut: enable GitHub as the sole social connection,
   "name": "Jane Developer",
   "picture": "https://avatars.githubusercontent.com/u/12345678?v=4",
   "email": "jane@example.com",
-  "aud": "https://api.vut.dev",
+  "aud": "https://api.velucid.dev",
   "iss": "https://{tenant}.us.auth0.com/",
   "exp": 1715000000,
   "iat": 1714999100
@@ -71,7 +71,7 @@ Note: `email` is **not guaranteed** — it may be `null` or absent entirely. Use
 - [ ] JWT contains all required claims: `sub`, `nickname`, `name`, `picture`. The `email` claim is optional and may be absent.
 - [ ] API identifier (audience) is configured and included in tokens.
 - [ ] Setup documentation exists in `docs/auth0-setup.md`.
-- [ ] Client ID, Client Secret, Domain, and Audience are stored in `k8s/secrets/vut-auth0-secret.yaml` (base64-encoded).
+- [ ] Client ID, Client Secret, Domain, and Audience are stored in `k8s/secrets/velucid-auth0-secret.yaml` (base64-encoded).
 
 ## Dependencies
 

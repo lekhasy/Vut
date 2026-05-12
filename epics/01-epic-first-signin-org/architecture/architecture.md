@@ -2,13 +2,13 @@
 
 ## 1. System Context
 
-Epic 1 establishes the entire infrastructure footprint of Vut. Every subsequent epic builds on the grains, event sourcing, projections, and deployment infrastructure defined here.
+Epic 1 establishes the entire infrastructure footprint of Velucid. Every subsequent epic builds on the grains, event sourcing, projections, and deployment infrastructure defined here.
 
 The architecture uses **Microsoft Orleans virtual actors (grains)** as the core backend framework. Orleans grains are identified by strongly-typed interfaces and keys (GUIDs), auto-activate on first call, and are location-transparent across silo nodes. There are no manager actors, no manual PID lookup, and no manual spawning logic.
 
 **Deployment model:** The platform runs on a single developer machine using **K3s** (lightweight Kubernetes) to orchestrate all services. Orleans silos use `UseAdoNetClustering()` with PostgreSQL for cluster membership from day one, even with a single silo. This means scaling to multiple machines later requires zero code changes — just join additional K3s nodes to the cluster via **Tailscale VPN** and Orleans automatically discovers new silos through the shared PostgreSQL membership table. No cloud infrastructure is needed; the entire system runs locally with production-grade orchestration.
 
-**Internet access:** The dev machine has no static IP. Users reach `vut.app` via **Cloudflare Tunnel** — a `cloudflared` daemon runs inside the K3s cluster and establishes an outbound-only encrypted connection to Cloudflare's edge network. Cloudflare terminates TLS, provides DDoS protection, and proxies traffic back through the tunnel to the K3s Traefik ingress. No port forwarding, firewall rules, or static IP required.
+**Internet access:** The dev machine has no static IP. Users reach `velucid.app` via **Cloudflare Tunnel** — a `cloudflared` daemon runs inside the K3s cluster and establishes an outbound-only encrypted connection to Cloudflare's edge network. Cloudflare terminates TLS, provides DDoS protection, and proxies traffic back through the tunnel to the K3s Traefik ingress. No port forwarding, firewall rules, or static IP required.
 
 ```mermaid
 graph TB
@@ -19,10 +19,10 @@ graph TB
         MS["Microsoft OAuth"]
         Auth0["Auth0"]
         RESEND["Resend<br/>(Email API)"]
-        CF["Cloudflare Edge<br/>(vut.app DNS + TLS)"]
+        CF["Cloudflare Edge<br/>(velucid.app DNS + TLS)"]
     end
 
-    subgraph Vut Platform
+    subgraph Velucid Platform
         subgraph Frontend["Astro.js SPA"]
             UI["UI Shell<br/>Sidebar / Routing"]
         end
@@ -88,7 +88,7 @@ The BFF communicates with a co-hosted ASP.NET Core API that lives inside the Orl
 
 ### 2.1 Why Virtual Actors
 
-Virtual actors (grains) are the natural fit for Vut's domain model. Each aggregate root (User, Organization, Product, Task) maps to one grain instance identified by its entity ID. Virtual actors provide:
+Virtual actors (grains) are the natural fit for Velucid's domain model. Each aggregate root (User, Organization, Product, Task) maps to one grain instance identified by its entity ID. Virtual actors provide:
 
 1. **Automatic lifecycle management**: Grains activate on first call and deactivate when idle — no manual creation or destruction logic.
 2. **Location transparency**: The caller doesn't need to know which server hosts a grain. The Orleans runtime handles placement and routing.
@@ -111,9 +111,9 @@ Virtual actors (grains) are the natural fit for Vut's domain model. Each aggrega
 
 ### 2.3 Trade-offs Acknowledged
 
-- **Opinionated framework**: Orleans has strong opinions about grain design, state management, and communication patterns. This rigidity is beneficial for Vut's straightforward aggregate model.
+- **Opinionated framework**: Orleans has strong opinions about grain design, state management, and communication patterns. This rigidity is beneficial for Velucid's straightforward aggregate model.
 - **Custom event sourcing**: Orleans does not have a built-in KurrentDB provider. A custom `EventSourcedGrain<TState>` base class is needed (see Section 5.1).
-- **Grain key types**: Orleans grain keys are limited to `Guid`, `long`, `string`, or compound keys. This is not a limitation for Vut (all entities use UUID/Guid keys).
+- **Grain key types**: Orleans grain keys are limited to `Guid`, `long`, `string`, or compound keys. This is not a limitation for Velucid (all entities use UUID/Guid keys).
 
 These trade-offs are acceptable because:
 - Native ASP.NET Core integration reduces boilerplate and improves developer experience.
@@ -126,7 +126,7 @@ These trade-offs are acceptable because:
 
 ```mermaid
 graph TB
-    CF["Cloudflare Edge<br/>(vut.app)"]
+    CF["Cloudflare Edge<br/>(velucid.app)"]
     GHCR["ghcr.io<br/>(Container Registry)"]
     GH["GitHub Repo<br/>(K8s manifests)"]
 
@@ -135,27 +135,27 @@ graph TB
             ARGO["ArgoCD<br/>(GitOps Controller)"]
         end
 
-        subgraph "Namespace: vut"
+        subgraph "Namespace: velucid"
             CFD["cloudflared<br/>(Tunnel Daemon)"]
             ING["Traefik Ingress<br/>(K3s built-in)"]
 
-            subgraph "Deployment: vut-frontend"
+            subgraph "Deployment: velucid-frontend"
                 FE["Astro.js SSR Pod<br/>(BFF + Static)"]
             end
 
-            subgraph "Deployment: vut-silo"
+            subgraph "Deployment: velucid-silo"
                 SL["Orleans Silo Pod<br/>(ASP.NET Core + Grains)"]
             end
 
-            subgraph "Deployment: vut-projector-service"
+            subgraph "Deployment: velucid-projector-service"
                 PS["Projector Pod<br/>(User + Org Projectors)"]
             end
 
-            subgraph "StatefulSet: vut-kurrentdb"
+            subgraph "StatefulSet: velucid-kurrentdb"
                 KDB["KurrentDB<br/>(single node)"]
             end
 
-            subgraph "StatefulSet: vut-postgresql"
+            subgraph "StatefulSet: velucid-postgresql"
                 PG["PostgreSQL<br/>(single instance)<br/>Read Model + Orleans Clustering"]
             end
         end
@@ -177,7 +177,7 @@ graph TB
 ```
 
 **Key design decisions:**
-- **Cloudflare Tunnel** exposes `vut.app` to the internet without a static IP. The `cloudflared` daemon runs as a K3s deployment and initiates an outbound connection to Cloudflare — no inbound ports need to be opened on the dev machine's router.
+- **Cloudflare Tunnel** exposes `velucid.app` to the internet without a static IP. The `cloudflared` daemon runs as a K3s deployment and initiates an outbound connection to Cloudflare — no inbound ports need to be opened on the dev machine's router.
 - Orleans uses PostgreSQL (already in the stack) for cluster membership via `Orleans.Clustering.AdoNet`. This is configured from day one even on a single node, so adding more silos later requires zero code changes.
 - The silo is a homogeneous Orleans cluster node running ASP.NET Core. Every pod runs the same code and can host any grain type.
 - The API layer is **co-hosted** inside the silo — no separate API service needed. The BFF calls the co-hosted API endpoints, which use `IGrainFactory` to access grains.
@@ -218,7 +218,7 @@ When scaling is needed, additional developer machines join the K3s cluster via T
 
 ### 4.1 Silo Configuration
 
-Every `vut-silo` pod joins the Orleans cluster on startup. The cluster is configured with:
+Every `velucid-silo` pod joins the Orleans cluster on startup. The cluster is configured with:
 
 - **Clustering Provider**: PostgreSQL via `Orleans.Clustering.AdoNet` (membership table in the existing PostgreSQL instance). This is used even on a single node — when additional K3s nodes join via Tailscale, new silos register themselves in the same membership table automatically.
 - **Grain Directory**: Orleans' built-in distributed grain directory (hash-based placement)
@@ -243,8 +243,8 @@ builder.UseOrleans(siloBuilder =>
         .AddMemoryGrainStorageAsDefault() // Grain state is in KurrentDB, not Orleans storage
         .Configure<ClusterOptions>(options =>
         {
-            options.ClusterId = "vut-cluster";
-            options.ServiceId = "vut";
+            options.ClusterId = "velucid-cluster";
+            options.ServiceId = "velucid";
         })
         .Configure<GrainCollectionOptions>(options =>
         {
@@ -265,8 +265,8 @@ app.Run();
 
 | Grain Interface | Key Type | Identity Format | Description |
 |----------------|----------|-----------------|-------------|
-| `IUserGrain` | `Guid` | `{userId}` (UUID) | One grain per Vut user |
-| `IOrganizationGrain` | `Guid` | `{orgId}` (UUID) | One grain per Vut organization |
+| `IUserGrain` | `Guid` | `{userId}` (UUID) | One grain per Velucid user |
+| `IOrganizationGrain` | `Guid` | `{orgId}` (UUID) | One grain per Velucid organization |
 
 Future epics will register additional grain types:
 
@@ -280,7 +280,7 @@ Future epics will register additional grain types:
 ```mermaid
 graph LR
     subgraph "K3s Cluster (Single Machine — Initial)"
-        N1["Silo A<br/>vut-silo-0"]
+        N1["Silo A<br/>velucid-silo-0"]
     end
 
     subgraph "Grain Placement"
@@ -707,7 +707,7 @@ graph LR
 // Pseudocode — KurrentDB client registration in DI
 builder.Services.AddSingleton(new EventStoreClient(
     EventStoreClientSettings.Create(
-        "esdb://vut-kurrentdb:2113?tls=false")));
+        "esdb://velucid-kurrentdb:2113?tls=false")));
 ```
 
 The `EventStoreClient` is registered as a singleton in the DI container and injected into grains via constructor injection (Orleans supports DI for grains).
@@ -756,8 +756,8 @@ Projectors subscribe to KurrentDB persistent subscriptions directly. KurrentDB h
 
 | Subscription Group | Stream Filter | Consumer Strategy | Purpose |
 |--------------------|---------------|-------------------|---------|
-| `vut-projector-user` | `user-*` | Round-robin (1 consumer) | All User stream events |
-| `vut-projector-org` | `organization-*` | Round-robin (1 consumer) | All Organization stream events |
+| `velucid-projector-user` | `user-*` | Round-robin (1 consumer) | All User stream events |
+| `velucid-projector-org` | `organization-*` | Round-robin (1 consumer) | All Organization stream events |
 
 Persistent subscriptions are created via KurrentDB's HTTP API or .NET SDK at startup. They track checkpoints internally — no `projection_checkpoint` table is needed.
 
@@ -908,8 +908,8 @@ The projector service is a .NET worker that subscribes to KurrentDB persistent s
 ```mermaid
 graph LR
     subgraph KurrentDB["KurrentDB (Persistent Subscriptions)"]
-        PS1["vut-projector-user<br/>stream filter: user-*"]
-        PS2["vut-projector-org<br/>stream filter: organization-*"]
+        PS1["velucid-projector-user<br/>stream filter: user-*"]
+        PS2["velucid-projector-org<br/>stream filter: organization-*"]
     end
 
     subgraph ProjectorService["Projector Service (.NET Worker)"]
@@ -1213,21 +1213,21 @@ curl -sfL https://get.k3s.io | sh -
 sudo k3s kubectl get nodes
 ```
 
-All Vut services run in the `vut` namespace.
+All Velucid services run in the `velucid` namespace.
 
 ```yaml
 # k8s/namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: vut
+  name: velucid
   labels:
-    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/part-of: velucid
 ```
 
 ### 9.2 Cloudflare Tunnel (Internet Ingress)
 
-`cloudflared` runs as a K3s deployment and establishes an outbound-only connection to Cloudflare's edge network. Cloudflare DNS for `vut.app` points to this tunnel — no static IP, no port forwarding needed.
+`cloudflared` runs as a K3s deployment and establishes an outbound-only connection to Cloudflare's edge network. Cloudflare DNS for `velucid.app` points to this tunnel — no static IP, no port forwarding needed.
 
 **Setup:**
 1. Create a Cloudflare Tunnel in the Cloudflare Zero Trust dashboard (or via CLI).
@@ -1240,7 +1240,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: cloudflared-credentials
-  namespace: vut
+  namespace: velucid
 type: Opaque
 data:
   credentials.json: <base64-encoded tunnel credentials>
@@ -1252,15 +1252,15 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: cloudflared-config
-  namespace: vut
+  namespace: velucid
 data:
   config.yaml: |
     tunnel: <tunnel-id>
     credentials-file: /etc/cloudflared/credentials.json
     ingress:
-      - hostname: vut.app
+      - hostname: velucid.app
         service: http://traefik.kube-system.svc.cluster.local:80
-      - hostname: "*.vut.app"
+      - hostname: "*.velucid.app"
         service: http://traefik.kube-system.svc.cluster.local:80
       - service: http_status:404
 ```
@@ -1271,7 +1271,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cloudflared
-  namespace: vut
+  namespace: velucid
 spec:
   replicas: 1
   selector:
@@ -1304,12 +1304,12 @@ spec:
             secretName: cloudflared-credentials
 ```
 
-**DNS configuration:** In the Cloudflare dashboard, create CNAME records pointing `vut.app` and `*.vut.app` to `<tunnel-id>.cfargotunnel.com`. Cloudflare handles TLS termination and DDoS protection at the edge.
+**DNS configuration:** In the Cloudflare dashboard, create CNAME records pointing `velucid.app` and `*.velucid.app` to `<tunnel-id>.cfargotunnel.com`. Cloudflare handles TLS termination and DDoS protection at the edge.
 
 **Traffic flow:**
 ```
-User → vut.app (Cloudflare DNS) → Cloudflare Edge (TLS termination)
-  → Cloudflare Tunnel → cloudflared pod (K3s) → Traefik Ingress → vut-frontend
+User → velucid.app (Cloudflare DNS) → Cloudflare Edge (TLS termination)
+  → Cloudflare Tunnel → cloudflared pod (K3s) → Traefik Ingress → velucid-frontend
 ```
 
 ### 9.3 Scaling to Multiple Machines (Tailscale + K3s)
@@ -1338,14 +1338,14 @@ This is a future step — the initial deployment runs everything on a single mac
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: vut-kurrentdb
-  namespace: vut
+  name: velucid-kurrentdb
+  namespace: velucid
 spec:
   replicas: 1  # Single node for local development
-  serviceName: vut-kurrentdb
+  serviceName: velucid-kurrentdb
   selector:
     matchLabels:
-      app: vut-kurrentdb
+      app: velucid-kurrentdb
   template:
     spec:
       containers:
@@ -1384,14 +1384,14 @@ PostgreSQL serves double duty: Orleans clustering tables AND read model projecti
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: vut-postgresql
-  namespace: vut
+  name: velucid-postgresql
+  namespace: velucid
 spec:
   replicas: 1
-  serviceName: vut-postgresql
+  serviceName: velucid-postgresql
   selector:
     matchLabels:
-      app: vut-postgresql
+      app: velucid-postgresql
   template:
     spec:
       containers:
@@ -1401,16 +1401,16 @@ spec:
             - containerPort: 5432
           env:
             - name: POSTGRES_DB
-              value: vut_readmodel
+              value: velucid_readmodel
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: vut-postgresql-secret
+                  name: velucid-postgresql-secret
                   key: username
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: vut-postgresql-secret
+                  name: velucid-postgresql-secret
                   key: password
           volumeMounts:
             - name: data
@@ -1435,13 +1435,13 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vut-silo
-  namespace: vut
+  name: velucid-silo
+  namespace: velucid
 spec:
   replicas: 1  # Single silo on single machine; increase when scaling
   selector:
     matchLabels:
-      app: vut-silo
+      app: velucid-silo
   template:
     spec:
       containers:
@@ -1453,22 +1453,22 @@ spec:
             - containerPort: 30000 # Orleans gateway (client connections)
           env:
             - name: KurrentDb__ConnectionString
-              value: "esdb://vut-kurrentdb:2113?tls=false"
+              value: "esdb://velucid-kurrentdb:2113?tls=false"
             - name: ConnectionStrings__PostgreSQL
-              value: "Host=vut-postgresql;Database=vut_readmodel;Username=vut_app;Password=$(POSTGRESQL_PASSWORD)"
+              value: "Host=velucid-postgresql;Database=velucid_readmodel;Username=velucid_app;Password=$(POSTGRESQL_PASSWORD)"
             - name: Orleans__ClusterId
-              value: "vut-cluster"
+              value: "velucid-cluster"
             - name: Orleans__ServiceId
-              value: "vut"
+              value: "velucid"
             - name: Auth0__Domain
               valueFrom:
                 secretKeyRef:
-                  name: vut-auth0-secret
+                  name: velucid-auth0-secret
                   key: domain
             - name: Auth0__Audience
               valueFrom:
                 secretKeyRef:
-                  name: vut-auth0-secret
+                  name: velucid-auth0-secret
                   key: audience
 ```
 
@@ -1481,13 +1481,13 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vut-frontend
-  namespace: vut
+  name: velucid-frontend
+  namespace: velucid
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: vut-frontend
+      app: velucid-frontend
   template:
     spec:
       containers:
@@ -1497,21 +1497,21 @@ spec:
             - containerPort: 3000
           env:
             - name: SILO_API_URL
-              value: "http://vut-silo:5000"
+              value: "http://velucid-silo:5000"
             - name: AUTH0_DOMAIN
               valueFrom:
                 secretKeyRef:
-                  name: vut-auth0-secret
+                  name: velucid-auth0-secret
                   key: domain
             - name: AUTH0_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: vut-auth0-secret
+                  name: velucid-auth0-secret
                   key: client-id
             - name: AUTH0_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: vut-auth0-secret
+                  name: velucid-auth0-secret
                   key: client-secret
 ```
 
@@ -1533,9 +1533,9 @@ graph LR
     subgraph "K3s Cluster (Dev Machine)"
         ARGO["ArgoCD<br/>(GitOps Controller)"]
         ING["Traefik Ingress"]
-        SILO["vut-silo"]
-        FE["vut-frontend"]
-        PROJ["vut-projector"]
+        SILO["velucid-silo"]
+        FE["velucid-frontend"]
+        PROJ["velucid-projector"]
     end
 
     GIT -->|triggers| GA
@@ -1660,7 +1660,7 @@ kubectl port-forward svc/argocd-server -n argocd 8080:443
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: vut
+  name: velucid
   namespace: argocd
 spec:
   project: default
@@ -1672,7 +1672,7 @@ spec:
       recurse: true
   destination:
     server: https://kubernetes.default.svc
-    namespace: vut
+    namespace: velucid
   syncPolicy:
     automated:
       prune: true      # Remove resources deleted from git
@@ -1763,22 +1763,22 @@ sequenceDiagram
 
 ### 10.2 JWT Claims Used
 
-Auth0 token includes these claims that Vut extracts:
+Auth0 token includes these claims that Velucid extracts:
 - `sub`: The Auth0 user ID (format varies by provider: `github|12345678`, `google-oauth2|1234567890`, `windowslive|1234567890`)
 - `nickname`: Username (provider-specific)
 - `name`: Display name
 - `picture`: Avatar URL
 - `email`: Email address (nullable — identity providers do not guarantee this; e.g., GitHub users may have no public email)
 
-The `sub` claim's prefix identifies the provider. Vut uses this as the `providerId` and stores it alongside a `providerName` in the `user_identity` table to support multiple login providers per user.
+The `sub` claim's prefix identifies the provider. Velucid uses this as the `providerId` and stores it alongside a `providerName` in the `user_identity` table to support multiple login providers per user.
 
 ### 10.3 Auth Middleware
 
 The BFF validates the JWT on every request:
 1. Extract Bearer token or session cookie
 2. Validate JWT signature against Auth0 JWKS
-3. Extract `sub` claim as the Vut `providerId`
-4. Look up the Vut `userId` from the read model using `user_identity` table: `SELECT user_id FROM user_identity WHERE provider_id = ?`
+3. Extract `sub` claim as the Velucid `providerId`
+4. Look up the Velucid `userId` from the read model using `user_identity` table: `SELECT user_id FROM user_identity WHERE provider_id = ?`
 5. Attach `userId` and `providerId` to the request context as the `actorId` for all commands
 
 If a user logs in with a new provider and the provider returns an email that matches an existing user, the BFF auto-links the identity (see Section 8.1). Auto-linking is only possible when the provider returns an email — it is skipped when email is null.
@@ -2019,7 +2019,7 @@ Grain activation requires loading events from KurrentDB. For aggregates with lon
 - Grain calls within the same silo are local (in-process). Grain calls across silos use Orleans' binary serialization protocol.
 - KurrentDB appends are single-digit millisecond latency for small events.
 - The write path (API → grain → KurrentDB) should complete in under 50ms for most commands.
-- On a single-machine deployment, all grain calls are local (one silo). When scaled to multiple machines via Tailscale, cross-silo calls traverse the Tailscale mesh (typically 1-10ms latency on a LAN, 10-50ms over WAN). This is acceptable for Vut's workload.
+- On a single-machine deployment, all grain calls are local (one silo). When scaled to multiple machines via Tailscale, cross-silo calls traverse the Tailscale mesh (typically 1-10ms latency on a LAN, 10-50ms over WAN). This is acceptable for Velucid's workload.
 
 ### 15.4 Co-hosting Performance Benefit
 
@@ -2103,7 +2103,7 @@ No changes to the cluster topology, PostgreSQL clustering configuration, or base
 | Cluster provider | PostgreSQL (ADO.NET) | Reuses existing PostgreSQL infrastructure. No additional message broker dependency. Enables zero-config multi-silo scaling. |
 | Container orchestration | K3s (lightweight Kubernetes) | Single-binary K8s distribution. Runs on a single dev machine with minimal resources. Bundled Traefik ingress. Same K8s API as production — manifests are portable. |
 | Multi-machine networking | Tailscale (future) | WireGuard-based mesh VPN. Zero-config NAT traversal, end-to-end encryption, flat network for K3s node joining. |
-| Internet ingress | Cloudflare Tunnel | Outbound-only tunnel from K3s to Cloudflare edge. No static IP or port forwarding needed. Free tier includes DDoS protection, TLS termination, and custom domain support (`vut.app`). |
+| Internet ingress | Cloudflare Tunnel | Outbound-only tunnel from K3s to Cloudflare edge. No static IP or port forwarding needed. Free tier includes DDoS protection, TLS termination, and custom domain support (`velucid.app`). |
 | CI/CD pipeline | GitHub Actions | Free unlimited minutes for open-source repos. Builds Docker images and pushes to ghcr.io on every push to `main`. |
 | Container registry | ghcr.io (GitHub Container Registry) | Free for public repos. Tightly integrated with GitHub Actions — authenticates with `GITHUB_TOKEN`, no extra credentials. |
 | GitOps controller | ArgoCD | Watches the git repo for K8s manifest changes and auto-syncs to K3s. Self-heal and prune ensure the cluster always matches git. Web UI for deployment visibility. |
@@ -2115,7 +2115,7 @@ No changes to the cluster topology, PostgreSQL clustering configuration, or base
 | ID generation | UUID v4 | Globally unique, no coordination needed, safe for distributed grain creation. |
 | Session management | HTTP-only cookie (BFF) | Secure, no token exposure to JavaScript, BFF validates JWT server-side. |
 | Email service | Resend | Modern email API with .NET SDK. 3,000 emails/month free tier — sufficient for verification codes and invitation emails. Simple REST/SDK integration, no SMTP relay configuration needed. |
-| Grain placement | Default (consistent hash) | Orleans' default placement distributes grains evenly across silos. Custom placement is not needed for Vut's access patterns. |
+| Grain placement | Default (consistent hash) | Orleans' default placement distributes grains evenly across silos. Custom placement is not needed for Velucid's access patterns. |
 
 ---
 

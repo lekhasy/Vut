@@ -9,7 +9,7 @@
 
 ## Description
 
-Implement ASP.NET Core API controllers co-hosted inside the Orleans silo process. These controllers provide HTTP endpoints that the Astro.js BFF calls to read user profiles, organization details, member lists, and invitation data, as well as to invoke write operations on grains. Controllers use `IGrainFactory` (injected via DI) for write operations and query PostgreSQL directly (via `Npgsql`/Dapper) for reads. There is no separate Read Model API service — all endpoints live in the `Vut.Silo` project and share port 5000 with the silo.
+Implement ASP.NET Core API controllers co-hosted inside the Orleans silo process. These controllers provide HTTP endpoints that the Astro.js BFF calls to read user profiles, organization details, member lists, and invitation data, as well as to invoke write operations on grains. Controllers use `IGrainFactory` (injected via DI) for write operations and query PostgreSQL directly (via `Npgsql`/Dapper) for reads. There is no separate Read Model API service — all endpoints live in the `Velucid.Silo` project and share port 5000 with the silo.
 
 ## Architecture Reference
 
@@ -23,9 +23,9 @@ Implement ASP.NET Core API controllers co-hosted inside the Orleans silo process
 ### Solution Structure
 ```
 src/
-  Vut.Silo/
+  Velucid.Silo/
     Program.cs                    # Already exists from Task 04 (Orleans silo bootstrap)
-    Vut.Silo.csproj
+    Velucid.Silo.csproj
     Controllers/
       UsersController.cs          # Read queries + write commands via IGrainFactory
       OrganizationsController.cs  # Read queries + write commands via IGrainFactory
@@ -44,7 +44,7 @@ src/
       InvitationDto.cs
 ```
 
-Controllers are registered in the existing `Vut.Silo/Program.cs` alongside the Orleans silo configuration (from Task 04). The silo already calls `builder.Services.AddControllers()` and `app.MapControllers()`.
+Controllers are registered in the existing `Velucid.Silo/Program.cs` alongside the Orleans silo configuration (from Task 04). The silo already calls `builder.Services.AddControllers()` and `app.MapControllers()`.
 
 ### Endpoints
 
@@ -188,7 +188,7 @@ Note: `email` may be `null` if the identity provider did not return one.
 ### Email Sending (Resend)
 - Inject `IEmailService` (backed by `ResendEmailService`) into controllers that send emails.
 - **Email verification** (`POST /api/users/{userId}/verify-email`): After the UserGrain returns the 6-digit verification code, the controller sends the code to the user's email via Resend.
-- **Member invitation** (`POST /api/organizations/{orgId}/members/invite`): After the OrgGrain confirms the invitation, the controller sends an invitation email via Resend with a link to `https://vut.app/invite/{orgId}`.
+- **Member invitation** (`POST /api/organizations/{orgId}/members/invite`): After the OrgGrain confirms the invitation, the controller sends an invitation email via Resend with a link to `https://velucid.app/invite/{orgId}`.
 - `ResendEmailService` uses the `Resend` .NET SDK with the API key from configuration (`Resend:ApiKey`).
 - Wrap Resend calls in try/catch — email delivery failure should be logged but should NOT fail the API request (the grain event is already persisted).
 
@@ -197,7 +197,7 @@ Note: `email` may be `null` if the identity provider did not return one.
 - The API is internal to the cluster but should support CORS for local dev.
 
 ### Hosting
-- Co-hosted in the `Vut.Silo` process — no separate Dockerfile or service.
+- Co-hosted in the `Velucid.Silo` process — no separate Dockerfile or service.
 - Shares port 5000 with the Orleans silo HTTP endpoint.
 - The silo `Program.cs` (from Task 04) already configures `WebApplication` with Orleans and ASP.NET Core controllers.
 
@@ -228,7 +228,7 @@ Note: `email` may be `null` if the identity provider did not return one.
 
 ## Notes
 
-- **No separate service or Dockerfile.** Controllers live inside `Vut.Silo` and are co-hosted with Orleans grains in the same process. See architecture Section 3 (Component Diagram) and Section 5.5.
+- **No separate service or Dockerfile.** Controllers live inside `Velucid.Silo` and are co-hosted with Orleans grains in the same process. See architecture Section 3 (Component Diagram) and Section 5.5.
 - Authorization checks (org membership, role verification) should be performed by the BFF before calling the API. The API trusts the BFF as the caller.
 - In a production setup, this API is internal (not exposed to the internet). The Astro.js BFF proxies requests to port 5000 on the silo service.
 - Pagination will be needed for member lists and invitations in the future, but is not required for Epic 1 (organizations will have small teams).

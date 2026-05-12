@@ -1,15 +1,15 @@
-# VUT Platform - Base Docker Compose Configuration
+# Velucid Platform - Base Docker Compose Configuration
 # Usage: docker compose up -d
-# Environment overrides are loaded automatically based on VUT_ENV:
-#   - VUT_ENV=dev (default): loads docker-compose.override.yml
-#   - VUT_ENV=staging: loads docker-compose.staging.yml
-#   - VUT_ENV=prod: loads docker-compose.prod.yml
+# Environment overrides are loaded automatically based on VELUCID_ENV:
+#   - VELUCID_ENV=dev (default): loads docker-compose.override.yml
+#   - VELUCID_ENV=staging: loads docker-compose.staging.yml
+#   - VELUCID_ENV=prod: loads docker-compose.prod.yml
 
 services:
   # ─── KurrentDB (EventStoreDB) ───────────────────────────────────
   kurrentdb:
     image: kurrentplatform/kurrentdb:26.1.0
-    container_name: vut-kurrentdb
+    container_name: velucid-kurrentdb
     restart: unless-stopped
     ports:
       - "${KURRENTDB_HTTP_PORT:-2113}:2113"
@@ -39,21 +39,21 @@ services:
   # ─── PostgreSQL (Read Model Store + Orleans Clustering) ────────
   postgresql:
     image: postgres:16-alpine
-    container_name: vut-postgresql
+    container_name: velucid-postgresql
     restart: unless-stopped
     ports:
       - "${POSTGRESQL_PORT:-5432}:5432"
     environment:
-      POSTGRES_DB: vut_readmodel
-      POSTGRES_USER: ${POSTGRESQL_USER:-vut_app}
-      POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD:-vut_dev_password}
+      POSTGRES_DB: velucid_readmodel
+      POSTGRES_USER: ${POSTGRESQL_USER:-velucid_app}
+      POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD:-velucid_dev_password}
     volumes:
       - postgresql-data:/var/lib/postgresql/data
       # No SQL init scripts — read model schema is managed by the application
       # via code-first migrations (EF Core). PostgreSQL only creates the empty
       # database via POSTGRES_DB env var; tables are created at app startup.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRESQL_USER:-vut_app} -d vut_readmodel"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRESQL_USER:-velucid_app} -d velucid_readmodel"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -69,9 +69,9 @@ services:
   # # DISABLED: Uncomment when the silo Docker image is ready.
   # silo:
   #   image: ghcr.io/lekhasy/vut/silo:latest
-  #   container_name: vut-silo
+  #   container_name: velucid-silo
   #   build:
-  #     context: ../backend/src/Vut.Silo
+  #     context: ../backend/src/Velucid.Silo
   #     dockerfile: Dockerfile
   #   restart: unless-stopped
   #   ports:
@@ -82,11 +82,11 @@ services:
   #   environment:
   #     ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
   #     KurrentDb__ConnectionString: ${KURRENTDB_CONNECTION_STRING:-esdb://kurrentdb:2113?tls=false}
-  #     ConnectionStrings__PostgreSQL: ${POSTGRESQL_CONNECTION_STRING:-Host=postgresql;Database=vut_readmodel;Username=vut_app;Password=vut_dev_password}
-  #     Orleans__ClusterId: ${ORLEANS_CLUSTER_ID:-vut-cluster}
-  #     Orleans__ServiceId: ${ORLEANS_SERVICE_ID:-vut}
-  #     Auth0__Domain: ${AUTH0_DOMAIN:-dev-vut.us.auth0.com}
-  #     Auth0__Audience: ${AUTH0_AUDIENCE:-https://vut-api-dev}
+  #     ConnectionStrings__PostgreSQL: ${POSTGRESQL_CONNECTION_STRING:-Host=postgresql;Database=velucid_readmodel;Username=velucid_app;Password=velucid_dev_password}
+  #     Orleans__ClusterId: ${ORLEANS_CLUSTER_ID:-velucid-cluster}
+  #     Orleans__ServiceId: ${ORLEANS_SERVICE_ID:-velucid}
+  #     Auth0__Domain: ${AUTH0_DOMAIN:-dev-velucid.us.auth0.com}
+  #     Auth0__Audience: ${AUTH0_AUDIENCE:-https://velucid-api-dev}
   #     Auth0__ClientId: ${AUTH0_CLIENT_ID}
   #     Auth0__ClientSecret: ${AUTH0_CLIENT_SECRET}
   #     Resend__ApiKey: ${RESEND_API_KEY}
@@ -112,14 +112,14 @@ services:
   # # DISABLED: Uncomment when the projector-service Docker image is ready.
   # projector-service:
   #   image: ghcr.io/lekhasy/vut/projector-service:latest
-  #   container_name: vut-projector-service
+  #   container_name: velucid-projector-service
   #   build:
-  #     context: ../backend/src/Vut.ProjectorService
+  #     context: ../backend/src/Velucid.ProjectorService
   #     dockerfile: Dockerfile
   #   restart: unless-stopped
   #   environment:
   #     KurrentDb__ConnectionString: ${KURRENTDB_CONNECTION_STRING:-esdb://kurrentdb:2113?tls=false}
-  #     ConnectionStrings__PostgreSQL: ${POSTGRESQL_CONNECTION_STRING:-Host=postgresql;Database=vut_readmodel;Username=vut_app;Password=vut_dev_password}
+  #     ConnectionStrings__PostgreSQL: ${POSTGRESQL_CONNECTION_STRING:-Host=postgresql;Database=velucid_readmodel;Username=velucid_app;Password=velucid_dev_password}
   #   depends_on:
   #     kurrentdb:
   #       condition: service_healthy
@@ -136,7 +136,7 @@ services:
   # # DISABLED: Uncomment when the frontend Docker image is ready.
   # frontend:
   #   image: ghcr.io/lekhasy/vut/frontend:latest
-  #   container_name: vut-frontend
+  #   container_name: velucid-frontend
   #   build:
   #     context: ../frontend
   #     dockerfile: Dockerfile
@@ -145,9 +145,9 @@ services:
   #     - "${FRONTEND_PORT:-3000}:3000"
   #   environment:
   #     SILO_API_URL: ${SILO_API_URL:-http://silo:5000}
-  #     AUTH0_DOMAIN: ${AUTH0_DOMAIN:-dev-vut.us.auth0.com}
+  #     AUTH0_DOMAIN: ${AUTH0_DOMAIN:-dev-velucid.us.auth0.com}
   #     AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID}
-  #     AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-https://vut-api-dev}
+  #     AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-https://velucid-api-dev}
   #     AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET}
   #   depends_on:
   #     silo:
@@ -168,12 +168,12 @@ services:
   # ─── pgAdmin (PostgreSQL management UI) ─────────────────────────
   pgadmin:
     image: dpage/pgadmin4:8.14
-    container_name: vut-pgadmin
+    container_name: velucid-pgadmin
     restart: unless-stopped
     ports:
       - "${PGADMIN_PORT:-8081}:80"
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@vut.dev}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@velucid.dev}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
     volumes:
       - pgadmin-data:/var/lib/pgadmin
@@ -195,8 +195,8 @@ services:
 
 volumes:
   kurrentdb-data:
-    name: vut-kurrentdb-data
+    name: velucid-kurrentdb-data
   postgresql-data:
-    name: vut-postgresql-data
+    name: velucid-postgresql-data
   pgadmin-data:
-    name: vut-pgadmin-data
+    name: velucid-pgadmin-data

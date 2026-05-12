@@ -311,7 +311,7 @@ public class UserController : ControllerBase
 ### File Structure
 ```
 src/
-  Vut.Silo/
+  Velucid.Silo/
     Grains/
       IUserGrain.cs
       UserGrain.cs
@@ -332,7 +332,7 @@ src/
 ### Unit Tests
 ```
 tests/
-  Vut.Silo.Tests/
+  Velucid.Silo.Tests/
     Grains/
       UserGrainTests.cs
 ```

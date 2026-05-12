@@ -1,12 +1,12 @@
 # Cloudflare Tunnel configuration
-# Replace <TUNNEL_ID> with your actual tunnel ID from `cloudflared tunnel create vut`
+# Replace <TUNNEL_ID> with your actual tunnel ID from `cloudflared tunnel create velucid`
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: cloudflared-config
-  namespace: vut
+  namespace: velucid
   labels:
-    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/part-of: velucid
     app.kubernetes.io/component: tunnel
     app.kubernetes.io/name: cloudflared
 data:
@@ -15,8 +15,8 @@ data:
     credentials-file: /etc/cloudflared/credentials.json
     no-autoupdate: true
     ingress:
-      - hostname: vut.app
+      - hostname: velucid.app
         service: http://traefik.kube-system.svc.cluster.local:80
-      - hostname: "*.vut.app"
+      - hostname: "*.velucid.app"
         service: http://traefik.kube-system.svc.cluster.local:80
       - service: http_status:404

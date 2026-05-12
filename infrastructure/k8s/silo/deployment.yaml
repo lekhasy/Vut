@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vut-silo
-  namespace: vut
+  name: velucid-silo
+  namespace: velucid
   labels:
-    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/part-of: velucid
     app.kubernetes.io/component: backend
     app.kubernetes.io/name: silo
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/part-of: vut
+      app.kubernetes.io/part-of: velucid
       app.kubernetes.io/component: backend
       app.kubernetes.io/name: silo
   template:
     metadata:
       labels:
-        app.kubernetes.io/part-of: vut
+        app.kubernetes.io/part-of: velucid
         app.kubernetes.io/component: backend
         app.kubernetes.io/name: silo
     spec:
@@ -42,37 +42,37 @@ spec:
             - name: ASPNETCORE_ENVIRONMENT
               value: "Development"
             - name: KurrentDb__ConnectionString
-              value: "esdb://vut-kurrentdb:2113?tls=false"
+              value: "esdb://velucid-kurrentdb:2113?tls=false"
             - name: ConnectionStrings__PostgreSQL
-              value: "Host=vut-postgresql;Database=vut_readmodel;Username=vut_app;Password=vut_dev_password"
+              value: "Host=velucid-postgresql;Database=velucid_readmodel;Username=velucid_app;Password=velucid_dev_password"
             - name: Orleans__ClusterId
-              value: "vut-cluster"
+              value: "velucid-cluster"
             - name: Orleans__ServiceId
-              value: "vut"
+              value: "velucid"
             - name: Auth0__Domain
               valueFrom:
                 secretKeyRef:
-                  name: vut-auth0-secret
+                  name: velucid-auth0-secret
                   key: domain
             - name: Auth0__Audience
               valueFrom:
                 secretKeyRef:
-                  name: vut-auth0-secret
+                  name: velucid-auth0-secret
                   key: audience
             - name: Auth0__ClientId
               valueFrom:
                 secretKeyRef:
-                  name: vut-auth0-secret
+                  name: velucid-auth0-secret
                   key: client-id
             - name: Auth0__ClientSecret
               valueFrom:
                 secretKeyRef:
-                  name: vut-auth0-secret
+                  name: velucid-auth0-secret
                   key: client-secret
             - name: Resend__ApiKey
               valueFrom:
                 secretKeyRef:
-                  name: vut-resend-secret
+                  name: velucid-resend-secret
                   key: api-key
           resources:
             requests:

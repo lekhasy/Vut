@@ -57,7 +57,7 @@ When a user signs in and has pending invitations:
 5. On error: show error toast.
 
 ### Email Link Handling (MVP)
-For MVP, invitations can be discovered after login through the in-app notification system. The email link can simply redirect to the Vut login page. After login, the user sees their pending invitations.
+For MVP, invitations can be discovered after login through the in-app notification system. The email link can simply redirect to the Velucid login page. After login, the user sees their pending invitations.
 
 If email contains a direct invite link (e.g., `/invite/{orgId}`):
 1. If user is not logged in: redirect to `/auth/login?returnTo=/invite/{orgId}`.

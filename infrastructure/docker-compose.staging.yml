@@ -1,4 +1,4 @@
-# VUT Platform - Staging Overrides
+# Velucid Platform - Staging Overrides
 # Usage: docker compose -f docker-compose.yml -f docker-compose.staging.yml --env-file .env.staging up -d
 
 services:

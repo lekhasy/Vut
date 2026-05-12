@@ -22,30 +22,30 @@ Set up Dockerfiles for all .NET services (Orleans Silo, Projector Service, Read 
 
 ### Dockerfiles
 
-#### Orleans Silo Dockerfile (`src/Vut.Silo/Dockerfile`)
+#### Orleans Silo Dockerfile (`src/Velucid.Silo/Dockerfile`)
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["Vut.Silo/Vut.Silo.csproj", "Vut.Silo/"]
-COPY ["Vut.Shared/Vut.Shared.csproj", "Vut.Shared/"]
-RUN dotnet restore "Vut.Silo/Vut.Silo.csproj"
+COPY ["Velucid.Silo/Velucid.Silo.csproj", "Velucid.Silo/"]
+COPY ["Velucid.Shared/Velucid.Shared.csproj", "Velucid.Shared/"]
+RUN dotnet restore "Velucid.Silo/Velucid.Silo.csproj"
 COPY . .
-RUN dotnet publish "Vut.Silo/Vut.Silo.csproj" -c Release -o /app/publish
+RUN dotnet publish "Velucid.Silo/Velucid.Silo.csproj" -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app/publish .
 EXPOSE 5000 11111 30000
-ENTRYPOINT ["dotnet", "Vut.Silo.dll"]
+ENTRYPOINT ["dotnet", "Velucid.Silo.dll"]
 ```
 
-#### Projector Service Dockerfile (`src/Vut.ProjectorService/Dockerfile`)
+#### Projector Service Dockerfile (`src/Velucid.ProjectorService/Dockerfile`)
 - Same pattern as the Silo Dockerfile, different entry point.
 - No exposed ports (background worker).
 
-#### Read Model Migrations Dockerfile (`src/Vut.ReadModel.Migrations/Dockerfile`)
+#### Read Model Migrations Dockerfile (`src/Velucid.ReadModel.Migrations/Dockerfile`)
 - Console app that runs migrations and exits.
-- Entry point: `dotnet Vut.ReadModel.Migrations.dll`.
+- Entry point: `dotnet Velucid.ReadModel.Migrations.dll`.
 
 #### Frontend Dockerfile (`frontend/Dockerfile`)
 ```dockerfile
@@ -90,26 +90,26 @@ services:
     image: postgres:16
     ports: ["5432:5432"]
     environment:
-      POSTGRES_DB: vut_readmodel
-      POSTGRES_USER: vut
-      POSTGRES_PASSWORD: vut_dev_password
+      POSTGRES_DB: velucid_readmodel
+      POSTGRES_USER: velucid
+      POSTGRES_PASSWORD: velucid_dev_password
 
   silo:
-    build: ./src/Vut.Silo
+    build: ./src/Velucid.Silo
     ports: ["5000:5000", "11111:11111", "30000:30000"]
     depends_on: [kurrentdb, postgres]
     environment:
       KurrentDb__ConnectionString: "esdb://kurrentdb:2113?tls=false"
-      ConnectionStrings__PostgreSQL: "Host=postgres;Database=vut_readmodel;Username=vut;Password=vut_dev_password"
-      Orleans__ClusterId: "vut-cluster"
-      Orleans__ServiceId: "vut"
+      ConnectionStrings__PostgreSQL: "Host=postgres;Database=velucid_readmodel;Username=velucid;Password=velucid_dev_password"
+      Orleans__ClusterId: "velucid-cluster"
+      Orleans__ServiceId: "velucid"
 
   projector-service:
-    build: ./src/Vut.ProjectorService
+    build: ./src/Velucid.ProjectorService
     depends_on: [kurrentdb, postgres]
     environment:
       KurrentDb__ConnectionString: "esdb://kurrentdb:2113?tls=false"
-      ConnectionStrings__PostgreSQL: "Host=postgres;Database=vut_readmodel;Username=vut;Password=vut_dev_password"
+      ConnectionStrings__PostgreSQL: "Host=postgres;Database=velucid_readmodel;Username=velucid;Password=velucid_dev_password"
 
   frontend:
     build: ./frontend
@@ -142,8 +142,8 @@ jobs:
       - name: Build & push Docker images
         if: github.ref == 'refs/heads/main'
         run: |
-          docker build -t vut/silo:${{ github.sha }} ./src/Vut.Silo
-          docker build -t vut/projector-service:${{ github.sha }} ./src/Vut.ProjectorService
+          docker build -t velucid/silo:${{ github.sha }} ./src/Velucid.Silo
+          docker build -t velucid/projector-service:${{ github.sha }} ./src/Velucid.ProjectorService
 
   frontend:
     runs-on: ubuntu-latest
@@ -160,7 +160,7 @@ jobs:
         run: npm test
       - name: Build & push Docker image
         if: github.ref == 'refs/heads/main'
-        run: docker build -t vut/frontend:${{ github.sha }} ./frontend
+        run: docker build -t velucid/frontend:${{ github.sha }} ./frontend
 ```
 
 ### File Structure
@@ -170,9 +170,9 @@ docker-compose.yml
   workflows/
     ci.yml
 src/
-  Vut.Silo/Dockerfile
-  Vut.ProjectorService/Dockerfile
-  Vut.ReadModel.Migrations/Dockerfile
+  Velucid.Silo/Dockerfile
+  Velucid.ProjectorService/Dockerfile
+  Velucid.ReadModel.Migrations/Dockerfile
 frontend/
   Dockerfile
 ```
@@ -201,4 +201,4 @@ frontend/
 - For K3s deployment, images can be imported directly via `k3s ctr images import <image>.tar` or pushed to a local registry. The CI pipeline should build images tagged by commit SHA.
 - Consider adding a `docker-compose.dev.yml` override that mounts source directories for hot reload during development.
 - The CI pipeline does NOT deploy to K3s in Epic 1. Deployment is manual (`k3s kubectl apply`) until CD is set up.
-- The deployment target is a single dev machine running K3s with Cloudflare Tunnel for internet access via `vut.app`. No cloud infrastructure is needed.
+- The deployment target is a single dev machine running K3s with Cloudflare Tunnel for internet access via `velucid.app`. No cloud infrastructure is needed.

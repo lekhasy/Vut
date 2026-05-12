@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# VUT Platform - Clean Shutdown Script
+# Velucid Platform - Clean Shutdown Script
 # Usage: ./scripts/stop.sh [dev|staging|prod]
 # Defaults to 'dev' if no argument is provided.
 
@@ -16,7 +16,7 @@ if [[ ! "$ENV" =~ ^(dev|staging|prod)$ ]]; then
 fi
 
 echo "=========================================="
-echo " VUT Platform - Stopping ($ENV)"
+echo " Velucid Platform - Stopping ($ENV)"
 echo "=========================================="
 echo ""
 

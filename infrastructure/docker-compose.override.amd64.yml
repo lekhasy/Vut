@@ -1,4 +1,4 @@
-# VUT Platform - Development Overrides (AMD64 / x86_64)
+# Velucid Platform - Development Overrides (AMD64 / x86_64)
 # Usage: docker compose -f docker-compose.yml -f docker-compose.override.amd64.yml --env-file .env.dev up -d
 #
 # All images run natively on x86_64. No emulation needed.

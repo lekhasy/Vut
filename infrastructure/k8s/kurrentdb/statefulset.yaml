@@ -1,24 +1,24 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: vut-kurrentdb
-  namespace: vut
+  name: velucid-kurrentdb
+  namespace: velucid
   labels:
-    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/part-of: velucid
     app.kubernetes.io/component: eventstore
     app.kubernetes.io/name: kurrentdb
 spec:
-  serviceName: vut-kurrentdb
+  serviceName: velucid-kurrentdb
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/part-of: vut
+      app.kubernetes.io/part-of: velucid
       app.kubernetes.io/component: eventstore
       app.kubernetes.io/name: kurrentdb
   template:
     metadata:
       labels:
-        app.kubernetes.io/part-of: vut
+        app.kubernetes.io/part-of: velucid
         app.kubernetes.io/component: eventstore
         app.kubernetes.io/name: kurrentdb
     spec:
@@ -85,7 +85,7 @@ spec:
     - metadata:
         name: data
         labels:
-          app.kubernetes.io/part-of: vut
+          app.kubernetes.io/part-of: velucid
           app.kubernetes.io/component: eventstore
       spec:
         accessModes: ["ReadWriteOnce"]

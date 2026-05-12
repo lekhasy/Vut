@@ -1,4 +1,4 @@
-# VUT Frontend — multi-stage Docker build
+# Velocid Frontend — multi-stage Docker build
 # Stage 1: Build the Astro SSR app
 # Stage 2: Run with Node.js on port 3000
 

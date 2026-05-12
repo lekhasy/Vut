@@ -30,9 +30,9 @@ There are **no actor managers** and **no external message broker**. The Orleans 
 ### Solution Structure
 ```
 src/
-  Vut.Silo/
+  Velucid.Silo/
     Program.cs
-    Vut.Silo.csproj
+    Velucid.Silo.csproj
     Configuration/
       KurrentDbOptions.cs
     Grains/
@@ -61,8 +61,8 @@ On startup, the service must:
 1. Create a `WebApplication.CreateBuilder()` host.
 2. Configure Orleans via `builder.UseOrleans(siloBuilder => ...)`:
    - **Clustering provider**: PostgreSQL via `UseAdoNetClustering` with `Invariant = "Npgsql"`. **Do NOT use `UseLocalhostClustering()` even for local development** — ADO.NET clustering is used from day one so scaling to multiple silos requires zero code changes.
-   - **ClusterId**: `"vut-cluster"`
-   - **ServiceId**: `"vut"`
+   - **ClusterId**: `"velucid-cluster"`
+   - **ServiceId**: `"velucid"`
    - **Silo port**: `11111` (silo-to-silo communication)
    - **Gateway port**: `30000` (Orleans client connections)
    - **Default grain storage**: `AddMemoryGrainStorageAsDefault()` (grain state lives in KurrentDB, not Orleans storage)
@@ -92,8 +92,8 @@ builder.UseOrleans(siloBuilder =>
         .AddMemoryGrainStorageAsDefault()
         .Configure<ClusterOptions>(options =>
         {
-            options.ClusterId = "vut-cluster";
-            options.ServiceId = "vut";
+            options.ClusterId = "velucid-cluster";
+            options.ServiceId = "velucid";
         })
         .Configure<GrainCollectionOptions>(options =>
         {
@@ -105,7 +105,7 @@ builder.UseOrleans(siloBuilder =>
 builder.Services.AddSingleton(new EventStoreClient(
     EventStoreClientSettings.Create(
         builder.Configuration["KurrentDb:ConnectionString"]
-        ?? "esdb://vut-kurrentdb:2113?tls=false")));
+        ?? "esdb://velucid-kurrentdb:2113?tls=false")));
 
 // Co-hosted ASP.NET Core API
 builder.Services.AddControllers();
@@ -123,7 +123,7 @@ Each grain interacts with KurrentDB directly using the official `EventStore.Clie
 // KurrentDB client registered in DI, injected into grains
 builder.Services.AddSingleton(new EventStoreClient(
     EventStoreClientSettings.Create(
-        "esdb://vut-kurrentdb:2113?tls=false")));
+        "esdb://velucid-kurrentdb:2113?tls=false")));
 ```
 
 The `EventStoreClient` is a singleton shared by all grains. Each grain scopes its reads and writes to its own stream:
@@ -280,29 +280,29 @@ No gRPC serialization or cluster routing is involved. `IGrainFactory` returns a 
 ### Dockerfile
 - Multi-stage build: `mcr.microsoft.com/dotnet/sdk:8.0` for build, `mcr.microsoft.com/dotnet/aspnet:8.0` for runtime.
 - Expose port 5000 (HTTP API), port 11111 (silo-to-silo), port 30000 (Orleans gateway).
-- Output image: `vut/silo`.
+- Output image: `velucid/silo`.
 - Replicas: **1** on single-machine K3s deployment (increase when scaling via Tailscale).
 
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
-COPY ["src/Vut.Silo/Vut.Silo.csproj", "Vut.Silo/"]
-RUN dotnet restore "Vut.Silo/Vut.Silo.csproj"
+COPY ["src/Velucid.Silo/Velucid.Silo.csproj", "Velucid.Silo/"]
+RUN dotnet restore "Velucid.Silo/Velucid.Silo.csproj"
 COPY src/ .
-RUN dotnet publish "Vut.Silo/Vut.Silo.csproj" -c Release -o /app
+RUN dotnet publish "Velucid.Silo/Velucid.Silo.csproj" -c Release -o /app
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app .
 EXPOSE 5000 11111 30000
-ENTRYPOINT ["dotnet", "Vut.Silo.dll"]
+ENTRYPOINT ["dotnet", "Velucid.Silo.dll"]
 ```
 
 ## Acceptance Criteria
 
-- [ ] `Vut.Silo` compiles and starts without errors.
-- [ ] Orleans silo joins `vut-cluster` using PostgreSQL ADO.NET clustering.
-- [ ] `ClusterOptions` configured with `ClusterId = "vut-cluster"` and `ServiceId = "vut"`.
+- [ ] `Velucid.Silo` compiles and starts without errors.
+- [ ] Orleans silo joins `velucid-cluster` using PostgreSQL ADO.NET clustering.
+- [ ] `ClusterOptions` configured with `ClusterId = "velucid-cluster"` and `ServiceId = "velucid"`.
 - [ ] `GrainCollectionOptions.CollectionAge` set to 30 minutes.
 - [ ] `EventSourcedGrain<TState>` correctly hydrates state from KurrentDB via `EventStoreClient` on `OnActivateAsync()`.
 - [ ] `EventSourcedGrain<TState>` persists events to KurrentDB with optimistic concurrency.

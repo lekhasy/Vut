@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# VUT Platform - Environment-Aware Startup Script
+# Velucid Platform - Environment-Aware Startup Script
 # Usage: ./scripts/start.sh [dev|staging|prod]
 # Defaults to 'dev' if no argument is provided.
 
@@ -25,7 +25,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 echo "=========================================="
-echo " VUT Platform - Starting ($ENV)"
+echo " Velucid Platform - Starting ($ENV)"
 echo "=========================================="
 echo ""
 
@@ -83,7 +83,7 @@ interval=5
 
 check_health() {
     local service="$1"
-    local container_name="vut-${service}"
+    local container_name="velucid-${service}"
     local status
 
     # Use docker inspect directly — no jq dependency needed
@@ -123,7 +123,7 @@ while [[ $elapsed -lt $timeout ]]; do
         # Check application services if they exist
         echo ">>> Checking application services..."
         for service in silo projector-service frontend; do
-            container=$(docker ps --filter "name=vut-${service}" --format "{{.Names}}" 2>/dev/null || true)
+            container=$(docker ps --filter "name=velucid-${service}" --format "{{.Names}}" 2>/dev/null || true)
             if [[ -n "$container" ]]; then
                 check_health "$service" || true
             else
@@ -136,10 +136,10 @@ while [[ $elapsed -lt $timeout ]]; do
         echo ""
         echo "Access points:"
         # Only show app service URLs if the containers are running
-        if docker ps --filter "name=vut-frontend" --format "{{.Names}}" | grep -q vut-frontend 2>/dev/null; then
+        if docker ps --filter "name=velucid-frontend" --format "{{.Names}}" | grep -q velucid-frontend 2>/dev/null; then
             echo "  Frontend:       http://localhost:${FRONTEND_PORT:-3000}"
         fi
-        if docker ps --filter "name=vut-silo" --format "{{.Names}}" | grep -q vut-silo 2>/dev/null; then
+        if docker ps --filter "name=velucid-silo" --format "{{.Names}}" | grep -q velucid-silo 2>/dev/null; then
             echo "  Silo (API):     http://localhost:${SILO_API_PORT:-5000}"
         fi
         echo "  KurrentDB:      http://localhost:${KURRENTDB_HTTP_PORT:-2113}"

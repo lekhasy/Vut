@@ -2,7 +2,7 @@
 
 ## Vertical Slice Statement
 
-A new user arrives at the Vut landing page, authenticates with their GitHub account, verifies their email address (required before any platform access), and creates or joins an organization. After this Epic, the user has a named workspace with team members and can navigate the application shell. Email verification is a hard gate -- no platform features are available until the user's email is confirmed.
+A new user arrives at the Velucid landing page, authenticates with their GitHub account, verifies their email address (required before any platform access), and creates or joins an organization. After this Epic, the user has a named workspace with team members and can navigate the application shell. Email verification is a hard gate -- no platform features are available until the user's email is confirmed.
 
 ## Target Personas
 
@@ -11,12 +11,12 @@ A new user arrives at the Vut landing page, authenticates with their GitHub acco
 
 ## User Stories
 
-1. As a first-time visitor, I want to sign in with my GitHub account so that I can start using Vut without creating a new username and password.
+1. As a first-time visitor, I want to sign in with my GitHub account so that I can start using Velucid without creating a new username and password.
 2. As a first-time user, I want to be redirected to an email verification page after my first login so that I can confirm my email before accessing the platform.
 3. As a first-time user, I want the email verification page to pre-fill my email from GitHub (if available) but allow me to change it so that I can use my preferred email address.
 4. As a first-time user, I want to receive a 6-digit verification code at my email address so that I can prove ownership of that email.
 5. As a first-time user, I want to enter the verification code and gain immediate access to the platform so that the onboarding process is smooth and quick.
-6. As a returning user, I want to sign in with a different identity provider (e.g., Google) and have it automatically linked to my existing Vut account if the emails match so that I am not forced into a separate account.
+6. As a returning user, I want to sign in with a different identity provider (e.g., Google) and have it automatically linked to my existing Velucid account if the emails match so that I am not forced into a separate account.
 7. As a first-time user, I want to see an empty state prompting me to create an organization so that I am guided toward my first meaningful action.
 8. As an organization owner, I want to invite team members by email or GitHub username so that my collaborators can access the workspace.
 9. As an invited user, I want to see my pending invitation after signing in (and verifying my email) so that I can accept or decline it.
@@ -27,7 +27,7 @@ A new user arrives at the Vut landing page, authenticates with their GitHub acco
 ## Acceptance Criteria
 
 ### Authentication & Email Verification
-- [ ] A user can click "Sign in with GitHub" and complete the OAuth flow, landing on the Vut dashboard.
+- [ ] A user can click "Sign in with GitHub" and complete the OAuth flow, landing on the Velucid dashboard.
 - [ ] No email/password sign-up path exists anywhere in the product.
 - [ ] On first login, a user profile (display name, avatar from GitHub) is visible in the UI.
 - [ ] After first login (or any login where email is not yet verified), the user is redirected to the email verification page before accessing any platform features.
@@ -59,7 +59,7 @@ A new user arrives at the Vut landing page, authenticates with their GitHub acco
 
 ## How to Demo
 
-1. Show the Vut landing page. Click "Sign in with GitHub."
+1. Show the Velucid landing page. Click "Sign in with GitHub."
 2. Complete GitHub OAuth. User account is created.
 3. User is redirected to the email verification page. The email from GitHub is pre-filled (if available).
 4. User clicks "Send Code." A 6-digit verification code is sent to the email.

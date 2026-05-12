@@ -51,7 +51,7 @@ When `currentOrgId` is null:
 - Sidebar shows "No organization" in the selector.
 - Main content area shows an empty state component:
   - Illustration or icon.
-  - Text: "Welcome to Vut! Create your first organization to get started."
+  - Text: "Welcome to Velucid! Create your first organization to get started."
   - Button: "Create Organization" (links to creation flow).
 
 ### Organization Switching

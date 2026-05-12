@@ -2,7 +2,7 @@
 
 ## Vertical Slice Statement
 
-Team members view active work as columns on a kanban board and drag task cards between columns to update status. After this Epic, the team has a visual, tactile way to manage flow -- the core daily interaction surface of Vut.
+Team members view active work as columns on a kanban board and drag task cards between columns to update status. After this Epic, the team has a visual, tactile way to manage flow -- the core daily interaction surface of Velucid.
 
 ## Target Personas
 
@@ -46,7 +46,7 @@ Team members view active work as columns on a kanban board and drag task cards b
 
 ## How to Demo
 
-1. Navigate to the "Vut Mobile App" product. Switch to the Kanban Board tab.
+1. Navigate to the "Velucid Mobile App" product. Switch to the Kanban Board tab.
 2. The board shows three columns: "In Progress", "In Review", "Done" (matching the statuses from Epic 2, minus "New").
 3. The bug task "Fix API timeout" is in "In Progress" (moved there in Epic 3). It appears as a card with tag `type:bug`.
 4. Drag "Fix API timeout" from "In Progress" to "In Review." The card animates into the new column. A toast confirms: "Status changed to In Review."

@@ -44,7 +44,7 @@ An organization member creates a product, names it, writes a description, and de
 
 1. Navigate to the "Acme Corp" organization from Epic 1.
 2. Click "Create Product."
-3. Fill in name: "Vut Mobile App", description: "Cross-platform mobile client."
+3. Fill in name: "Velucid Mobile App", description: "Cross-platform mobile client."
 4. Define statuses: "New", "In Progress", "In Review", "Done". Submit.
 5. The product appears in the sidebar. Click it to see the empty backlog state.
 6. Go to product settings. Add a status "Blocked". Rename "In Review" to "Review". Remove "Blocked".

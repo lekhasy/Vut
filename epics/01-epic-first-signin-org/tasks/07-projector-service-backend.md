@@ -24,9 +24,9 @@ Implement the .NET Projector Service that subscribes to KurrentDB persistent sub
 ### Solution Structure
 ```
 src/
-  Vut.ProjectorService/
+  Velucid.ProjectorService/
     Program.cs
-    Vut.ProjectorService.csproj
+    Velucid.ProjectorService.csproj
     Configuration/
       KurrentDbOptions.cs
       PostgresOptions.cs
@@ -41,8 +41,8 @@ src/
 - Runs as a .NET Worker Service (`BackgroundService`).
 - On startup: subscribe to KurrentDB persistent subscriptions for `user-*` and `organization-*` streams.
 - Subscription groups:
-  - `vut-projector-user` — stream filter: `user-*` (all User stream events)
-  - `vut-projector-org` — stream filter: `organization-*` (all Organization stream events)
+  - `velucid-projector-user` — stream filter: `user-*` (all User stream events)
+  - `velucid-projector-org` — stream filter: `organization-*` (all Organization stream events)
 - On each consumed event: deserialize the event envelope, route to the correct handler, update PostgreSQL, ack the event.
 - KurrentDB handles checkpointing internally via persistent subscriptions — no separate checkpoint table needed.
 - On shutdown: acknowledge final position gracefully.
@@ -84,8 +84,8 @@ Idempotency rules:
 
 ### KurrentDB Persistent Subscription Configuration
 - Use EventStoreDB GRPC client NuGet package.
-- Consumer group `vut-projector-user` subscribing to stream `user-*`.
-- Consumer group `vut-projector-org` subscribing to stream `organization-*`.
+- Consumer group `velucid-projector-user` subscribing to stream `user-*`.
+- Consumer group `velucid-projector-org` subscribing to stream `organization-*`.
 - Subscription uses `StreamRevision.Current` (start from live, replay existing on first run).
 - Manual ack after successful projection — KurrentDB tracks positions internally.
 - Subscribe in a loop with cancellation token support for graceful shutdown.
@@ -93,7 +93,7 @@ Idempotency rules:
 ### Dockerfile
 - Multi-stage build similar to actor-service.
 - Expose no ports (this is a background worker, not a service).
-- Output image: `vut/projector-service`.
+- Output image: `velucid/projector-service`.
 
 ## Acceptance Criteria
 

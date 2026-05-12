@@ -290,7 +290,7 @@ public class OrganizationController : ControllerBase
 ### File Structure
 ```
 src/
-  Vut.Silo/
+  Velucid.Silo/
     Grains/
       IOrganizationGrain.cs
       OrganizationGrain.cs
@@ -314,7 +314,7 @@ src/
 ### Unit Tests
 ```
 tests/
-  Vut.Silo.Tests/
+  Velucid.Silo.Tests/
     Grains/
       OrganizationGrainTests.cs
 ```

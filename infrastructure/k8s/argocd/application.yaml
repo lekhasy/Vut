@@ -9,10 +9,10 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: vut
+  name: velucid
   namespace: argocd
   labels:
-    app.kubernetes.io/part-of: vut
+    app.kubernetes.io/part-of: velucid
 spec:
   project: default
   source:
@@ -24,7 +24,7 @@ spec:
       exclude: "argocd/*"
   destination:
     server: https://kubernetes.default.svc
-    namespace: vut
+    namespace: velucid
   syncPolicy:
     automated:
       prune: true

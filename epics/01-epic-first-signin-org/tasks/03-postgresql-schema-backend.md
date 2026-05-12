@@ -9,7 +9,7 @@
 
 ## Description
 
-Create the PostgreSQL read model schema for Epic 1 projections. This includes all projection tables and a migration framework that can be run against the `vut_readmodel` database in the Kubernetes cluster or locally. Note: KurrentDB persistent subscriptions handle checkpointing internally, so no `projection_checkpoint` table is needed.
+Create the PostgreSQL read model schema for Epic 1 projections. This includes all projection tables and a migration framework that can be run against the `velucid_readmodel` database in the Kubernetes cluster or locally. Note: KurrentDB persistent subscriptions handle checkpointing internally, so no `projection_checkpoint` table is needed.
 
 ## Architecture Reference
 
@@ -106,7 +106,7 @@ CREATE TABLE user_org_projection (
 ### File Structure
 ```
 src/
-  Vut.ReadModel/
+  Velucid.ReadModel/
     Entities/
       UserProjection.cs
       UserIdentity.cs
@@ -115,13 +115,13 @@ src/
       OrgInvitationProjection.cs
       UserOrgProjection.cs
     ReadModelDbContext.cs
-  Vut.ReadModel.Migrations/
+  Velucid.ReadModel.Migrations/
     Program.cs
     DesignTimeDbContextFactory.cs
     Migrations/
       InitialCreate.cs
       RemoveProjectionCheckpoint.cs
-    Vut.ReadModel.Migrations.csproj
+    Velucid.ReadModel.Migrations.csproj
 ```
 
 ## Acceptance Criteria
@@ -131,7 +131,7 @@ src/
 - [x] CHECK constraints on `role` and `status` columns are enforced.
 - [x] All foreign key relationships are correct.
 - [x] All required indexes exist, including unique index on `user_identity(provider_id)` and email index for auto-linking.
-- [x] Migration tool can be run from command line: `dotnet run -- "Host=...;Database=vut_readmodel;..."`.
+- [x] Migration tool can be run from command line: `dotnet run -- "Host=...;Database=velucid_readmodel;..."`.
 - [x] `projection_checkpoint` table is NOT created — KurrentDB handles checkpointing internally.
 - [ ] Future epics can add `product_projection`, `task_projection`, `task_tag_projection`, and `cumulative_flow_snapshot` tables.
 

@@ -44,7 +44,7 @@ Team members save their frequently used kanban filter and sort configurations as
 
 ## How to Demo
 
-1. Navigate to the "Vut Mobile App" kanban board.
+1. Navigate to the "Velucid Mobile App" kanban board.
 2. Apply a filter: tag `area:frontend`. Sort by "Last Updated" ascending.
 3. The board shows only frontend-tagged tasks.
 4. Click "Save this view." Name it: "Frontend Tasks." Submit.

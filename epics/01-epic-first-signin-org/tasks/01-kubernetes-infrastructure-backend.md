@@ -9,7 +9,7 @@
 
 ## Description
 
-Set up the complete K3s (lightweight Kubernetes) infrastructure for the Vut platform on a single developer machine. This includes the namespace, all StatefulSets (KurrentDB single node, PostgreSQL single instance), Deployments (Orleans Silo, Projector Service, Frontend, Cloudflare Tunnel daemon), secrets, ConfigMaps, and base service definitions. The Orleans silo uses PostgreSQL (ADO.NET) for cluster membership — no external message broker is needed. Internet access is provided via **Cloudflare Tunnel** through the `vut.app` domain — no static IP or port forwarding required. This task is the foundation -- all other backend and frontend tasks depend on infrastructure being available.
+Set up the complete K3s (lightweight Kubernetes) infrastructure for the Velucid platform on a single developer machine. This includes the namespace, all StatefulSets (KurrentDB single node, PostgreSQL single instance), Deployments (Orleans Silo, Projector Service, Frontend, Cloudflare Tunnel daemon), secrets, ConfigMaps, and base service definitions. The Orleans silo uses PostgreSQL (ADO.NET) for cluster membership — no external message broker is needed. Internet access is provided via **Cloudflare Tunnel** through the `velucid.app` domain — no static IP or port forwarding required. This task is the foundation -- all other backend and frontend tasks depend on infrastructure being available.
 
 ## Architecture Reference
 
@@ -20,12 +20,12 @@ Set up the complete K3s (lightweight Kubernetes) infrastructure for the Vut plat
 ## Technical Requirements
 
 ### Namespace & Resource Quotas
-- Create `k8s/namespace.yaml` with the `vut` namespace and labels `app.kubernetes.io/part-of: vut`.
+- Create `k8s/namespace.yaml` with the `velucid` namespace and labels `app.kubernetes.io/part-of: velucid`.
 
 ### Secrets
-- Create `k8s/secrets/vut-postgresql-secret.yaml` (base64-encoded username/password for PostgreSQL).
-- Create `k8s/secrets/vut-auth0-secret.yaml` with keys: `domain`, `audience`, `client-id`, `client-secret`.
-- Create `k8s/secrets/vut-resend-secret.yaml` with key: `api-key` (Resend API key for sending emails).
+- Create `k8s/secrets/velucid-postgresql-secret.yaml` (base64-encoded username/password for PostgreSQL).
+- Create `k8s/secrets/velucid-auth0-secret.yaml` with keys: `domain`, `audience`, `client-id`, `client-secret`.
+- Create `k8s/secrets/velucid-resend-secret.yaml` with key: `api-key` (Resend API key for sending emails).
 - Secrets must be templated for dev vs. prod (use envsubst or Helm values in future).
 
 ### KurrentDB StatefulSet
@@ -37,8 +37,8 @@ Set up the complete K3s (lightweight Kubernetes) infrastructure for the Vut plat
 
 ### PostgreSQL StatefulSet
 - Single instance, `k8s/postgresql/statefulset.yaml` and `k8s/postgresql/service.yaml`.
-- Port 5432. Database: `vut_readmodel`.
-- Credentials from secret `vut-postgresql-secret`.
+- Port 5432. Database: `velucid_readmodel`.
+- Credentials from secret `velucid-postgresql-secret`.
 - PersistentVolumeClaim: 5Gi `ReadWriteOnce`, `storageClassName: local-path` (K3s default).
 - **Replicas: 1** (single instance for single-machine deployment).
 - PostgreSQL serves dual purpose: **read model projections** AND **Orleans clustering tables** (`OrleansMembershipTable`, `OrleansMembershipVersionTable`). The Orleans ADO.NET clustering provider creates the clustering tables automatically on first silo startup.
@@ -48,20 +48,20 @@ Set up the complete K3s (lightweight Kubernetes) infrastructure for the Vut plat
 - `k8s/silo/deployment.yaml` and `k8s/silo/service.yaml`.
 - **1 replica** (single silo on single machine; increase when scaling via Tailscale).
 - Ports: 5000 (HTTP API), 11111 (silo-to-silo), 30000 (Orleans gateway).
-- Image: `vut/silo:latest` (placeholder for now).
+- Image: `velucid/silo:latest` (placeholder for now).
 - The ASP.NET Core API is co-hosted inside the silo — no separate API service is needed.
 - Env vars:
   - `KurrentDb__ConnectionString`: KurrentDB connection string.
   - `ConnectionStrings__PostgreSQL`: PostgreSQL connection string (used for both Orleans clustering and read model queries).
-  - `Orleans__ClusterId`: `vut-cluster`.
-  - `Orleans__ServiceId`: `vut`.
-  - `Auth0__Domain`, `Auth0__Audience`: from `vut-auth0-secret`.
-  - `Resend__ApiKey`: from `vut-resend-secret`.
+  - `Orleans__ClusterId`: `velucid-cluster`.
+  - `Orleans__ServiceId`: `velucid`.
+  - `Auth0__Domain`, `Auth0__Audience`: from `velucid-auth0-secret`.
+  - `Resend__ApiKey`: from `velucid-resend-secret`.
 
 ### Projector Service Deployment
 - `k8s/projector-service/deployment.yaml` and `k8s/projector-service/service.yaml`.
 - 1 replica. No exposed ports (background worker subscribing to KurrentDB persistent subscriptions).
-- Image: `vut/projector-service:latest` (placeholder for now).
+- Image: `velucid/projector-service:latest` (placeholder for now).
 - Env vars:
   - `KurrentDb__ConnectionString`: KurrentDB connection string.
   - `ConnectionStrings__PostgreSQL`: PostgreSQL connection string.
@@ -69,22 +69,22 @@ Set up the complete K3s (lightweight Kubernetes) infrastructure for the Vut plat
 ### Frontend Deployment (skeleton)
 - `k8s/frontend/deployment.yaml` and `k8s/frontend/service.yaml`.
 - **1 replica.**
-- Port 3000. Image: `vut/frontend:latest` (placeholder).
+- Port 3000. Image: `velucid/frontend:latest` (placeholder).
 - Env vars:
-  - `SILO_API_URL`: `http://vut-silo:5000` (single backend URL for both reads and writes).
-  - Auth0 config (`AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`) from `vut-auth0-secret`.
+  - `SILO_API_URL`: `http://velucid-silo:5000` (single backend URL for both reads and writes).
+  - Auth0 config (`AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`) from `velucid-auth0-secret`.
 
 ### Cloudflare Tunnel Deployment
 - `k8s/cloudflared/secret.yaml` — Cloudflare Tunnel credentials (base64-encoded `credentials.json`).
-- `k8s/cloudflared/configmap.yaml` — Tunnel config mapping `vut.app` and `*.vut.app` to Traefik.
+- `k8s/cloudflared/configmap.yaml` — Tunnel config mapping `velucid.app` and `*.velucid.app` to Traefik.
 - `k8s/cloudflared/deployment.yaml` — 1 replica of `cloudflare/cloudflared:latest`.
 - The `cloudflared` daemon establishes an **outbound-only** encrypted connection to Cloudflare's edge network. No static IP, port forwarding, or firewall rules needed on the dev machine.
-- DNS: CNAME `vut.app` and `*.vut.app` → `<tunnel-id>.cfargotunnel.com` (configured in Cloudflare dashboard).
-- Traffic flow: `User → vut.app (Cloudflare DNS) → Cloudflare Edge (TLS) → Cloudflare Tunnel → cloudflared pod → Traefik Ingress → vut-frontend`.
+- DNS: CNAME `velucid.app` and `*.velucid.app` → `<tunnel-id>.cfargotunnel.com` (configured in Cloudflare dashboard).
+- Traffic flow: `User → velucid.app (Cloudflare DNS) → Cloudflare Edge (TLS) → Cloudflare Tunnel → cloudflared pod → Traefik Ingress → velucid-frontend`.
 
 ### Ingress
 - Traefik is **bundled with K3s** — no separate NGINX installation needed.
-- `k8s/ingress.yaml` with Traefik IngressRoute or standard Ingress rules routing `/api/*` to `vut-silo:5000`, `/auth/*` to frontend, everything else to frontend.
+- `k8s/ingress.yaml` with Traefik IngressRoute or standard Ingress rules routing `/api/*` to `velucid-silo:5000`, `/auth/*` to frontend, everything else to frontend.
 
 ### Local Development Script
 - `k8s/dev-setup.sh` that applies all manifests to the K3s cluster using `k3s kubectl` (or `kubectl` if kubeconfig is configured).
@@ -97,8 +97,8 @@ k8s/
   namespace.yaml
   ingress.yaml
   secrets/
-    vut-postgresql-secret.yaml
-    vut-auth0-secret.yaml
+    velucid-postgresql-secret.yaml
+    velucid-auth0-secret.yaml
   cloudflared/
     secret.yaml
     configmap.yaml
@@ -124,8 +124,8 @@ k8s/
 
 - [ ] `k3s kubectl apply -f k8s/` succeeds on a K3s cluster.
 - [ ] All pods reach `Running` and `Ready` state within 3 minutes.
-- [ ] KurrentDB (single node) is reachable at `vut-kurrentdb:2113` inside the cluster.
-- [ ] PostgreSQL is reachable at `vut-postgresql:5432` with database `vut_readmodel`.
+- [ ] KurrentDB (single node) is reachable at `velucid-kurrentdb:2113` inside the cluster.
+- [ ] PostgreSQL is reachable at `velucid-postgresql:5432` with database `velucid_readmodel`.
 - [ ] Orleans silo pod (1 replica) is running and registers in PostgreSQL membership table.
 - [ ] Projector service pod is running.
 - [ ] `cloudflared` pod is running and establishes tunnel to Cloudflare.

@@ -185,7 +185,7 @@ export async function apiFetch<T>(
 ### AuthLayout
 - Centered layout for login and callback pages.
 - No sidebar. Minimal chrome.
-- Dark or light background with Vut logo.
+- Dark or light background with Velucid logo.
 
 ### Routing
 - Client-side routing using the History API (or a lightweight router like `nanostores/router`).
@@ -194,7 +194,7 @@ export async function apiFetch<T>(
 
 ### Tailwind Configuration
 - Dark mode support (class-based, default to dark).
-- Custom color palette for Vut brand.
+- Custom color palette for Velucid brand.
 - Extend with Inter or similar clean sans-serif font.
 
 ## API Contracts (for mock data)

@@ -1,4 +1,4 @@
-# VUT Platform — CI/CD Pipeline
+# Velocit Platform — CI/CD Pipeline
 # Builds Docker images for silo and frontend, pushes to ghcr.io,
 # and updates K8s manifest image tags so ArgoCD can deploy.
 #
@@ -53,7 +53,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: backend/src
-          file: backend/src/Vut.Silo/Dockerfile
+          file: backend/src/Velucid.Silo/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

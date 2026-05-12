@@ -1,6 +1,6 @@
-# VUT Platform - Infrastructure
+# Velucid Platform - Infrastructure
 
-Local infrastructure for the VUT project management SaaS platform. This directory contains everything needed to run the full platform stack on a single developer machine using Docker Compose (dev) or K3s (staging/prod).
+Local infrastructure for the Velucid project management SaaS platform.This directory contains everything needed to run the full platform stack on a single developer machine using Docker Compose (dev) or K3s (staging/prod).
 
 ## Architecture Overview
 
@@ -119,14 +119,14 @@ docker compose up -d --build silo frontend
 ```
 Host: localhost
 Port: 5432
-Database: vut_readmodel
-Username: vut_app
-Password: vut_dev_password
+Database: Velucid_readmodel
+Username: Velucid_app
+Password: Velucid_dev_password
 ```
 
 Connect with `psql`:
 ```bash
-docker exec -it vut-postgresql psql -U vut_app -d vut_readmodel
+docker exec -it Velucid-postgresql psql -U Velucid_app -d Velucid_readmodel
 ```
 
 ## Kubernetes Setup (K3s)
@@ -169,7 +169,7 @@ kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/st
 # Wait for ArgoCD to be ready
 kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=120s
 
-# Apply the VUT ArgoCD Application manifest
+# Apply the Velucid ArgoCD Application manifest
 kubectl apply -f k8s/argocd/application.yaml
 
 # Access ArgoCD UI (optional)
@@ -213,11 +213,11 @@ Cloudflare Tunnel provides internet ingress without opening inbound ports or nee
 cloudflared tunnel login
 
 # 3. Create tunnel
-cloudflared tunnel create vut
+cloudflared tunnel create Velucid
 
 # 4. Create DNS records
-cloudflared tunnel route dns vut vut.app
-cloudflared tunnel route dns vut "*.vut.app"
+cloudflared tunnel route dns Velucid Velucid.app
+cloudflared tunnel route dns Velucid "*.Velucid.app"
 
 # 5. Encode credentials for K8s secret
 cat ~/.cloudflared/<TUNNEL_ID>.json | base64
@@ -233,15 +233,15 @@ Traffic flow: `Internet → Cloudflare Edge → cloudflared pod → Traefik → 
 ### Port Forwarding for Local Access
 
 ```bash
-kubectl port-forward -n vut svc/vut-frontend 3000:3000 &
-kubectl port-forward -n vut svc/vut-silo 5000:5000 &
-kubectl port-forward -n vut svc/vut-kurrentdb 2113:2113 &
+kubectl port-forward -n Velucid svc/Velucid-frontend 3000:3000 &
+kubectl port-forward -n Velucid svc/Velucid-silo 5000:5000 &
+kubectl port-forward -n Velucid svc/Velucid-kurrentdb 2113:2113 &
 ```
 
 ### Teardown
 
 ```bash
-kubectl delete namespace vut
+kubectl delete namespace Velucid
 ```
 
 ## Environment Variables
@@ -250,9 +250,9 @@ Three env files control configuration per environment:
 
 | File | When Used | Notes |
 |------|----------|-------|
-| `.env.dev` | Default / `VUT_ENV=dev` | Local development defaults |
-| `.env.staging` | `VUT_ENV=staging` | Staging on local machine |
-| `.env.prod` | `VUT_ENV=prod` | Production on local machine |
+| `.env.dev` | Default / `Velucid_ENV=dev` | Local development defaults |
+| `.env.staging` | `Velucid_ENV=staging` | Staging on local machine |
+| `.env.prod` | `Velucid_ENV=prod` | Production on local machine |
 
 Sensitive values (Auth0, passwords) use placeholder values. Copy and customize:
 
@@ -277,11 +277,11 @@ infrastructure/
     stop.sh                     # Clean shutdown
     health-check.sh             # Verify all services
   k8s/                          # Kubernetes manifests (K3s)
-    namespace.yaml              # vut namespace
+    namespace.yaml              # Velucid namespace
     ingress.yaml                # Traefik ingress routing
     secrets/
-      vut-postgresql-secret.yaml
-      vut-auth0-secret.yaml
+      Velucid-postgresql-secret.yaml
+      Velucid-auth0-secret.yaml
     kurrentdb/
       statefulset.yaml          # 1-node event store
       service.yaml
@@ -318,17 +318,17 @@ infrastructure/
 
 **Container keeps restarting:** Check logs: `docker compose logs <service>`. Most common causes:
 - KurrentDB: insufficient memory (increase `KURRENTDB_MEMORY_LIMIT`)
-- PostgreSQL: data corruption (delete volume: `docker volume rm vut-postgresql-data`)
+- PostgreSQL: data corruption (delete volume: `docker volume rm Velucid-postgresql-data`)
 
 ### Kubernetes (K3s)
 
 **Pods stuck in Pending:** Check node resources with `kubectl describe node`. Reduce memory limits in manifests if needed.
 
-**ImagePullBackOff:** Ensure images are loaded into K3s. Run `sudo k3s ctr images ls | grep vut` to verify.
+**ImagePullBackOff:** Ensure images are loaded into K3s. Run `sudo k3s ctr images ls | grep Velucid` to verify.
 
-**CrashLoopBackOff:** Check logs: `kubectl logs -n vut <pod-name>`. Common issue is secrets not being applied before deployments.
+**CrashLoopBackOff:** Check logs: `kubectl logs -n Velucid <pod-name>`. Common issue is secrets not being applied before deployments.
 
-**Cloudflare Tunnel not connecting:** Verify credentials in the secret match the tunnel ID in the configmap. Check logs: `kubectl logs -n vut -l app.kubernetes.io/name=cloudflared`.
+**Cloudflare Tunnel not connecting:** Verify credentials in the secret match the tunnel ID in the configmap. Check logs: `kubectl logs -n Velucid -l app.kubernetes.io/name=cloudflared`.
 
 ## Notes
 

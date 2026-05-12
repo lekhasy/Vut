@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Velucid.Silo/Velucid.Silo.csproj" />
+    <Project Path="src/Velucid.ReadModel/Velucid.ReadModel.csproj" />
+    <Project Path="src/Velucid.ReadModel.Migrations/Velucid.ReadModel.Migrations.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Velucid.Silo.Tests/Velucid.Silo.Tests.csproj" />
+  </Folder>
+</Solution>

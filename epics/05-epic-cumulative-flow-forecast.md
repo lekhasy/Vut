@@ -2,7 +2,7 @@
 
 ## Vertical Slice Statement
 
-Team leads and stakeholders view a stacked-area cumulative flow diagram showing how work has moved through statuses over time, with a projected completion date derived from historical throughput. After this Epic, Vut delivers its central promise: a single, data-driven answer to "when will it be done?"
+Team leads and stakeholders view a stacked-area cumulative flow diagram showing how work has moved through statuses over time, with a projected completion date derived from historical throughput. After this Epic, Velucid delivers its central promise: a single, data-driven answer to "when will it be done?"
 
 ## Target Personas
 
@@ -46,11 +46,11 @@ Team leads and stakeholders view a stacked-area cumulative flow diagram showing 
 
 ## Estimated Complexity
 
-**Large** -- This is the signature feature of Vut. The cumulative flow diagram, throughput calculation, projection algorithm, and interactive tag-filtered chart represent significant work.
+**Large** -- This is the signature feature of Velucid. The cumulative flow diagram, throughput calculation, projection algorithm, and interactive tag-filtered chart represent significant work.
 
 ## How to Demo
 
-1. Navigate to the "Vut Mobile App" product. Switch to the Report tab.
+1. Navigate to the "Velucid Mobile App" product. Switch to the Report tab.
 2. The cumulative flow diagram displays with colored bands for each status. Early data shows most tasks in "New."
 3. Over a simulated or real 2-week period, tasks have been moved through statuses. The bands show the flow pattern: "New" shrinking, "Done" growing.
 4. A vertical line marks the projected completion date. A label reads: "Projected: Jun 12, 2026 (Range: Jun 5 - Jun 20)."

@@ -1,4 +1,4 @@
-# VUT Platform - Development Overrides (ARM64 / Apple Silicon)
+# Velucid Platform - Development Overrides (ARM64 / Apple Silicon)
 # Usage: docker compose -f docker-compose.yml -f docker-compose.override.arm.yml --env-file .env.dev up -d
 #
 # All services use native ARM64 images — no Rosetta emulation needed.
@@ -6,7 +6,7 @@
 # NOTE: The KurrentDB ARM64 image runs as UID 1001 (kurrent). If switching from
 # the amd64 image (which runs as root), fix the volume ownership first:
 #   docker compose stop kurrentdb
-#   docker run --rm -v vut-kurrentdb-data:/data alpine chown -R 1001:1001 /data
+#   docker run --rm -v velucid-kurrentdb-data:/data alpine chown -R 1001:1001 /data
 
 services:
   kurrentdb:

@@ -1,6 +1,6 @@
 # Auth0 Tenant Setup Guide
 
-This guide walks through configuring Auth0 for the Vut platform. Complete all steps before starting backend development that depends on authentication.
+This guide walks through configuring Auth0 for the Velucid platform. Complete all steps before starting backend development that depends on authentication.
 
 ## Prerequisites
 
@@ -14,7 +14,7 @@ This guide walks through configuring Auth0 for the Vut platform. Complete all st
 1. Log in to the [Auth0 Dashboard](https://manage.auth0.com/).
 2. Navigate to **Applications > Applications**.
 3. Click **Create Application**.
-4. Name it `Vut App`.
+4. Name it `Velucid App`.
 5. Select **Regular Web Application** and click **Create**.
 6. In the application **Settings** tab, configure:
 
@@ -42,12 +42,12 @@ This guide walks through configuring Auth0 for the Vut platform. Complete all st
 ### Create a GitHub OAuth App (Organization-owned)
 
 1. Go to your GitHub organization page > **Settings > Developer settings > OAuth Apps**.
-   > For individual accounts this is under personal Settings > Developer settings, but for Vut, create it under the org so it persists independently of any individual account.
+   > For individual accounts this is under personal Settings > Developer settings, but for Velucid, create it under the org so it persists independently of any individual account.
 2. Click **New OAuth App**.
 3. Fill in:
-   - **Application name:** `Vut Dev`
+   - **Application name:** `Velucid Dev`
    - **Homepage URL:** `http://localhost:3000`
-   - **Authorization callback URL:** `https://{your-auth0-domain}/login/callback` (find your domain in Auth0 under Applications > Applications > Vut App > Settings > Domain)
+   - **Authorization callback URL:** `https://{your-auth0-domain}/login/callback` (find your domain in Auth0 under Applications > Applications > Velucid App > Settings > Domain)
 4. Click **Register application**.
 5. Note the **Client ID**.
 6. Click **Generate a new client secret** and note the **Client Secret**.
@@ -60,7 +60,7 @@ This guide walks through configuring Auth0 for the Vut platform. Complete all st
    - `read:user`
    - `user:email`
 3. Click **Create** and then **Save**.
-4. When prompted, enable the connection for the `Vut App` application.
+4. When prompted, enable the connection for the `Velucid App` application.
 
 ---
 
@@ -69,8 +69,8 @@ This guide walks through configuring Auth0 for the Vut platform. Complete all st
 1. Navigate to **Applications > APIs**.
 2. Click **Create API**.
 3. Fill in:
-   - **Name:** `Vut API`
-   - **Identifier:** `https://api.vut.dev` (this is a logical identifier, not a real URL)
+   - **Name:** `Velucid API`
+   - **Identifier:** `https://api.velucid.dev` (this is a logical identifier, not a real URL)
    - **Signing Algorithm:** RS256
 4. Click **Create**.
 5. In the API settings:
@@ -106,10 +106,10 @@ After completing the above steps, update the Auth0 secret with your actual value
 
 ```bash
 # Create/update the secret with your actual values
-kubectl create secret generic vut-auth0-secret \
-  --namespace=vut \
+kubectl create secret generic velucid-auth0-secret \
+  --namespace=velucid \
   --from-literal=domain='YOUR_AUTH0_DOMAIN' \
-  --from-literal=audience='https://api.vut.dev' \
+  --from-literal=audience='https://api.velucid.dev' \
   --from-literal=client-id='YOUR_CLIENT_ID' \
   --from-literal=client-secret='YOUR_CLIENT_SECRET' \
   --dry-run=client -o yaml | kubectl apply -f -
@@ -128,7 +128,7 @@ After successful authentication, the access token JWT should contain:
   "name": "Jane Developer",
   "picture": "https://avatars.githubusercontent.com/u/12345678?v=4",
   "email": "jane@example.com",
-  "aud": "https://api.vut.dev",
+  "aud": "https://api.velucid.dev",
   "iss": "https://your-tenant.us.auth0.com/",
   "exp": 1715000000,
   "iat": 1714999100
@@ -137,6 +137,6 @@ After successful authentication, the access token JWT should contain:
 
 ## Testing the Setup
 
-1. Use the Auth0 Dashboard **Quick Start** tab for the `Vut App` to test the login flow.
+1. Use the Auth0 Dashboard **Quick Start** tab for the `Velucid App` to test the login flow.
 2. Alternatively, use [jwt.io](https://jwt.io) to decode a token and verify all claims are present.
 3. Verify the GitHub connection works by logging in with your GitHub account through the Auth0 test flow.

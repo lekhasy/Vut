@@ -2,7 +2,7 @@
 
 ## Vertical Slice Statement
 
-Team members create tasks, write descriptions, apply namespaced tags, and manage them in a filterable, sortable backlog list. After this Epic, the core data-entry loop of Vut is complete -- users can populate their product with work items and find them again quickly.
+Team members create tasks, write descriptions, apply namespaced tags, and manage them in a filterable, sortable backlog list. After this Epic, the core data-entry loop of Velucid is complete -- users can populate their product with work items and find them again quickly.
 
 ## Target Personas
 
@@ -50,7 +50,7 @@ Team members create tasks, write descriptions, apply namespaced tags, and manage
 
 ## How to Demo
 
-1. Navigate to the "Vut Mobile App" product from Epic 2.
+1. Navigate to the "Velucid Mobile App" product from Epic 2.
 2. Click "New Task." Enter title: "Implement login screen." Add description in markdown. Add tag `area:frontend`. Submit.
 3. The task appears in the backlog with "New" status.
 4. Create a second task: "Fix API timeout." Tag: `type:bug`. Create a third: "Design onboarding flow." Tag: `area:design`.

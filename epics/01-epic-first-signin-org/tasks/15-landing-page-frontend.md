@@ -28,9 +28,9 @@ Build the public-facing landing page (marketing page) and the authenticated dash
 
 **Content:**
 - Hero section:
-  - Vut logo and tagline: "#NoEstimate project management. Track flow, not time."
+  - Velucid logo and tagline: "#NoEstimate project management. Track flow, not time."
   - "Sign in with GitHub" button (primary CTA).
-  - Brief value proposition: 2-3 bullet points about what Vut does differently.
+  - Brief value proposition: 2-3 bullet points about what Velucid does differently.
 - Features section (brief):
   - Kanban board (no sprints, no velocity).
   - Cumulative flow diagram (know when work will be done).
@@ -77,7 +77,7 @@ Build the public-facing landing page (marketing page) and the authenticated dash
 
 **Content:**
 - Large illustration or icon (e.g., a building/org icon).
-- Heading: "Welcome to Vut!"
+- Heading: "Welcome to Velucid!"
 - Subheading: "Create your first organization to start managing your projects."
 - Primary button: "Create Organization" -> opens `CreateOrgModal`.
 - Secondary link: "Or check your pending invitations" (only if invitations exist).

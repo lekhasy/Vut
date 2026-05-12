@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# VUT Platform - K8s Development Setup Script (K3s)
+# Velucid Platform - K8s Development Setup Script (K3s)
 #
 # Applies all manifests to a local K3s cluster and waits for
 # all pods to become Ready.
@@ -32,16 +32,16 @@ fail()  { echo -e "${RED}[FAIL]${NC}  $*"; }
 
 # Cleanup if requested
 if [[ "${1:-}" == "--cleanup" ]]; then
-    info "Cleaning up existing VUT resources..."
-    kubectl delete namespace vut --ignore-not-found --wait=true --timeout=60s
-    info "Namespace 'vut' deleted (or did not exist)."
+    info "Cleaning up existing Velucid resources..."
+    kubectl delete namespace velucid --ignore-not-found --wait=true --timeout=60s
+    info "Namespace 'velucid' deleted (or did not exist)."
     echo ""
 fi
 
 # 1. Create namespace
 info "Creating namespace..."
 kubectl apply -f "$K8S_DIR/namespace.yaml"
-ok "Namespace 'vut' created."
+ok "Namespace 'velucid' created."
 
 # 2. Create secrets
 info "Creating secrets..."
@@ -69,7 +69,7 @@ INTERVAL=5
 check_pod_ready() {
     local label="$1"
     local count
-    count=$(kubectl get pods -n vut -l "$label" --no-headers 2>/dev/null | grep -c "Running" || echo "0")
+    count=$(kubectl get pods -n velucid -l "$label" --no-headers 2>/dev/null | grep -c "Running" || echo "0")
     echo "$count"
 }
 
@@ -109,7 +109,7 @@ if ! $all_ready; then
     fail "Infrastructure services did not become ready within ${MAX_WAIT}s."
     echo ""
     fail "Diagnostic info:"
-    kubectl get pods -n vut
+    kubectl get pods -n velucid
     echo ""
     exit 1
 fi
@@ -127,7 +127,7 @@ kubectl apply -f "$K8S_DIR/ingress.yaml"
 ok "Traefik Ingress applied."
 
 # 8. Create Cloudflare Tunnel (optional — skip if secrets not configured)
-if kubectl get secret -n vut cloudflared-tunnel-credentials &>/dev/null 2>&1; then
+if kubectl get secret -n velucid cloudflared-tunnel-credentials &>/dev/null 2>&1; then
     info "Creating Cloudflare Tunnel..."
     kubectl apply -f "$K8S_DIR/cloudflared/"
     ok "Cloudflared deployment applied."
@@ -145,49 +145,49 @@ echo ""
 sleep 5
 
 echo "--- Pod Status ---"
-kubectl get pods -n vut -o wide
+kubectl get pods -n velucid -o wide
 echo ""
 
 echo "--- Service Status ---"
-kubectl get svc -n vut
+kubectl get svc -n velucid
 echo ""
 
 # Check specific connectivity
 info "Connectivity verification:"
 
 # KurrentDB
-if kubectl exec -n vut vut-kurrentdb-0 -- curl -sf http://localhost:2113/health/live > /dev/null 2>&1; then
-    ok "KurrentDB: http://vut-kurrentdb:2113/health/live"
+if kubectl exec -n velucid velucid-kurrentdb-0 -- curl -sf http://localhost:2113/health/live > /dev/null 2>&1; then
+    ok "KurrentDB: http://velucid-kurrentdb:2113/health/live"
 else
     warn "KurrentDB: not yet reachable (may still be starting)"
 fi
 
 # PostgreSQL
-if kubectl exec -n vut vut-postgresql-0 -- pg_isready -U vut_app -d vut_readmodel > /dev/null 2>&1; then
-    ok "PostgreSQL: vut-postgresql:5432/vut_readmodel"
+if kubectl exec -n velucid velucid-postgresql-0 -- pg_isready -U velucid_app -d velucid_readmodel > /dev/null 2>&1; then
+    ok "PostgreSQL: velucid-postgresql:5432/velucid_readmodel"
 else
     warn "PostgreSQL: not yet reachable (may still be starting)"
 fi
 
 echo ""
 echo "=========================================="
-echo " VUT Platform K3s setup complete!"
+echo " Velucid Platform K3s setup complete!"
 echo "=========================================="
 echo ""
 echo "Access points:"
 echo ""
 echo "  Via Cloudflare Tunnel (if configured):"
-echo "    https://vut.app"
+echo "    https://velucid.app"
 echo ""
 echo "  Via port-forward (local dev):"
-echo "    kubectl port-forward -n vut svc/vut-frontend 3000:3000"
-echo "    kubectl port-forward -n vut svc/vut-silo 5000:5000"
-echo "    kubectl port-forward -n vut svc/vut-kurrentdb 2113:2113"
+echo "    kubectl port-forward -n velucid svc/velucid-frontend 3000:3000"
+echo "    kubectl port-forward -n velucid svc/velucid-silo 5000:5000"
+echo "    kubectl port-forward -n velucid svc/velucid-kurrentdb 2113:2113"
 echo ""
 echo "View logs:"
-echo "  kubectl logs -f -n vut -l app.kubernetes.io/component=eventstore"
-echo "  kubectl logs -f -n vut -l app.kubernetes.io/component=database"
-echo "  kubectl logs -f -n vut -l app.kubernetes.io/component=backend"
-echo "  kubectl logs -f -n vut -l app.kubernetes.io/component=frontend"
-echo "  kubectl logs -f -n vut -l app.kubernetes.io/component=tunnel"
+echo "  kubectl logs -f -n velucid -l app.kubernetes.io/component=eventstore"
+echo "  kubectl logs -f -n velucid -l app.kubernetes.io/component=database"
+echo "  kubectl logs -f -n velucid -l app.kubernetes.io/component=backend"
+echo "  kubectl logs -f -n velucid -l app.kubernetes.io/component=frontend"
+echo "  kubectl logs -f -n velucid -l app.kubernetes.io/component=tunnel"
 echo ""

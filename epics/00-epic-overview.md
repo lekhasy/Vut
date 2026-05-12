@@ -1,6 +1,6 @@
-# Vut Epic Overview
+# Velucid Epic Overview
 
-## Project: Vut -- #noestimate Project Management Platform
+## Project: Velucid -- #noestimate Project Management Platform
 
 ### Slicing Strategy
 
@@ -18,7 +18,7 @@ The Epics are ordered by dependency: earlier Epics establish the foundation that
 | 2 | [Product Setup with Configurable Workflow](./02-epic-product-setup.md) | An organization member can create a product with custom statuses, establishing the container where work will live. |
 | 3 | [Task Management & Backlog](./03-epic-task-management-backlog.md) | Users can create, edit, tag, and filter tasks in a searchable backlog -- the core data-entry experience. |
 | 4 | [Kanban Board with Drag-and-Drop](./04-epic-kanban-board.md) | Users can move tasks through workflow columns via drag-and-drop, watching work flow in real time. |
-| 5 | [Cumulative Flow & Completion Forecast](./05-epic-cumulative-flow-forecast.md) | Users see a stacked-area chart of work over time with a projected completion date -- the central signal of Vut. |
+| 5 | [Cumulative Flow & Completion Forecast](./05-epic-cumulative-flow-forecast.md) | Users see a stacked-area chart of work over time with a projected completion date -- the central signal of Velucid. |
 | 6 | [Saved Views & Personal Kanban Filters](./06-epic-saved-views.md) | Users can save, name, and switch between filtered kanban views for recurring perspectives on their work. |
 
 ---

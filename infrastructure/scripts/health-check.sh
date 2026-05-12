@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# VUT Platform - Health Check Script
+# Velucid Platform - Health Check Script
 # Usage: ./scripts/health-check.sh [dev|staging|prod]
 # Defaults to 'dev' if no argument is provided.
 #
@@ -29,7 +29,7 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 echo "=========================================="
-echo " VUT Platform - Health Check ($ENV)"
+echo " Velucid Platform - Health Check ($ENV)"
 echo "=========================================="
 echo ""
 
@@ -37,7 +37,7 @@ FAILURES=0
 
 check_docker_service() {
     local name="$1"
-    local container_name="vut-${name}"
+    local container_name="velucid-${name}"
 
     if ! docker ps --filter "name=${container_name}" --format "{{.Names}}" | grep -q "$container_name"; then
         echo "  [FAIL] $name - container not running"
@@ -66,7 +66,7 @@ check_tcp_port() {
     local host="$2"
     local port="$3"
 
-    if docker exec vut-"$name" sh -c "nc -z $host $port" 2>/dev/null; then
+    if docker exec velucid-"$name" sh -c "nc -z $host $port" 2>/dev/null; then
         echo "  [OK]   $name:$port reachable"
         return 0
     elif command -v nc &>/dev/null && nc -z "$host" "$port" 2>/dev/null; then
@@ -124,11 +124,11 @@ echo ""
 
 # 5. Check PostgreSQL database
 echo "--- PostgreSQL ---"
-if docker exec vut-postgresql psql -U "${POSTGRESQL_USER:-vut_app}" -d vut_readmodel -c "SELECT 1;" &>/dev/null; then
-    echo "  [OK]   vut_readmodel database accessible"
+if docker exec velucid-postgresql psql -U "${POSTGRESQL_USER:-velucid_app}" -d velucid_readmodel -c "SELECT 1;" &>/dev/null; then
+    echo "  [OK]   velucid_readmodel database accessible"
 
     # Check tables exist
-    tables=$(docker exec vut-postgresql psql -U "${POSTGRESQL_USER:-vut_app}" -d vut_readmodel -t -c \
+    tables=$(docker exec velucid-postgresql psql -U "${POSTGRESQL_USER:-velucid_app}" -d velucid_readmodel -t -c \
         "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('user_projection','org_projection','org_member_projection','org_invitation_projection','user_org_projection','user_identity');" 2>/dev/null | tr -d ' ')
     if [[ "$tables" -ge 3 ]]; then
         echo "  [OK]   Read model tables present ($tables tables)"
