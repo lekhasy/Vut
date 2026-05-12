@@ -127,6 +127,23 @@ if ! $ARGO_READY; then
     warn "ArgoCD server not ready yet — it may still be starting. Pods will sync once it's up."
 fi
 
+# Ensure ArgoCD runs in insecure mode (HTTP) so Traefik ingress can proxy
+CURRENT_INSECURE=$($KUBECTL get configmap argocd-cmd-params-cm -n argocd -o jsonpath='{.data.server\.insecure}' 2>/dev/null || echo "")
+if [[ "$CURRENT_INSECURE" != "true" ]]; then
+    info "Enabling ArgoCD insecure mode (HTTP for Traefik ingress)..."
+    $KUBECTL patch configmap argocd-cmd-params-cm -n argocd \
+        --type merge -p '{"data":{"server.insecure":"true"}}'
+    $KUBECTL rollout restart deployment/argocd-server -n argocd
+    $KUBECTL wait --for=condition=available deployment/argocd-server -n argocd --timeout=120s || true
+    ok "ArgoCD patched for insecure mode"
+fi
+
+# Apply ArgoCD ingress (argo.velucid.app)
+if [[ -f "$INFRA_DIR/k8s/argocd/ingress.yaml" ]]; then
+    $KUBECTL apply -f "$INFRA_DIR/k8s/argocd/ingress.yaml"
+    ok "ArgoCD ingress applied (argo.velucid.app)"
+fi
+
 echo ""
 
 # ── 4. Wait for Velucid pods ────────────────────────────────────────
@@ -194,6 +211,10 @@ echo "=========================================="
 echo ""
 echo "Access via Cloudflare Tunnel (if configured):"
 echo "  https://velucid.app"
+echo "  https://argo.velucid.app  (ArgoCD UI)"
+echo ""
+echo "ArgoCD admin password:"
+echo "  sudo k3s kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d && echo"
 echo ""
 echo "Access via port-forward (local):"
 echo "  sudo k3s kubectl port-forward -n velucid svc/velucid-frontend 3000:3000 &"

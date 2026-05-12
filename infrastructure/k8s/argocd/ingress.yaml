@@ -1,0 +1,27 @@
+# ArgoCD UI — exposed at argo.velucid.app via Traefik ingress.
+# This file is excluded from ArgoCD auto-sync (argocd/* is excluded
+# in application.yaml) and is applied by k3s-start.sh instead.
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server-ingress
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: argocd
+  annotations:
+    # Let Traefik handle gRPC/websocket for ArgoCD CLI + UI live updates
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: argo.velucid.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80
