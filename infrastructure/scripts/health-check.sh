@@ -1,27 +1,18 @@
 #!/usr/bin/env bash
-# Velucid Platform - Health Check Script
-# Usage: ./scripts/health-check.sh [dev|staging|prod]
-# Defaults to 'dev' if no argument is provided.
+# Velucid Platform - Local Dev Health Check (Docker Compose)
+# Usage: ./scripts/health-check.sh
 #
 # Exit codes:
 #   0 - All services healthy
 #   1 - One or more services unhealthy
-#   2 - Configuration error
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(dirname "$SCRIPT_DIR")"
 
-ENV="${1:-dev}"
-
-if [[ ! "$ENV" =~ ^(dev|staging|prod)$ ]]; then
-    echo "ERROR: Invalid environment '$ENV'. Must be one of: dev, staging, prod"
-    exit 2
-fi
-
 # Source env file for port defaults
-ENV_FILE="$INFRA_DIR/.env.${ENV}"
+ENV_FILE="$INFRA_DIR/.env.dev"
 if [[ -f "$ENV_FILE" ]]; then
     set -a
     source "$ENV_FILE"
@@ -29,7 +20,7 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 echo "=========================================="
-echo " Velucid Platform - Health Check ($ENV)"
+echo " Velucid Platform - Health Check (dev)"
 echo "=========================================="
 echo ""
 

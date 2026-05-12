@@ -2107,7 +2107,7 @@ No changes to the cluster topology, PostgreSQL clustering configuration, or base
 | CI/CD pipeline | GitHub Actions | Free unlimited minutes for open-source repos. Builds Docker images and pushes to ghcr.io on every push to `main`. |
 | Container registry | ghcr.io (GitHub Container Registry) | Free for public repos. Tightly integrated with GitHub Actions — authenticates with `GITHUB_TOKEN`, no extra credentials. |
 | GitOps controller | ArgoCD | Watches the git repo for K8s manifest changes and auto-syncs to K3s. Self-heal and prune ensure the cluster always matches git. Web UI for deployment visibility. |
-| Read model | PostgreSQL | PRD requirement. Mature, reliable, supports the complex queries needed for projections and the cumulative flow (Epic 5). Also hosts Orleans clustering tables. |
+| Read model | PostgreSQL | PRD requirement. Mature, reliable, supports the complex queries needed for projections and the probabilistic forecast (Epic 5). Also hosts Orleans clustering tables. |
 | API hosting | Co-hosted in Orleans silo (ASP.NET Core) | Reduces network hops. API controllers call grains in-process via `IGrainFactory`. Can be separated later if needed. |
 | Frontend | Astro.js + Tailwind CSS | PRD requirement. SSR-capable, island architecture for selective hydration, excellent performance. |
 | Auth | Auth0 | PRD requirement. Managed service, supports GitHub SSO and future providers. |
@@ -2133,15 +2133,15 @@ No changes to the cluster topology, PostgreSQL clustering configuration, or base
 
 6. **Component library selection:** Astro.js + Tailwind CSS is confirmed, but the specific component library is TBD. Options include Headless UI, Radix, or a purpose-built minimal set.
 
-7. **Projection recalculation strategy:** When statuses are renamed or removed in a product, how are historical events and the cumulative flow diagram affected? Options: (a) rewrite historical events, (b) maintain a status name mapping, (c) show legacy names for historical data.
+7. ~~**Projection recalculation strategy:**~~ When statuses are renamed or removed in a product, how are historical events and the forecast affected? Options: (a) rewrite historical events, (b) maintain a status name mapping, (c) show legacy names for historical data.
 
-8. **Projection confidence model:** The exact statistical model for the projected completion date needs to be selected during implementation.
+8. ~~**Projection confidence model:**~~ **RESOLVED.** Monte Carlo simulation (10,000 runs) has been selected. See `docs/velucid_forecasting_spec.md` for the complete specification.
 
 9. **Organization deletion semantics:** When an organization is deleted, are events soft-deleted (marked as deleted) or hard-deleted from KurrentDB?
 
 10. **Tag namespace registry:** Should tags be strictly validated against known namespaces, or is any `namespace:value` string accepted? The PRD assumes free-form, but a registry would enable better autocomplete and consistency.
 
-11. **Minimum data threshold for projections:** How many data points (days of status transitions) are needed before the cumulative flow diagram shows a projected completion date?
+11. ~~**Minimum data threshold for projections:**~~ **RESOLVED.** Minimum 7 days of status transition history required. Below 7 days, show a "gathering data" state. See `docs/velucid_forecasting_spec.md`.
 
 12. **Email change flow:** Should users be able to change their verified email after the initial verification? If so, what is the flow?
 

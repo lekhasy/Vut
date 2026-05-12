@@ -18,7 +18,7 @@ The Epics are ordered by dependency: earlier Epics establish the foundation that
 | 2 | [Product Setup with Configurable Workflow](./02-epic-product-setup.md) | An organization member can create a product with custom statuses, establishing the container where work will live. |
 | 3 | [Task Management & Backlog](./03-epic-task-management-backlog.md) | Users can create, edit, tag, and filter tasks in a searchable backlog -- the core data-entry experience. |
 | 4 | [Kanban Board with Drag-and-Drop](./04-epic-kanban-board.md) | Users can move tasks through workflow columns via drag-and-drop, watching work flow in real time. |
-| 5 | [Cumulative Flow & Completion Forecast](./05-epic-cumulative-flow-forecast.md) | Users see a stacked-area chart of work over time with a projected completion date -- the central signal of Velucid. |
+| 5 | [Probabilistic Forecasting & Progress Visualization](./05-epic-cumulative-flow-forecast.md) | Users see a Monte Carlo-powered probabilistic forecast with S-curve and dual-cone progress charts, stat cards with confidence dates, and never-finish detection -- the central signal of Velucid. No single dates, only honest probabilities. |
 | 6 | [Saved Views & Personal Kanban Filters](./06-epic-saved-views.md) | Users can save, name, and switch between filtered kanban views for recurring perspectives on their work. |
 
 ---
@@ -40,7 +40,7 @@ Epic 3: Task Management & Backlog
   |     Epic 6: Saved Views & Personal Kanban Filters
   |
   v
-Epic 5: Cumulative Flow & Completion Forecast
+Epic 5: Probabilistic Forecasting & Progress Visualization
 ```
 
 Epic 4 and Epic 5 both depend on Epic 3 (tasks must exist to visualize or move them). Epic 6 depends on Epic 4 (saved views extend the kanban board). Epic 5 can be built in parallel with Epics 4 and 6.

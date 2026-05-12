@@ -39,7 +39,7 @@ Team members create tasks, write descriptions, apply namespaced tags, and manage
 ## Out of Scope for This Epic
 
 - Kanban board drag-and-drop (Epic 4) -- status changes in this Epic are done via dropdown or inline control.
-- Cumulative flow diagram (Epic 5).
+- Probabilistic forecast (Epic 5).
 - Saved views (Epic 6).
 - Task assignment to users (Phase 2).
 - Comments / activity feed (Phase 2).

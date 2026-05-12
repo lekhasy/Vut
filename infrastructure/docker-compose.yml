@@ -1,9 +1,9 @@
-# Velucid Platform - Base Docker Compose Configuration
-# Usage: docker compose up -d
-# Environment overrides are loaded automatically based on VELUCID_ENV:
-#   - VELUCID_ENV=dev (default): loads docker-compose.override.yml
-#   - VELUCID_ENV=staging: loads docker-compose.staging.yml
-#   - VELUCID_ENV=prod: loads docker-compose.prod.yml
+# Velucid Platform - Docker Compose (Local Development Only)
+# For staging/production, use K3s + ArgoCD (see docs/new-machine-setup.md).
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.override.<arch>.yml --env-file .env.dev up -d
+#   Or simply: ./scripts/start.sh
 
 services:
   # ─── KurrentDB (EventStoreDB) ───────────────────────────────────

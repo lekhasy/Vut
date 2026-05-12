@@ -1,6 +1,9 @@
 # Velucid Platform - Infrastructure
 
-Local infrastructure for the Velucid project management SaaS platform.This directory contains everything needed to run the full platform stack on a single developer machine using Docker Compose (dev) or K3s (staging/prod).
+Local infrastructure for the Velucid project management SaaS platform.
+
+- **Docker Compose** — local development on your dev machine (Windows/macOS/Linux)
+- **K3s + ArgoCD** — staging and production on a WSL2 machine (see `docs/new-machine-setup.md`)
 
 ## Architecture Overview
 
@@ -40,68 +43,31 @@ Local infrastructure for the Velucid project management SaaS platform.This direc
 | Frontend | `ghcr.io/lekhasy/vut/frontend:latest` | 3000 (HTTP) | Astro.js SSR + BFF |
 | cloudflared | `cloudflare/cloudflared:latest` | — | Cloudflare Tunnel (internet ingress) |
 
-## Resource Budget
+## Docker Compose (Local Development)
 
-| Environment | KurrentDB | PostgreSQL | Silo | Projector | Frontend | cloudflared | Total Est. |
-|-------------|-----------|------------|------|-----------|----------|-------------|------------|
-| **Dev** | 3 GB | 2 GB | 1 GB | 512 MB | 512 MB | 128 MB | **~7.1 GB** |
-| **Staging** | 6 GB | 4 GB | 2 GB | 512 MB | 1 GB | 128 MB | **~13.6 GB** |
-| **Prod** | 8 GB | 8 GB | 4 GB | 1 GB | 1 GB | 128 MB | **~22 GB** |
-
-All deployments run with `replicas: 1` on a single machine (K3s node).
-
-## Quick Start (Docker Compose — Recommended for Dev)
-
-This is the primary way to run the infrastructure for day-to-day development.
+The primary way to run the infrastructure for day-to-day development.
 
 ### Prerequisites
 
 - Docker Engine 24+ and Docker Compose v2
-- ~7 GB free RAM for dev environment
+- ~7 GB free RAM
 - Git
 
-### Start the Platform
+### Start / Stop / Health Check
 
 ```bash
 cd infrastructure
-
-# Start with dev defaults
-./scripts/start.sh
-
-# Or specify an environment
-./scripts/start.sh staging
-./scripts/start.sh prod
-```
-
-### Stop the Platform
-
-```bash
-./scripts/stop.sh          # Stops containers (preserves data)
-./scripts/stop.sh prod     # Stop prod environment
-
-# To remove data volumes (destructive):
-docker compose -f docker-compose.yml -f docker-compose.override.yml down -v
-```
-
-### Health Check
-
-```bash
-./scripts/health-check.sh
-# Checks: container health, TCP ports, HTTP endpoints, PostgreSQL tables
+./scripts/start.sh          # Start dev environment
+./scripts/stop.sh           # Stop (preserves data)
+./scripts/health-check.sh   # Verify all services
 ```
 
 ### Manual Docker Compose Commands
 
 ```bash
-# View logs
-docker compose logs -f kurrentdb
-docker compose logs -f silo
-
-# Restart a single service
-docker compose restart silo
-
-# Rebuild after code changes
-docker compose up -d --build silo frontend
+docker compose logs -f kurrentdb   # View logs
+docker compose restart silo        # Restart a single service
+docker compose up -d --build frontend  # Rebuild after code changes
 ```
 
 ### Access Points (Dev)
@@ -113,35 +79,13 @@ docker compose up -d --build silo frontend
 | Orleans Dashboard | http://localhost:8888 |
 | KurrentDB Dashboard | http://localhost:2113 |
 | PostgreSQL | localhost:5432 |
+| pgAdmin | http://localhost:8081 |
 
-### PostgreSQL Connection
+## K3s + ArgoCD (Staging / Production)
 
-```
-Host: localhost
-Port: 5432
-Database: Velucid_readmodel
-Username: Velucid_app
-Password: Velucid_dev_password
-```
-
-Connect with `psql`:
-```bash
-docker exec -it Velucid-postgresql psql -U Velucid_app -d Velucid_readmodel
-```
-
-## Kubernetes Setup (K3s)
-
-For staging, production, or developers who prefer Kubernetes locally. K3s is the target runtime — it bundles Traefik as the default ingress controller and uses `local-path` storage provisioner.
-
-### Prerequisites
-
-- K3s installed: `curl -sfL https://get.k3s.io | sh -`
-- kubectl (included with K3s)
-- ArgoCD installed in K3s (see GitOps section below)
+For the WSL2 production machine. Full setup guide: **`docs/new-machine-setup.md`**.
 
 ### GitOps CI/CD Pipeline
-
-Images are built automatically by GitHub Actions and pushed to `ghcr.io/lekhasy/vut/`. ArgoCD watches the K8s manifests in git and syncs changes to K3s automatically.
 
 ```
 git push → GitHub Actions → build image → push to ghcr.io
@@ -149,165 +93,54 @@ git push → GitHub Actions → build image → push to ghcr.io
   → ArgoCD detects manifest change → syncs to K3s → rolling update
 ```
 
-**Pipeline components:**
-
 | Component | Purpose |
 |-----------|---------|
 | GitHub Actions (`.github/workflows/ci.yaml`) | Builds Docker images, pushes to ghcr.io, updates manifest image tags |
-| ghcr.io (`ghcr.io/lekhasy/vut/`) | Container registry (free for public repos) |
+| ghcr.io (`ghcr.io/lekhasy/vut/`) | Container registry |
 | ArgoCD (`k8s/argocd/application.yaml`) | Watches `infrastructure/k8s/` and auto-syncs to K3s |
 
-**Image tagging:** CI tags images with both the commit SHA (e.g., `abc1234`) and `latest`. Manifests are updated to the commit SHA for traceability.
-
-### Install ArgoCD
+### After WSL Restart
 
 ```bash
-# Create ArgoCD namespace and install
-kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-
-# Wait for ArgoCD to be ready
-kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=120s
-
-# Apply the Velucid ArgoCD Application manifest
-kubectl apply -f k8s/argocd/application.yaml
-
-# Access ArgoCD UI (optional)
-kubectl port-forward svc/argocd-server -n argocd 8080:443 &
-# Get initial admin password:
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+cd Vut/infrastructure
+./scripts/k3s-start.sh    # Single command — starts K3s, verifies ArgoCD, waits for pods
 ```
 
-### Deploy (Manual — for initial setup or without ArgoCD)
+### Deploying Changes
 
 ```bash
-# Run the full setup script (applies all manifests + waits for health)
-./k8s/dev-setup.sh
-
-# Clean start (delete namespace first)
-./k8s/dev-setup.sh --cleanup
-
-# Or apply manually in order:
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/secrets/
-kubectl apply -f k8s/postgresql/
-kubectl apply -f k8s/kurrentdb/
-kubectl apply -f k8s/silo/
-kubectl apply -f k8s/projector-service/
-kubectl apply -f k8s/frontend/
-kubectl apply -f k8s/ingress.yaml
-kubectl apply -f k8s/cloudflared/   # After configuring tunnel credentials
-```
-
-> **Note:** Once ArgoCD is installed and the Application manifest is applied, manual `kubectl apply` is no longer needed — ArgoCD auto-syncs from git.
-
-### Cloudflare Tunnel Setup
-
-Cloudflare Tunnel provides internet ingress without opening inbound ports or needing a static IP.
-
-```bash
-# 1. Install cloudflared CLI
-# https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
-
-# 2. Authenticate
-cloudflared tunnel login
-
-# 3. Create tunnel
-cloudflared tunnel create Velucid
-
-# 4. Create DNS records
-cloudflared tunnel route dns Velucid Velucid.app
-cloudflared tunnel route dns Velucid "*.Velucid.app"
-
-# 5. Encode credentials for K8s secret
-cat ~/.cloudflared/<TUNNEL_ID>.json | base64
-
-# 6. Update k8s/cloudflared/secret.yaml with the base64 value
-# 7. Update k8s/cloudflared/configmap.yaml with the <TUNNEL_ID>
-# 8. Apply manifests
-kubectl apply -f k8s/cloudflared/
-```
-
-Traffic flow: `Internet → Cloudflare Edge → cloudflared pod → Traefik → services`
-
-### Port Forwarding for Local Access
-
-```bash
-kubectl port-forward -n Velucid svc/Velucid-frontend 3000:3000 &
-kubectl port-forward -n Velucid svc/Velucid-silo 5000:5000 &
-kubectl port-forward -n Velucid svc/Velucid-kurrentdb 2113:2113 &
-```
-
-### Teardown
-
-```bash
-kubectl delete namespace Velucid
-```
-
-## Environment Variables
-
-Three env files control configuration per environment:
-
-| File | When Used | Notes |
-|------|----------|-------|
-| `.env.dev` | Default / `Velucid_ENV=dev` | Local development defaults |
-| `.env.staging` | `Velucid_ENV=staging` | Staging on local machine |
-| `.env.prod` | `Velucid_ENV=prod` | Production on local machine |
-
-Sensitive values (Auth0, passwords) use placeholder values. Copy and customize:
-
-```bash
-cp .env.dev .env.local  # For personal overrides (git-ignored)
+# Just push to main — ArgoCD handles the rest
+git push origin main
+# GitHub Actions builds images → updates K8s manifests → ArgoCD deploys
 ```
 
 ## Directory Structure
 
 ```
 infrastructure/
-  docker-compose.yml            # Base compose (all services)
-  docker-compose.override.arm.yml   # Dev overrides (ARM)
-  docker-compose.override.amd64.yml # Dev overrides (AMD64)
-  docker-compose.staging.yml    # Staging overrides
-  docker-compose.prod.yml       # Production overrides
-  .env.dev                      # Dev environment variables
-  .env.staging                  # Staging environment variables
-  .env.prod                     # Production environment variables
+  docker-compose.yml                # Compose — local dev only
+  docker-compose.override.arm.yml   # Dev overrides (ARM/Apple Silicon)
+  docker-compose.override.amd64.yml # Dev overrides (AMD64/x86)
+  .env.dev                          # Dev environment variables
   scripts/
-    start.sh                    # Environment-aware startup
-    stop.sh                     # Clean shutdown
-    health-check.sh             # Verify all services
-  k8s/                          # Kubernetes manifests (K3s)
-    namespace.yaml              # Velucid namespace
-    ingress.yaml                # Traefik ingress routing
+    start.sh                        # Docker Compose dev startup
+    stop.sh                         # Docker Compose dev shutdown
+    health-check.sh                 # Docker Compose health check
+    k3s-start.sh                    # K3s startup (WSL prod — run after restart)
+  k8s/                              # Kubernetes manifests (K3s staging/prod)
+    namespace.yaml
+    ingress.yaml                    # Traefik ingress routing
     secrets/
-      Velucid-postgresql-secret.yaml
-      Velucid-auth0-secret.yaml
     kurrentdb/
-      statefulset.yaml          # 1-node event store
-      service.yaml
     postgresql/
-      statefulset.yaml          # PostgreSQL + Orleans clustering
-      service.yaml
     silo/
-      deployment.yaml           # .NET Orleans silo (API + Grains)
-      service.yaml
     projector-service/
-      deployment.yaml           # Background worker (KurrentDB → PostgreSQL)
-      service.yaml
     frontend/
-      deployment.yaml           # Astro.js SSR + BFF
-      service.yaml
     argocd/
-      application.yaml          # ArgoCD Application (auto-sync from git)
+      application.yaml              # ArgoCD auto-sync from git
     cloudflared/
-      secret.yaml               # Tunnel credentials
-      configmap.yaml            # Tunnel config (routes)
-      deployment.yaml           # cloudflared daemon
-    dev-setup.sh                # One-command K3s deployment
-  README.md                     # This file
-.github/
-  workflows/
-    ci.yaml                     # GitHub Actions CI (build → ghcr.io → update manifests)
+    dev-setup.sh                    # One-command K3s bootstrap (first time)
+  README.md                         # This file
 ```
 
 ## Troubleshooting
@@ -318,26 +151,23 @@ infrastructure/
 
 **Container keeps restarting:** Check logs: `docker compose logs <service>`. Most common causes:
 - KurrentDB: insufficient memory (increase `KURRENTDB_MEMORY_LIMIT`)
-- PostgreSQL: data corruption (delete volume: `docker volume rm Velucid-postgresql-data`)
+- PostgreSQL: data corruption (delete volume: `docker volume rm velucid-postgresql-data`)
 
 ### Kubernetes (K3s)
 
-**Pods stuck in Pending:** Check node resources with `kubectl describe node`. Reduce memory limits in manifests if needed.
+**Pods stuck in Pending:** Check node resources with `sudo k3s kubectl describe node`. Reduce memory limits in manifests if needed.
 
-**ImagePullBackOff:** Ensure images are loaded into K3s. Run `sudo k3s ctr images ls | grep Velucid` to verify.
+**ImagePullBackOff:** Ensure ghcr.io access is configured. Run `sudo k3s ctr images ls | grep velucid` to verify.
 
-**CrashLoopBackOff:** Check logs: `kubectl logs -n Velucid <pod-name>`. Common issue is secrets not being applied before deployments.
+**CrashLoopBackOff:** Check logs: `sudo k3s kubectl logs -n velucid <pod-name>`. Common issue is secrets not being applied before deployments.
 
-**Cloudflare Tunnel not connecting:** Verify credentials in the secret match the tunnel ID in the configmap. Check logs: `kubectl logs -n Velucid -l app.kubernetes.io/name=cloudflared`.
+**Cloudflare Tunnel not connecting:** Verify credentials in the secret match the tunnel ID in the configmap. Check logs: `sudo k3s kubectl logs -n velucid -l app.kubernetes.io/name=cloudflared`.
 
 ## Notes
 
-- All services run locally on a single developer machine — no cloud providers required
-- Docker Compose is the primary development workflow; K8s manifests target K3s
+- Docker Compose is for **local development only**; K3s + ArgoCD handles staging/production
 - K3s bundles Traefik (ingress) and local-path-provisioner (storage) — no extra setup
 - Cloudflare Tunnel provides internet access without inbound ports or static IPs
-- Orleans uses PostgreSQL for cluster membership and grain state storage — no separate message broker needed
-- Application images are pulled from ghcr.io (`ghcr.io/lekhasy/vut/silo`, `ghcr.io/lekhasy/vut/frontend`, `ghcr.io/lekhasy/vut/projector-service`)
+- Orleans uses PostgreSQL for cluster membership and grain state — no separate message broker needed
 - CI tags images with commit SHA for traceability; manifests are updated automatically by GitHub Actions
-- ArgoCD auto-syncs K8s manifests from the `infrastructure/k8s/` directory — git is the single source of truth
-- Helm chart conversion is a future improvement — raw manifests are used for Epic 1
+- ArgoCD auto-syncs K8s manifests from `infrastructure/k8s/` — git is the single source of truth

@@ -1,6 +1,6 @@
-import { currentUser, isAuthenticated } from '../stores/auth';
-import { apiFetch } from './api';
-import type { User } from '../stores/types';
+import { currentUser, isAuthenticated } from '../../stores/auth';
+import { apiFetch } from '../api';
+import type { User } from '../../stores/types';
 
 export async function loadSession(): Promise<boolean> {
   try {

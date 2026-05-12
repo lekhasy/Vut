@@ -33,7 +33,7 @@ An organization member creates a product, names it, writes a description, and de
 
 - Task creation and management (Epic 3).
 - Kanban board visualization (Epic 4).
-- Cumulative flow diagram (Epic 5).
+- Probabilistic forecast (Epic 5).
 - Product deletion semantics (deferred; event is defined but UI action not required).
 
 ## Estimated Complexity

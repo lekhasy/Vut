@@ -1,6 +1,8 @@
-# New Machine Setup Guide
+# Production Machine Setup Guide (WSL + K3s)
 
-Step-by-step guide to get the Velucid platform running on a fresh developer machine. This covers both the **Docker Compose** workflow (recommended for daily dev) and the **K3s** workflow (for staging/production or K8s-flavored development).
+Step-by-step guide to set up the Velucid platform on a **WSL2 production machine** running K3s + ArgoCD. After the one-time setup, a single script brings the entire stack back up on every WSL restart.
+
+> **For local development on Windows**, use Docker Compose instead — see `infrastructure/README.md`.
 
 ---
 
@@ -8,14 +10,79 @@ Step-by-step guide to get the Velucid platform running on a fresh developer mach
 
 | Requirement | Minimum | Notes |
 |---|---|---|
-| RAM | 8 GB free | ~7 GB used by dev stack |
-| Disk | 20 GB free | Docker images + data volumes |
-| OS | Linux, macOS, or Windows (WSL2) | K3s requires Linux or WSL2 |
-| Git | Any recent version | To clone the repository |
+| OS | Windows 10/11 with WSL2 | Ubuntu 22.04+ recommended |
+| RAM | 16 GB total | ~22 GB for full prod budget; 8 GB workable for light use |
+| Disk | 40 GB free (in WSL) | K3s images + persistent volumes |
+| Internet | Required | For pulling images from ghcr.io |
 
 ---
 
-## 1. Clone the Repository
+## 1. Set Up WSL2
+
+If WSL2 is not already installed:
+
+```powershell
+# Run in PowerShell as Administrator
+wsl --install -d Ubuntu
+```
+
+After reboot, open the Ubuntu terminal and complete the initial user setup.
+
+### Enable systemd
+
+K3s runs as a systemd service. Ensure systemd is enabled in WSL:
+
+```bash
+sudo tee /etc/wsl.conf > /dev/null << 'EOF'
+[boot]
+systemd=true
+
+[network]
+generateResolvConf=true
+EOF
+```
+
+Then **restart WSL** from PowerShell:
+
+```powershell
+wsl --shutdown
+# Re-open your Ubuntu terminal
+```
+
+Verify systemd is active:
+
+```bash
+systemctl is-system-running
+# Should print: running (or degraded — that's fine)
+```
+
+---
+
+## 2. Install K3s
+
+```bash
+curl -sfL https://get.k3s.io | sh -
+```
+
+K3s installs as a systemd service and starts automatically. Verify:
+
+```bash
+sudo k3s kubectl get nodes
+# NAME        STATUS   ROLES                  AGE   VERSION
+# <hostname>  Ready    control-plane,master   30s   v1.xx.x+k3s1
+```
+
+### (Optional) Set up kubectl alias
+
+```bash
+# Add to ~/.bashrc for convenience
+echo 'alias kubectl="sudo k3s kubectl"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+---
+
+## 3. Clone the Repository
 
 ```bash
 git clone https://github.com/lekhasy/Vut.git
@@ -24,100 +91,83 @@ cd Vut
 
 ---
 
-## 2a. Docker Compose Setup (Recommended for Dev)
+## 4. Install ArgoCD
 
-### Install Docker
-
-- **Linux:** https://docs.docker.com/engine/install/
-- **macOS:** Docker Desktop (https://docs.docker.com/desktop/install/mac-install/)
-- **Windows:** Docker Desktop with WSL2 backend (https://docs.docker.com/desktop/install/windows-install/)
-
-Verify installation:
+ArgoCD watches the K8s manifests in git and auto-deploys on every push.
 
 ```bash
-docker --version         # Docker Engine 24+
-docker compose version   # Docker Compose v2+
+# Create ArgoCD namespace and install
+sudo k3s kubectl create namespace argocd
+sudo k3s kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# Wait for ArgoCD to be ready (~60-90 seconds)
+sudo k3s kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=180s
 ```
 
-### Configure Environment
+### Register the Velucid application
 
 ```bash
-cd infrastructure
-
-# Review dev defaults (usually no changes needed)
-cat .env.dev
-
-# (Optional) Create a personal override file — git-ignored
-cp .env.dev .env.local
-# Edit .env.local to set your Auth0 credentials:
-#   AUTH0_DOMAIN=dev-velucid.us.auth0.com
-#   AUTH0_CLIENT_ID=<your-client-id>
-#   AUTH0_CLIENT_SECRET=<your-client-secret>
+sudo k3s kubectl apply -f infrastructure/k8s/argocd/application.yaml
 ```
 
-### Start Infrastructure
+ArgoCD will now auto-sync all manifests from `infrastructure/k8s/` on the `main` branch. Any push to `main` that changes manifests triggers an automatic deployment.
+
+### (Optional) Access ArgoCD UI
 
 ```bash
-./scripts/start.sh
-```
+# Port-forward the ArgoCD server
+sudo k3s kubectl port-forward svc/argocd-server -n argocd 8080:443 &
 
-This starts **KurrentDB**, **PostgreSQL**, and **pgAdmin**. The silo, projector-service, and frontend are commented out until their Docker images are built (later tasks).
+# Get the initial admin password
+sudo k3s kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+echo ""
 
-### Verify
-
-```bash
-./scripts/health-check.sh
-```
-
-You should see:
-
-| Service | URL | Expected |
-|---|---|---|
-| KurrentDB Dashboard | http://localhost:2113 | Web UI loads |
-| PostgreSQL | `localhost:5432` | Accepts connections |
-| pgAdmin | http://localhost:8081 | Login page (admin@velucid.dev / admin) |
-
-### Stop
-
-```bash
-./scripts/stop.sh
+# Open https://localhost:8080 — login with user "admin" and the password above
 ```
 
 ---
 
-## 2b. K3s Setup (Staging/Production or K8s Dev)
+## 5. Configure Secrets
 
-### Install K3s
+Before ArgoCD can deploy the full stack, update the secret files with your credentials:
 
-```bash
-# Linux / WSL2
-curl -sfL https://get.k3s.io | sh -
+### PostgreSQL
 
-# Verify
-sudo k3s kubectl get nodes
-# You should see one node in "Ready" state
-```
-
-> **Windows users:** K3s must be run inside WSL2. Install a WSL2 distro (Ubuntu recommended), then run the K3s install command inside WSL2.
-
-> **macOS users:** K3s does not run natively on macOS. Use a Linux VM (e.g., with Multipass or Lima) or use the Docker Compose workflow instead.
-
-### Configure kubectl (Optional)
-
-K3s includes its own `kubectl`. To use the system `kubectl`:
+The default dev credentials work for initial setup. For production, edit:
 
 ```bash
-# Copy K3s kubeconfig to the standard location
-sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
-sudo chown $USER:$USER ~/.kube/config
-
-# Verify
-kubectl get nodes
+nano infrastructure/k8s/secrets/velocit-postgresql-secret.yaml
+# Update the password, then:
+git add -A && git commit -m "chore: update postgresql secret" && git push
 ```
 
-### Container Images (ghcr.io — Automatic)
+### Auth0
 
-Application images are built automatically by **GitHub Actions** and pushed to GitHub Container Registry (`ghcr.io/lekhasy/vut/`). You do **not** need to build or import images manually — ArgoCD pulls them from the registry.
+```bash
+nano infrastructure/k8s/secrets/velocit-auth0-secret.yaml
+# Set your Auth0 tenant values:
+#   domain: velucid.us.auth0.com
+#   audience: https://velucid-api-prod
+#   client-id: <your-production-client-id>
+#   client-secret: <your-production-client-secret>
+git add -A && git commit -m "chore: update auth0 secret" && git push
+```
+
+### Resend (Email API)
+
+```bash
+nano infrastructure/k8s/secrets/velocit-resend-secret.yaml
+# Set: api-key: <your-resend-api-key>
+git add -A && git commit -m "chore: update resend secret" && git push
+```
+
+> **Note:** For true secret management, consider using [Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets) so encrypted secrets can live in git safely. For now, keep the repo private and use placeholder values in the committed manifests.
+
+---
+
+## 6. Container Images (Automatic via CI)
+
+Application images are built automatically by **GitHub Actions** and pushed to GitHub Container Registry:
 
 | Image | Registry Path |
 |-------|--------------|
@@ -125,9 +175,15 @@ Application images are built automatically by **GitHub Actions** and pushed to G
 | Frontend | `ghcr.io/lekhasy/vut/frontend:<commit-sha>` |
 | Projector Service | `ghcr.io/lekhasy/vut/projector-service:<commit-sha>` |
 
-> **Private repo?** If the repository is private, K3s needs a pull secret to access ghcr.io. Create one with:
+The CI pipeline:
+1. Builds Docker images on push to `main`
+2. Pushes to `ghcr.io/lekhasy/vut/`
+3. Updates the image tag in the K8s manifests (git commit)
+4. ArgoCD detects the manifest change and deploys the new image
+
+> **Private repo?** K3s needs a pull secret to access ghcr.io:
 > ```bash
-> kubectl create secret docker-registry ghcr-pull-secret \
+> sudo k3s kubectl create secret docker-registry ghcr-pull-secret \
 >   --namespace=velucid \
 >   --docker-server=ghcr.io \
 >   --docker-username=<github-username> \
@@ -135,119 +191,26 @@ Application images are built automatically by **GitHub Actions** and pushed to G
 > ```
 > Then add `imagePullSecrets: [{ name: ghcr-pull-secret }]` to each deployment.
 
-### Update Secrets
-
-Before deploying, update the secret files with your actual credentials:
-
-```bash
-cd infrastructure
-
-# 1. PostgreSQL secret (dev defaults are fine for local dev)
-# Edit k8s/secrets/velucid-postgresql-secret.yaml if needed
-
-# 2. Auth0 secret — replace placeholders with your Auth0 tenant values
-# Edit k8s/secrets/velucid-auth0-secret.yaml:
-#   domain: dev-velucid.us.auth0.com
-#   audience: https://velucid-api-dev
-#   client-id: <your-client-id>
-#   client-secret: <your-client-secret>
-```
-
-### Install ArgoCD
-
-ArgoCD watches the K8s manifests in git and auto-syncs changes to K3s. Install it once:
-
-```bash
-# Create namespace and install ArgoCD
-kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-
-# Wait for ArgoCD to be ready
-kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=120s
-
-# Apply the Velucid ArgoCD Application manifest
-cd infrastructure
-kubectl apply -f k8s/argocd/application.yaml
-```
-
-ArgoCD will now auto-sync all manifests from `infrastructure/k8s/` in the git repo. Any push to `main` that changes manifests will be deployed automatically.
-
-> **Access ArgoCD UI (optional):**
-> ```bash
-> kubectl port-forward svc/argocd-server -n argocd 8080:443 &
-> # Get initial admin password:
-> kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
-> # Open https://localhost:8080 — login with user "admin" and the password above
-> ```
-
-### Deploy All Manifests (Manual — First Time or Without ArgoCD)
-
-If ArgoCD is installed, deployment is automatic. For initial bootstrapping or manual deployment:
-
-```bash
-cd infrastructure
-./k8s/dev-setup.sh
-```
-
-The script will:
-1. Create the `velucid` namespace
-2. Apply secrets
-3. Deploy PostgreSQL and KurrentDB (waits for Ready)
-4. Deploy the silo, projector-service, and frontend
-5. Create Traefik ingress rules
-6. Attempt to deploy cloudflared (skips if credentials not configured)
-
-> **Note:** Once ArgoCD is running, you should not need `kubectl apply` manually — ArgoCD is the single source of truth.
-
-### Verify
-
-```bash
-kubectl get pods -n velucid
-# All pods should be Running
-
-kubectl get svc -n velucid
-# Lists all services and their ClusterIPs
-```
-
-Access services via port-forward:
-
-```bash
-kubectl port-forward -n velucid svc/velucid-kurrentdb 2113:2113 &
-# Open http://localhost:2113
-
-kubectl port-forward -n velucid svc/velucid-silo 5000:5000 &
-# API at http://localhost:5000
-
-kubectl port-forward -n velucid svc/velucid-frontend 3000:3000 &
-# Frontend at http://localhost:3000
-```
-
-### Teardown
-
-```bash
-kubectl delete namespace velucid
-```
-
 ---
 
-## 3. Cloudflare Tunnel Setup (Optional — Internet Access)
+## 7. Cloudflare Tunnel (Internet Access)
 
-This is only needed if you want the platform reachable from the internet at `velucid.app`. Skip this for purely local development.
+Cloudflare Tunnel exposes the platform at `velucid.app` without opening inbound ports.
 
 ### One-Time Setup
 
 ```bash
-# 1. Install cloudflared CLI
-#    https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
+# Install cloudflared
+# https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/
 
-# 2. Authenticate with your Cloudflare account
+# Authenticate with Cloudflare
 cloudflared tunnel login
 
-# 3. Create a tunnel named "velucid"
+# Create a tunnel
 cloudflared tunnel create velucid
-# This outputs a Tunnel ID and creates ~/.cloudflared/<TUNNEL_ID>.json
+# Note the Tunnel ID output
 
-# 4. Create DNS records pointing to the tunnel
+# Create DNS records
 cloudflared tunnel route dns velucid velucid.app
 cloudflared tunnel route dns velucid "*.velucid.app"
 ```
@@ -255,81 +218,144 @@ cloudflared tunnel route dns velucid "*.velucid.app"
 ### Configure K8s Manifests
 
 ```bash
-# 1. Get the tunnel ID from step 3
 TUNNEL_ID="<your-tunnel-id>"
 
-# 2. Base64-encode the credentials file
+# Base64-encode the credentials
 cat ~/.cloudflared/${TUNNEL_ID}.json | base64
 
-# 3. Edit k8s/cloudflared/secret.yaml
-#    Replace <BASE64_TUNNEL_CREDENTIALS_JSON> with the base64 value
+# Edit the secret and configmap
+nano infrastructure/k8s/cloudflared/secret.yaml
+# Replace <BASE64_TUNNEL_CREDENTIALS_JSON> with the base64 value
 
-# 4. Edit k8s/cloudflared/configmap.yaml
-#    Replace <TUNNEL_ID> with your actual tunnel ID
+nano infrastructure/k8s/cloudflared/configmap.yaml
+# Replace <TUNNEL_ID> with your actual tunnel ID
 
-# 5. Apply
-kubectl apply -f k8s/cloudflared/
+# Commit and push — ArgoCD will deploy automatically
+git add -A && git commit -m "chore: configure cloudflare tunnel" && git push
 ```
 
-### Verify
-
-```bash
-kubectl logs -n velucid -l app.kubernetes.io/name=cloudflared
-# Should show "Connection registered" and "Registered tunnel connection"
-```
-
-Traffic flow: `Internet → velucid.app (Cloudflare DNS) → Cloudflare Edge → cloudflared pod → Traefik → services`
+Traffic flow: `Internet → velucid.app → Cloudflare Edge → cloudflared pod → Traefik → services`
 
 ---
 
-## 4. Auth0 Setup
+## 8. Verify the Stack
 
-Auth0 is used for authentication. A separate guide exists at `docs/auth0-setup.md`.
+```bash
+# Check all pods
+sudo k3s kubectl get pods -n velucid
+# All pods should be Running
 
-Quick summary:
-1. Create a free Auth0 tenant at https://auth0.com
-2. Create an API (`https://velucid-api-dev`) and a Regular Web Application
-3. Set the callback URLs to `http://localhost:3000/auth/callback` (Docker Compose) or `https://velucid.app/auth/callback` (Cloudflare Tunnel)
-4. Copy the Domain, Client ID, and Client Secret into `.env.dev` (Compose) or `k8s/secrets/velucid-auth0-secret.yaml` (K3s)
+# Check services
+sudo k3s kubectl get svc -n velucid
+
+# Check ArgoCD sync status
+sudo k3s kubectl get applications -n argocd
+# STATUS should be "Synced" and HEALTH "Healthy"
+```
+
+### Access points
+
+| Access Method | URL |
+|---|---|
+| Cloudflare Tunnel | https://velucid.app |
+| Port-forward (Frontend) | `sudo k3s kubectl port-forward -n velucid svc/velucid-frontend 3000:3000` |
+| Port-forward (API) | `sudo k3s kubectl port-forward -n velucid svc/velucid-silo 5000:5000` |
+| Port-forward (KurrentDB) | `sudo k3s kubectl port-forward -n velucid svc/velucid-kurrentdb 2113:2113` |
+
+---
+
+## 9. After WSL Restart
+
+K3s is a systemd service and restarts automatically with WSL. However, if pods are slow to recover or you want to verify everything is up, run:
+
+```bash
+cd Vut/infrastructure
+./scripts/k3s-start.sh
+```
+
+This single script:
+1. Ensures K3s is running
+2. Waits for the API server
+3. Verifies ArgoCD is operational
+4. Waits for all Velucid pods to be healthy
+5. Shows status and access points
+
+> **Tip:** Add it to your `.bashrc` to run automatically on WSL start:
+> ```bash
+> echo '~/Vut/infrastructure/scripts/k3s-start.sh' >> ~/.bashrc
+> ```
+
+---
+
+## Troubleshooting
+
+### K3s won't start
+
+```bash
+sudo journalctl -u k3s -n 50 --no-pager
+# Common issue: port 6443 already in use from a previous run
+sudo systemctl restart k3s
+```
+
+### Pods stuck in Pending
+
+```bash
+sudo k3s kubectl describe node
+# Check if memory/CPU pressure is reported. Reduce resource limits in manifests if needed.
+```
+
+### ImagePullBackOff
+
+```bash
+sudo k3s kubectl describe pod -n velucid <pod-name>
+# If ghcr.io access is denied, create the pull secret (see Section 6)
+```
+
+### CrashLoopBackOff
+
+```bash
+sudo k3s kubectl logs -n velucid <pod-name> --previous
+# Common: secrets not applied before deployments. ArgoCD should handle ordering,
+# but check that all secrets exist:
+sudo k3s kubectl get secrets -n velucid
+```
+
+### ArgoCD not syncing
+
+```bash
+sudo k3s kubectl get applications -n argocd
+# If status is "OutOfSync", force a sync:
+sudo k3s kubectl patch application velucid -n argocd --type merge -p '{"operation":{"sync":{"prune":true}}}'
+```
+
+### Cloudflare Tunnel not connecting
+
+```bash
+sudo k3s kubectl logs -n velucid -l app.kubernetes.io/name=cloudflared
+# Verify credentials match the tunnel ID in the configmap
+```
 
 ---
 
 ## Quick Reference
 
-### Docker Compose Commands
-
 ```bash
-cd infrastructure
-./scripts/start.sh          # Start dev environment
-./scripts/stop.sh           # Stop (preserves data)
-./scripts/health-check.sh   # Verify all services
-docker compose logs -f silo  # Tail silo logs
-docker compose down -v       # Stop + delete all data
-```
+# Start everything after WSL restart
+./scripts/k3s-start.sh
 
-### K3s Commands
+# Check pod status
+sudo k3s kubectl get pods -n velucid
 
-```bash
-./k8s/dev-setup.sh                      # Deploy everything
-./k8s/dev-setup.sh --cleanup            # Wipe and redeploy
-kubectl get pods -n velucid                  # Pod status
-kubectl logs -f -n velucid -l app.kubernetes.io/component=backend   # Silo logs
-kubectl logs -f -n velucid -l app.kubernetes.io/component=projector # Projector logs
-kubectl delete namespace velucid             # Teardown
-```
+# Tail logs
+sudo k3s kubectl logs -f -n velucid -l app.kubernetes.io/component=frontend
+sudo k3s kubectl logs -f -n velucid -l app.kubernetes.io/component=backend
 
-### Rebuilding After Code Changes
+# Force ArgoCD re-sync
+sudo k3s kubectl patch application velucid -n argocd --type merge -p '{"operation":{"sync":{"prune":true}}}'
 
-```bash
-# Docker Compose (local dev — builds from source)
-docker compose up -d --build silo projector-service frontend
+# Restart a specific deployment
+sudo k3s kubectl rollout restart deployment/velucid-frontend -n velucid
 
-# K3s with ArgoCD (automatic — just push to main)
-git add . && git commit -m "feat: my changes" && git push origin main
-# GitHub Actions builds new images → updates K8s manifests → ArgoCD deploys
-
-# K3s manual (without ArgoCD, or for testing local image changes)
-docker build -t ghcr.io/lekhasy/vut/silo:local ./backend/src/Velucid.Silo
-docker save ghcr.io/lekhasy/vut/silo:local | sudo k3s ctr images import -
-kubectl set image deployment/velucid-silo -n velucid silo=ghcr.io/lekhasy/vut/silo:local
+# Full teardown (WARNING: deletes everything)
+sudo k3s kubectl delete namespace velucid
 ```

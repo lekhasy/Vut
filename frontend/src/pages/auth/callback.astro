@@ -1,25 +1,139 @@
 ---
-import AuthLayout from '../../layouts/AuthLayout.astro';
+import { exchangeCodeForTokens } from '@/lib/auth/auth0';
+import { validateIdToken } from '@/lib/auth/jwt';
+import {
+  encrypt,
+  buildSessionCookieHeader,
+  type SessionPayload,
+} from '@/lib/auth/session';
+
+const url = Astro.url;
+const code = url.searchParams.get('code');
+const state = url.searchParams.get('state');
+const error = url.searchParams.get('error');
+
+// Auth0 returned an error
+if (error) {
+  console.error('Auth0 error:', error, url.searchParams.get('error_description'));
+  return Astro.redirect('/auth/login', 302);
+}
+
+// Missing required parameters
+if (!code || !state) {
+  return Astro.redirect('/auth/login', 302);
+}
+
+// Validate state against cookie
+const storedState = Astro.cookies.get('oauth_state')?.value;
+Astro.cookies.delete('oauth_state', { path: '/' });
+
+if (!storedState || storedState !== state) {
+  console.error('OAuth state mismatch');
+  return Astro.redirect('/auth/login', 302);
+}
+
+try {
+  // Exchange code for tokens
+  const tokens = await exchangeCodeForTokens(code);
+
+  // Validate ID token JWT
+  const claims = await validateIdToken(tokens.id_token);
+
+  // Extract user info from claims
+  const providerId = claims.sub;
+  const providerName = providerId.split('|')[0];
+  const displayName = claims.name ?? claims.nickname ?? 'User';
+  const avatarUrl = claims.picture ?? '';
+  const email = claims.email ?? null;
+
+  const siloApiUrl = import.meta.env.SILO_API_URL;
+
+  // Look up user by providerId
+  let userId: string | null = null;
+  let isEmailVerified = false;
+
+  const lookupRes = await fetch(
+    `${siloApiUrl}/api/users/by-provider/${encodeURIComponent(providerId)}`,
+  );
+
+  if (lookupRes.ok) {
+    // Existing user found
+    const userData = await lookupRes.json();
+    userId = userData.userId;
+    isEmailVerified = userData.isEmailVerified ?? false;
+  } else if (lookupRes.status === 404) {
+    // User not found — try auto-linking by email or create new user
+    if (email) {
+      const emailLookupRes = await fetch(
+        `${siloApiUrl}/api/users/by-email/${encodeURIComponent(email)}`,
+      );
+
+      if (emailLookupRes.ok) {
+        // Existing user found by email — link the new identity
+        const existingUser = await emailLookupRes.json();
+        userId = existingUser.userId;
+        isEmailVerified = existingUser.isEmailVerified ?? false;
+
+        await fetch(`${siloApiUrl}/api/users/${userId}/link-identity`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ providerId, providerName, email }),
+        });
+      }
+    }
+
+    if (!userId) {
+      // Truly new user — create
+      const createRes = await fetch(`${siloApiUrl}/api/users/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          providerId,
+          providerName,
+          displayName,
+          avatarUrl,
+          email,
+        }),
+      });
+
+      if (!createRes.ok) {
+        const errBody = await createRes.text();
+        throw new Error(`User creation failed (${createRes.status}): ${errBody}`);
+      }
+
+      const created = await createRes.json();
+      userId = created.userId;
+      isEmailVerified = false;
+    }
+  } else {
+    throw new Error(`User lookup failed (${lookupRes.status})`);
+  }
+
+  // Build session payload and set encrypted cookie
+  const sessionPayload: SessionPayload = {
+    userId: userId!,
+    providerId,
+    displayName,
+    avatarUrl,
+    isEmailVerified,
+    iat: Math.floor(Date.now() / 1000),
+  };
+
+  const encryptedSession = encrypt(sessionPayload);
+  const cookieHeader = buildSessionCookieHeader(encryptedSession);
+
+  // Redirect based on email verification status
+  const redirectTo = isEmailVerified ? '/dashboard' : '/verify-email';
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: redirectTo,
+      'Set-Cookie': cookieHeader,
+    },
+  });
+} catch (err) {
+  console.error('Auth callback error:', err);
+  return Astro.redirect('/auth/login', 302);
+}
 ---
-
-<AuthLayout title="Signing in…">
-  <div class="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-sm text-center">
-    <div class="mb-4">
-      <svg class="mx-auto h-8 w-8 animate-spin text-brand-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-      </svg>
-    </div>
-    <p class="text-sm text-[var(--color-text-secondary)]">
-      Completing sign in…
-    </p>
-  </div>
-</AuthLayout>
-
-<script>
-  // In production this would handle the OAuth callback.
-  // For now, redirect to dashboard after a short delay.
-  setTimeout(() => {
-    window.location.href = '/dashboard';
-  }, 2000);
-</script>

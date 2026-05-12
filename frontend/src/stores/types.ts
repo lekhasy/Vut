@@ -3,6 +3,8 @@ export interface User {
   providerId: string;
   displayName: string;
   avatarUrl: string;
+  email?: string;
+  isEmailVerified: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

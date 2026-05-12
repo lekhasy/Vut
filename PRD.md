@@ -8,9 +8,9 @@ Project management tools are built on time-centric estimation: story points, spr
 
 ### Product Vision
 
-Velucid is a **#noestimate project management platform** -- a multi-tenant SaaS product where work is tracked by flow, not by time. There are no story points, no sprints, no velocity, and no time tracking. Instead, Velucid provides a single, powerful signal: **a cumulative flow diagram that shows how work flows through your process and projects when it will be done.** Everything else -- the backlog, the kanban board, the tags -- exists to make that signal accurate.
+Velucid is a **#noestimate project management platform** -- a multi-tenant SaaS product where work is tracked by flow, not by time. There are no story points, no sprints, no velocity, and no time tracking. Instead, Velucid provides a single, powerful signal: **a probabilistic forecast that shows when your work will be done — not as a single date, but as an honest probability distribution derived from Monte Carlo simulation.** Everything else -- the backlog, the kanban board, the tags -- exists to make that signal accurate.
 
-The philosophy is simple: count work, track status transitions, let the data speak. No guessing, no rituals, no theater.
+The philosophy is simple: count work, track status transitions, model the uncertainty honestly, let the data speak. No guessing, no rituals, no theater. Never display a single completion date — every forecast is a probability curve.
 
 ### Target Users
 
@@ -28,8 +28,8 @@ The philosophy is simple: count work, track status transitions, let the data spe
 3. 60%+ of new signups create at least 1 product and move at least 5 tasks within their first 7 days (activation rate).
 
 **Core Value Delivery:**
-4. The cumulative flow diagram produces a projected completion date within the first 2 weeks of use (requires enough data points from status transitions).
-5. 50%+ of active products have at least one weekly view of the cumulative flow diagram (report adoption).
+4. The probabilistic forecast produces confidence-based completion dates (50%, 70%, 95%) within the first 2 weeks of use (requires at least 7 days of status transition data).
+5. 50%+ of active products have at least one weekly view of the probabilistic forecast (report adoption).
 
 **Retention & Engagement:**
 6. 70%+ weekly active team rate at 30 days post-signup (team retention).
@@ -46,9 +46,9 @@ The philosophy is simple: count work, track status transitions, let the data spe
 ### Goals
 
 - Provide a fast, opinionated task management tool with a #noestimate philosophy baked in.
-- Deliver a single report -- the cumulative flow diagram with projected completion date -- that replaces the need for velocity charts, burn-downs, and story points.
+- Deliver a single report -- a probabilistic forecast powered by Monte Carlo simulation -- that replaces the need for velocity charts, burn-downs, and story points. Every forecast is expressed as a probability distribution, never a single date.
 - Support multi-tenant, multi-org usage via GitHub SSO, following GitHub's organization model.
-- Build on an event-sourced architecture so that all state changes are auditable, replayable, and suitable for the analytical needs of the cumulative flow report.
+- Build on an event-sourced architecture so that all state changes are auditable, replayable, and suitable for the analytical needs of the probabilistic forecast.
 - **Self-hostable on developer machines:** The entire stack (frontend, backend, event store, read model, messaging) must be hostable on the team's own machines with no dependency on any cloud provider. This is a cost constraint -- the team must be able to develop, demo, and run Velucid without paying for cloud infrastructure. Availability and redundancy details are left to the architecture.
 - Ship an MVP that is immediately useful for a single team managing a product backlog and kanban board.
 
@@ -59,7 +59,7 @@ The philosophy is simple: count work, track status transitions, let the data spe
 - **No sprints or iterations** -- no time-boxed planning cycles, no sprint boards, no retrospectives tied to time periods.
 - **No velocity metrics** -- no calculated velocity, no trend lines based on throughput-per-sprint.
 - **No Gantt charts** -- no dependency mapping, no critical path, no timeline views.
-- **No multiple report types** -- the cumulative flow diagram is the only report for MVP.
+- **No multiple report types** -- the probabilistic forecast (with its S-curve and progress views) is the only report for MVP.
 - **No custom fields** -- tags and status cover categorization needs; no arbitrary field builder.
 - **No email/password authentication** -- Third-party identity provider only (GitHub SSO for MVP).
 - **No cloud provider dependency** -- the platform must be self-hostable on the team's own machines. No AWS, Azure, GCP, or any managed cloud service is required to run Velucid. Cloud deployment is a future option, not a requirement.
@@ -75,7 +75,7 @@ The philosophy is simple: count work, track status transitions, let the data spe
 
 - Creates or joins an organization, sets up products, invites team members.
 - Configures statuses and tags for the team's workflow.
-- Relies on the cumulative flow diagram to communicate progress to stakeholders and answer "when will it be done?"
+- Relies on the probabilistic forecast to communicate progress to stakeholders and answer "what are the chances we'll be done by date X?" — using probability distributions, not single dates.
 - Wants minimal ceremony -- no estimation meetings, no sprint planning rituals.
 
 ### Developer / Team Member
@@ -201,9 +201,9 @@ Organization > Product > Task
 
 **Task Deletion:**
 - Tasks can be deleted by any member of the product's organization.
-- Deletion is a soft delete: a `TaskDeleted` event is recorded, and the task is excluded from the backlog, kanban board, and cumulative flow diagram going forward.
+- Deletion is a soft delete: a `TaskDeleted` event is recorded, and the task is excluded from the backlog, kanban board, and forecast going forward.
 - Deleted tasks are NOT purged from the event store -- their history is preserved for auditability.
-- Deleted tasks no longer count toward the cumulative flow diagram's projected completion date.
+- Deleted tasks no longer count toward the forecast's probability distribution.
 - Deletion is irreversible in MVP (no "undelete" feature).
 
 **Task Events (minimum set for MVP):**
@@ -219,7 +219,7 @@ Organization > Product > Task
 
 **Status Transitions:**
 - A task's status can be changed to any other status defined for the product. There are no enforced transition rules in MVP (any status to any status).
-- Every status change is an event, which feeds the cumulative flow diagram.
+- Every status change is an event, which feeds the probabilistic forecast.
 
 **Acceptance Criteria:**
 - A user can create a task in any product they have access to.
@@ -241,7 +241,7 @@ Organization > Product > Task
 - Tags are free-form -- users type them in, and they are stored as-is.
 - Tags are defined at the product level. When a user types a tag, autocomplete suggests previously used tags in that product.
 - Tags are NOT a separate entity -- they are strings attached to task events.
-- Tags are used for filtering in the backlog and kanban views, and for filtering what's included in the cumulative flow report.
+- Tags are used for filtering in the backlog and kanban views, and for filtering what's included in the forecast report.
 
 **Acceptance Criteria:**
 - A user can add a tag `area:frontend` to a task, and it is stored exactly as that string.
@@ -298,43 +298,131 @@ Organization > Product > Task
 
 ---
 
-### 4.8 Cumulative Flow Diagram
+### 4.8 Probabilistic Forecasting
 
 **The Core Report**
 
-This is the primary -- and only -- report in Velucid. It visualizes how work flows through the process over time and projects a completion date.
+This is the primary -- and only -- report in Velucid. It replaces traditional cumulative flow diagrams and single-date projections with an honest, probability-based forecasting system powered by Monte Carlo simulation. The core principle: **never display a single completion date anywhere in the UI. Every forecast must be expressed as a probability or a confidence range.**
 
-**What It Shows:**
-- An area/stacked chart where each colored band represents a status.
-- The X-axis is time (days/weeks).
-- The Y-axis is count of tasks.
-- Each band shows how many tasks were in that status on a given day.
-- The total height of the chart at any point represents the total number of tasks.
+> See `docs/velucid_forecasting_spec.md` for the full technical specification, including the Monte Carlo algorithm, data model, and detailed UI specification.
 
-**Projected Completion Date:**
-- The chart must clearly indicate the projected completion date -- the date when all tasks are expected to reach the final status (e.g., "Done").
-- Projection method: use the historical rate of tasks reaching the final status (throughput) to estimate when remaining tasks will complete. This is derived purely from status transition events -- no estimates, no story points.
-- The projected date is displayed as a vertical line or annotation on the chart, with a clear label.
-- The projection should include a confidence indicator (e.g., range rather than a single date).
+**Why Not a Traditional Cumulative Flow Diagram:**
 
-**Accessibility:**
-- All members of the product (all org members with access to the product) can view the chart.
-- The chart is read-only -- it is a visualization, not interactive editing.
+A traditional CFD shows bands for each kanban column (backlog → in progress → review → done). While useful for visualizing flow, it does not honestly communicate forecast uncertainty. A single regression line implies false precision. In reality, two sources of variance make any single date misleading:
+
+- **Throughput variance** — the rate at which the team completes tasks changes day to day due to interruptions, complexity, team changes, and morale.
+- **Scope variance** — the total number of tasks is not fixed. Scope grows as discovery happens, requirements are clarified, and stakeholders add work.
+
+Velucid addresses both by running thousands of Monte Carlo simulations, each sampling a plausible future, and building a distribution of outcomes.
+
+**Data Model — Two Lines, Not Status Bands:**
+
+The forecast requires only two time series. No story points, no hour estimates, no complexity scores:
+
+- **Completed count** — a cumulative count of tasks marked done, sampled daily. This is the only throughput signal.
+- **Scope count** — a cumulative count of all tasks that exist in the project at each sample point (done + not done). This is not a fixed number — it grows.
+
+The project completes when `completed[t] >= scope[t]`. This intersection is what all forecasting targets — not a date you type in.
+
+**Monte Carlo Simulation:**
+
+- Run 10,000 simulations, each re-sampling daily throughput and scope growth from historical distributions.
+- Per-day re-sampling (not static) produces realistic path simulations where day-to-day variance naturally averages out while still capturing tail risk.
+- Build a cumulative distribution function (CDF) from the results. Each percentile point answers: "by day X, what fraction of simulations had finished?"
+- Minimum viable history: 7 days. Below 7 days, show a "gathering data" state. Use truncated normal distribution when history is between 7–10 days; empirical sampling when ≥10 days.
+- Use a 14-day rolling window for computing throughput and scope growth samples (user-adjustable: 7, 14, 30 days).
+- Mark non-working days (weekends, holidays) via a project-level "working days" setting (default: Mon–Fri) and exclude them from sampling distributions.
+
+**Stat Cards:**
+
+Above the chart, show three stat cards — the headline numbers users read first:
+
+- **50% date** — labeled "50/50 estimate" in muted text.
+- **70% date** — labeled "Planning date" and highlighted. This is the recommended date for stakeholder communication.
+- **95% date** — labeled "95% likely by" in muted text.
+
+Never label any date as "the completion date" without a confidence qualifier. "Done by Jun 28" is forbidden. "70% confidence: Jun 28" is correct.
+
+**Threshold Slider:**
+
+A slider (default 70%, range 50–99%) always visible alongside the stat cards. Adjusting it updates all stat card dates, the S-curve crosshair, and the confidence date line on the progress chart.
+
+**Never-Finish Indicator:**
+
+If any simulations resulted in never-finish (scope grows faster than throughput), show a fourth stat card:
+
+- **< 20%**: Show the percentage in muted text.
+- **20–50%**: Amber warning. *"X% of forecasts never finish — consider reducing scope or increasing team capacity."*
+- **> 50%**: Red alert. *"X% of forecasts never finish — scope is growing faster than work is completing. Review and reduce active scope."*
+
+**Primary View — Forecast Chart (S-Curve):**
+
+The primary view is the probability S-curve. It directly answers: "what date has X% confidence?"
+
+- X-axis: calendar dates (today to p95 date).
+- Left Y-axis: cumulative probability (0–100%).
+- Right Y-axis: probability density (histogram bars behind the curve).
+- S-curve line in blue (#378ADD).
+- Threshold line in amber (#EF9F27) with crosshair showing the exact date.
+- Region to the left of the threshold filled in pale amber.
+
+**Secondary View — Progress & Forecast Chart (Dual-Cone):**
+
+Shows historical progress and projected cones — the detailed "why" behind the forecast:
+
+- **Scope line** (solid gray): historical scope growth up to today.
+- **Completed line** (solid blue): historical completed count with light fill below.
+- **Scope cone** (dashed gray bands): p10–p90 of scope growth projections.
+- **Completed cone** (dashed blue bands): p10–p90 of throughput projections.
+- **Intersection region** (amber, ~35% opacity): the overlap zone where the cones meet — the visual answer to "when will this finish?"
+- **Confidence date line**: vertical solid amber at the date corresponding to the slider setting.
+- **Today marker**: vertical dashed line where history ends and forecast begins.
+- X-axis: calendar dates. Y-axis: task count (cumulative). No story points, no hours.
+
+> **This is NOT a traditional Cumulative Flow Diagram.** A traditional CFD shows bands for each kanban column. This chart shows only two lines (completed + scope), so calling it a "CFD" would create incorrect expectations. It is a "Progress & Forecast chart."
+
+**Forecast Spread as Health Signal:**
+
+The spread between p50 and p95 dates is a direct proxy for project health:
+
+- **< 3 weeks span**: "High predictability" label. Team is consistent, scope is stable.
+- **3–8 weeks span**: Normal state. No label.
+- **8+ weeks span**: "High uncertainty" label. Throughput is erratic, scope is growing fast, or both.
+- **No convergence** (cones never intersect): Red warning. "At current rates, this project has no projected completion."
+
+**Hover Tooltips:**
+
+On the progress & forecast chart: completed tasks, scope, WIP gap, and probability of completion (future dates). On the forecast chart: probability of completion and corresponding confidence date.
+
+**No Deadline Field:**
+
+Velucid does not have a "deadline" or "due date" field on projects. Users can add a vertical "target marker" reference line on either chart, which shows the probability of completion by that date as a label. This makes the question honest: not "will we hit the deadline" but "what are our chances of hitting this target."
 
 **Tag-Based Filtering:**
-- Users can select which tags to include in the report (e.g., show only tasks tagged `team:backend`).
-- This allows sub-reports without needing separate report types.
-- When tags are filtered, the projection recalculates based on the filtered subset.
 
-**Data Source:**
-- The chart is built entirely from `TaskStatusChanged` events in the event store.
-- The read model maintains a daily snapshot of task counts per status for efficient querying.
+- Users can select which tags to include in the report (e.g., show only tasks tagged `team:backend`).
+- When tags are filtered, the forecast recalculates based on the filtered subset.
+
+**Accessibility:**
+
+- All members of the product can view the forecast.
+- The forecast is read-only.
+- Color contrast between chart elements meets WCAG 2.1 AA guidelines.
 
 **Acceptance Criteria:**
-- The chart renders correctly with at least 1 day of data.
-- The projected completion date appears as a clear visual element on the chart.
-- Filtering by tags updates the chart and projection in real-time.
-- All product members can access the chart from the product navigation.
+
+- The forecast view is accessible via a "Forecast" tab (or navigation item) within each product, alongside Backlog and Kanban Board.
+- Three stat cards display 50%, 70%, and 95% confidence dates, all with explicit confidence labels.
+- The threshold slider (50–99%, default 70%) updates all stat cards and chart elements instantly without re-running simulations.
+- A never-finish indicator appears as a fourth stat card when any simulations fail to converge, with severity-appropriate styling.
+- The primary view (S-curve) renders the CDF with probability on the Y-axis and dates on the X-axis.
+- The secondary view (progress & forecast) renders historical completed and scope lines with projected cones and an intersection region.
+- The forecast is based on Monte Carlo simulation (10,000 runs) using observed throughput and scope growth — no estimates, no story points.
+- A "gathering data" state is shown when fewer than 7 days of history exist. No forecast is displayed.
+- Tag-based filtering recalculates the forecast for the filtered subset in real time (under 2 seconds).
+- Forecast spread health signal is displayed alongside stat cards.
+- All product members can view the forecast; it is read-only.
+- No single date is ever displayed without a confidence qualifier.
 
 ---
 
@@ -342,7 +430,7 @@ This is the primary -- and only -- report in Velucid. It visualizes how work flo
 
 The following architectural decisions are **product-level constraints** that shape how Velucid behaves. Detailed technical design (event schemas, infrastructure, projections) is documented separately in `architecture.md`.
 
-- **Event-sourced by design:** All state changes (tasks, products, organizations, users) are recorded as immutable events. This is not an implementation detail -- it is a product feature. It enables full auditability, the cumulative flow diagram's historical accuracy, and the ability to rebuild any view from the event history.
+- **Event-sourced by design:** All state changes (tasks, products, organizations, users) are recorded as immutable events. This is not an implementation detail -- it is a product feature. It enables full auditability, the forecast's historical accuracy, and the ability to rebuild any view from the event history.
 - **Self-hostable on developer machines:** The entire stack must be hostable on the team's own machines with no cloud provider or managed service required. This keeps operating costs at zero during development and early adoption. Deployment topology and availability details are defined in `architecture.md`.
 - **Every event captures who and when:** All events must include the actor who triggered it and a UTC timestamp. No exceptions.
 - **Eventual consistency:** The read model (used for backlog, kanban, and reports) is derived from the event stream and may lag slightly behind writes. The product uses optimistic UI updates to mask this delay.
@@ -404,13 +492,17 @@ The following architectural decisions are **product-level constraints** that sha
 4. "Frontend Tasks" appears in the saved views list.
 5. User clears the filter, then clicks "Frontend Tasks" to re-apply it instantly.
 
-### 6.5 Viewing the Cumulative Flow Diagram
+### 6.5 Viewing the Probabilistic Forecast
 
-1. User navigates to a product's report view.
-2. The cumulative flow diagram displays task counts per status over time.
-3. A projected completion date is shown as a vertical line on the chart.
-4. User applies a tag filter (e.g., `team:backend`) to see the projection for a subset of work.
-5. The chart and projection update to reflect the filtered data.
+1. User navigates to a product's Forecast tab.
+2. Three stat cards display: "50/50 estimate," "Planning date" (70% confidence, highlighted), and "95% likely by."
+3. The primary view shows the S-curve (probability CDF) — the user can immediately see what date has their desired confidence level.
+4. The user adjusts the threshold slider from 70% to 85%. All stat card dates update instantly; the S-curve crosshair moves to the new date.
+5. The user switches to the secondary view (Progress & Forecast) to see historical completed and scope lines with projected cones fanning into the future.
+6. The intersection region (amber) shows the probable completion window.
+7. User applies a tag filter (e.g., `team:backend`) to see the forecast for a subset of work.
+8. The forecast recalculates: stat cards, S-curve, and cones all update to reflect the filtered data.
+9. If a never-finish indicator is present (e.g., "12% of forecasts never finish"), the user sees it as a fourth stat card.
 
 ### 6.6 Inviting a Team Member
 
@@ -430,7 +522,7 @@ The following architectural decisions are **product-level constraints** that sha
 
 - **Fast and minimal:** The UI should feel instant. No loading spinners for routine interactions. Optimistic updates where possible.
 - **Opinionated but flexible:** Velucid has strong opinions about workflow (no time tracking, status-driven flow), but is flexible about categorization (free-form tags).
-- **Data over ceremony:** The cumulative flow diagram is the hero element. Every other UI element exists to make the data in that chart accurate.
+- **Data over ceremony:** The probabilistic forecast is the hero element. Every other UI element exists to make the data in that forecast accurate.
 
 ### 7.2 Platform
 
@@ -442,7 +534,7 @@ The following architectural decisions are **product-level constraints** that sha
 - **Sidebar navigation:** Organization selector at the top, product list below.
 - **Backlog as default landing page** for a product, since it shows everything.
 - **Kanban board** accessible via tab or navigation change within the product.
-- **Report** accessible via tab or navigation -- always one click away.
+- **Forecast** accessible via tab or navigation -- always one click away.
 - **Toast notifications** for async operations (e.g., "Task created", "Member invited").
 - **Drag-and-drop** for kanban card movement.
 - **Inline editing** for task title, description, and tags (no modal for quick edits).
@@ -451,7 +543,7 @@ The following architectural decisions are **product-level constraints** that sha
 
 - Keyboard-navigable kanban board (arrow keys to move between cards, Enter to open).
 - Semantic HTML and ARIA labels for screen readers.
-- Sufficient color contrast for status bands in the cumulative flow diagram.
+- Sufficient color contrast for forecast chart elements (S-curve, cones, stat cards, intersection region).
 
 ---
 
@@ -459,7 +551,7 @@ The following architectural decisions are **product-level constraints** that sha
 
 ### Phase 1: Foundation (MVP)
 
-**Goal:** A single team can manage a product with a backlog, kanban board, and cumulative flow diagram.
+**Goal:** A single team can manage a product with a backlog, kanban board, and probabilistic forecast.
 
 **Deliverables:**
 - Identity provider integration (Auth0 with GitHub SSO for MVP)
@@ -471,7 +563,8 @@ The following architectural decisions are **product-level constraints** that sha
 - Backlog view with filtering and sorting
 - Kanban board with drag-and-drop status changes
 - Saved filters/views on the kanban board
-- Cumulative flow diagram with projected completion date
+- Probabilistic forecast with Monte Carlo simulation (S-curve and progress & forecast views)
+- Forecast stat cards, threshold slider, and never-finish detection
 - Tag-based filtering on the report
 - Self-hosted deployment setup for the team's own machines (no cloud dependency)
 
@@ -504,9 +597,9 @@ The following architectural decisions are **product-level constraints** that sha
 
 ## 9. Open Questions
 
-1. **Projection confidence model:** The exact statistical model for the projected completion date (e.g., linear regression on throughput, Monte Carlo simulation) needs to be selected during implementation.
+1. ~~**Projection confidence model:**~~ **RESOLVED.** Monte Carlo simulation (10,000 runs) has been selected as the forecasting method. It models both throughput variance and scope variance simultaneously, producing a full probability distribution. See `docs/velucid_forecasting_spec.md` for the complete specification.
 2. **Tag namespace registry:** Should tags be strictly validated against known namespaces, or is any `namespace:value` string accepted? The PRD assumes free-form, but a registry would enable better autocomplete and consistency.
-3. **Minimum data threshold for projections:** How many data points (days of status transitions) are needed before the cumulative flow diagram shows a projected completion date? Too few data points produce misleading projections.
+3. ~~**Minimum data threshold for projections:**~~ **RESOLVED.** Minimum 7 days of status transition history required before displaying a forecast. Below 7 days, show a "gathering data" state. Use truncated normal distribution for 7–10 days of history; empirical sampling for ≥10 days. See `docs/velucid_forecasting_spec.md`.
 4. **Email change flow:** Should users be able to change their verified email after the initial verification? If so, what's the flow (re-verify, cool-down period, notification to org owners)?
 
 > **Technical open questions** (component library selection, projection recalculation strategy, organization deletion semantics) have been moved to `architecture.md`.
@@ -524,7 +617,7 @@ The following architectural decisions are **product-level constraints** that sha
 
 - **#noestimate movement:** The product philosophy is rooted in the #noestimate movement, which challenges the value of time-based estimation in software development.
 - **GitHub organization model:** Multi-tenancy, roles, and org membership follow GitHub's established pattern.
-- **Kanban method:** The cumulative flow diagram is a core Kanban metric. Velucid adopts this without adopting the full Kanban method's prescriptive elements.
+- **Kanban method & probabilistic forecasting:** Velucid's forecast system is inspired by the Kanban method's flow metrics and advances beyond the traditional Cumulative Flow Diagram. By modeling both throughput and scope uncertainty via Monte Carlo simulation, it produces honest probability distributions instead of misleading single dates. See `docs/velucid_forecasting_spec.md`.
 - **Event sourcing:** The architecture follows event-sourcing principles as described by Martin Fowler and implemented in systems like KurrentDB.
 
 ### Key Terminology
@@ -538,5 +631,11 @@ The following architectural decisions are **product-level constraints** that sha
 | Tag | A namespaced label (`namespace:value`) for flexible categorization. |
 | Backlog | A list view of all tasks in a product. |
 | Kanban Board | A column-based view of tasks, excluding tasks in the backlog-only status (the first status in the product's status list). |
-| Cumulative Flow Diagram | A stacked area chart showing task counts per status over time, with a projected completion date. |
+| Probabilistic Forecast | The core report: a Monte Carlo-based forecasting system that shows probability distributions of completion dates, not single dates. Includes an S-curve (CDF), stat cards, and a progress & forecast chart with dual cones. |
+| Monte Carlo Simulation | A simulation technique that runs 10,000 random samples to build a probability distribution, modeling both throughput and scope growth uncertainty. |
+| S-Curve (CDF) | Cumulative Distribution Function. The primary forecast view mapping each date to the probability that the project finishes by that date. |
+| Never-Finish % | The fraction of Monte Carlo simulations where scope grew faster than throughput and the project never completed. A critical health metric. |
+| Scope Cone | The projected fan of scope growth into the future, based on historical scope growth variance. |
+| Completed Cone | The projected fan of completed tasks into the future, based on historical throughput variance. |
+| Intersection Region | The zone where the completed cone and scope cone overlap. Represents the probable window of project completion. |
 | Event Stream | An append-only log of events that represents the history of an entity. |

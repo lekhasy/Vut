@@ -33,7 +33,7 @@ Build the public-facing landing page (marketing page) and the authenticated dash
   - Brief value proposition: 2-3 bullet points about what Velucid does differently.
 - Features section (brief):
   - Kanban board (no sprints, no velocity).
-  - Cumulative flow diagram (know when work will be done).
+  - Probabilistic forecast (know when work will be done — with honest probabilities, not single dates).
   - Tags (flexible categorization without estimates).
 - Footer: minimal, copyright + link to GitHub repo.
 

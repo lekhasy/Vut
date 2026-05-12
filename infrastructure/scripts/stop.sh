@@ -1,52 +1,28 @@
 #!/usr/bin/env bash
-# Velucid Platform - Clean Shutdown Script
-# Usage: ./scripts/stop.sh [dev|staging|prod]
-# Defaults to 'dev' if no argument is provided.
+# Velucid Platform - Local Dev Shutdown Script (Docker Compose)
+# Usage: ./scripts/stop.sh
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INFRA_DIR="$(dirname "$SCRIPT_DIR")"
 
-ENV="${1:-dev}"
+cd "$INFRA_DIR"
 
-if [[ ! "$ENV" =~ ^(dev|staging|prod)$ ]]; then
-    echo "ERROR: Invalid environment '$ENV'. Must be one of: dev, staging, prod"
-    exit 1
-fi
-
-echo "=========================================="
-echo " Velucid Platform - Stopping ($ENV)"
-echo "=========================================="
-echo ""
-
-# Determine compose files
+# Detect platform
 ARCH="$(uname -m)"
 case "$ARCH" in
-    arm64|aarch64)
-        PLATFORM="arm"
-        ;;
-    *)
-        PLATFORM="amd64"
-        ;;
+    arm64|aarch64) PLATFORM="arm" ;;
+    *)             PLATFORM="amd64" ;;
 esac
 
-case "$ENV" in
-    dev)
-        COMPOSE_FILES="-f docker-compose.yml -f docker-compose.override.${PLATFORM}.yml"
-        ENV_ARG="--env-file .env.dev"
-        ;;
-    staging)
-        COMPOSE_FILES="-f docker-compose.yml -f docker-compose.staging.yml"
-        ENV_ARG="--env-file .env.staging"
-        ;;
-    prod)
-        COMPOSE_FILES="-f docker-compose.yml -f docker-compose.prod.yml"
-        ENV_ARG="--env-file .env.prod"
-        ;;
-esac
+COMPOSE_FILES="-f docker-compose.yml -f docker-compose.override.${PLATFORM}.yml"
+ENV_ARG="--env-file .env.dev"
 
-cd "$INFRA_DIR"
+echo "=========================================="
+echo " Velucid Platform - Stopping (dev)"
+echo "=========================================="
+echo ""
 
 echo ">>> Stopping services..."
 docker compose $COMPOSE_FILES $ENV_ARG down --remove-orphans

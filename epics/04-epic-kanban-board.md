@@ -36,7 +36,7 @@ Team members view active work as columns on a kanban board and drag task cards b
 ## Out of Scope for This Epic
 
 - Saved views / named filter presets (Epic 6).
-- Cumulative flow diagram (Epic 5).
+- Probabilistic forecast (Epic 5).
 - Real-time collaborative updates (Phase 2 -- WebSocket-based).
 - Task assignment (Phase 2).
 

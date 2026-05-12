@@ -49,7 +49,7 @@ A new user arrives at the Velucid landing page, authenticates with their GitHub 
 ## Out of Scope for This Epic
 
 - Products and tasks (Epic 2, Epic 3).
-- Kanban board, cumulative flow diagram, saved views (Epic 4, Epic 5, Epic 6).
+- Kanban board, probabilistic forecast, saved views (Epic 4, Epic 5, Epic 6).
 - Organization deletion (can be deferred; the UI action is not required for this Epic).
 - Billing, subscriptions, custom roles.
 
