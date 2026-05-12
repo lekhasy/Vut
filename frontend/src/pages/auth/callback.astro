@@ -46,7 +46,7 @@ try {
   const avatarUrl = claims.picture ?? '';
   const email = claims.email ?? null;
 
-  const siloApiUrl = import.meta.env.SILO_API_URL;
+  const siloApiUrl = process.env.SILO_API_URL;
 
   // Look up user by providerId
   let userId: string | null = null;

@@ -13,7 +13,7 @@ export const SESSION_COOKIE = 'vut_session';
 const SESSION_MAX_AGE = 86400; // 24 hours
 
 function getKey(): Buffer {
-  const secret = import.meta.env.SESSION_SECRET;
+  const secret = process.env.SESSION_SECRET;
   if (!secret) throw new Error('SESSION_SECRET environment variable is not set');
   return Buffer.from(secret, 'base64');
 }
