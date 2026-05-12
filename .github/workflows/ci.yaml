@@ -58,6 +58,39 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+  # ── Build & push projector-service image ─────────────────────────
+  build-projector-service:
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/projector-service
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: backend/src
+          file: backend/src/Velucid.ProjectorService/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
   # ── Build & push frontend image ─────────────────────────────────
   build-frontend:
     runs-on: ubuntu-latest
@@ -94,8 +127,8 @@ jobs:
   # ── Update K8s manifests with new image tags ─────────────────────
   update-manifests:
     runs-on: ubuntu-latest
-    needs: [build-silo, build-frontend]
-    if: always() && (needs.build-silo.result == 'success' || needs.build-frontend.result == 'success')
+    needs: [build-silo, build-projector-service, build-frontend]
+    if: always() && (needs.build-silo.result == 'success' || needs.build-projector-service.result == 'success' || needs.build-frontend.result == 'success')
     steps:
       - uses: actions/checkout@v4
         with:
@@ -107,6 +140,13 @@ jobs:
           SHA="${GITHUB_SHA::7}"
           sed -i "s|image: ghcr.io/lekhasy/vut/silo:.*|image: ghcr.io/lekhasy/vut/silo:${SHA}|" \
             infrastructure/k8s/silo/deployment.yaml
+
+      - name: Update projector-service image tag
+        if: needs.build-projector-service.result == 'success'
+        run: |
+          SHA="${GITHUB_SHA::7}"
+          sed -i "s|image: ghcr.io/lekhasy/vut/projector-service:.*|image: ghcr.io/lekhasy/vut/projector-service:${SHA}|" \
+            infrastructure/k8s/projector-service/deployment.yaml
 
       - name: Update frontend image tag
         if: needs.build-frontend.result == 'success'
