@@ -26,7 +26,7 @@ spec:
       containers:
         - name: postgresql
           image: postgres:16-alpine
-          imagePullPolicy: Never  # Images pre-loaded into K3s
+          imagePullPolicy: IfNotPresent
           ports:
             - name: postgresql
               containerPort: 5432

@@ -98,7 +98,7 @@ ArgoCD watches the K8s manifests in git and auto-deploys on every push.
 ```bash
 # Create ArgoCD namespace and install
 sudo k3s kubectl create namespace argocd
-sudo k3s kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+sudo k3s kubectl apply --server-side -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 # Wait for ArgoCD to be ready (~60-90 seconds)
 sudo k3s kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=180s

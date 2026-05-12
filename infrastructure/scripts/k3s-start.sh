@@ -83,30 +83,48 @@ fi
 
 echo ""
 
-# ── 3. Verify ArgoCD ────────────────────────────────────────────────
+# ── 3. Ensure ArgoCD is installed and running ───────────────────────
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INFRA_DIR="$(dirname "$SCRIPT_DIR")"
 
 info "Checking ArgoCD..."
 
-if $KUBECTL get namespace argocd &>/dev/null; then
-    # Wait for ArgoCD server to be available
-    ARGO_READY=false
-    for i in $(seq 1 30); do
-        if $KUBECTL get deployment argocd-server -n argocd &>/dev/null; then
-            AVAILABLE=$($KUBECTL get deployment argocd-server -n argocd -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo "0")
-            if [[ "${AVAILABLE:-0}" -ge 1 ]]; then
-                ok "ArgoCD server is running"
-                ARGO_READY=true
-                break
-            fi
-        fi
-        sleep 5
-    done
+if ! $KUBECTL get namespace argocd &>/dev/null; then
+    info "ArgoCD not found — installing..."
+    $KUBECTL create namespace argocd
+    # Use --server-side to avoid "Too long" error on large CRDs (ApplicationSets)
+    $KUBECTL apply --server-side -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+    ok "ArgoCD installed"
 
-    if ! $ARGO_READY; then
-        warn "ArgoCD server not ready yet — it may still be starting. Pods will sync once it's up."
+    info "Waiting for ArgoCD server to be ready (first install takes ~90s)..."
+    $KUBECTL wait --for=condition=available deployment/argocd-server -n argocd --timeout=180s || true
+
+    # Register the Velucid application
+    if [[ -f "$INFRA_DIR/k8s/argocd/application.yaml" ]]; then
+        $KUBECTL apply -f "$INFRA_DIR/k8s/argocd/application.yaml"
+        ok "Velucid ArgoCD application registered"
+    else
+        warn "ArgoCD application manifest not found at $INFRA_DIR/k8s/argocd/application.yaml"
     fi
-else
-    warn "ArgoCD namespace not found — install ArgoCD first (see docs/new-machine-setup.md)"
+fi
+
+# Wait for ArgoCD server to be available
+ARGO_READY=false
+for i in $(seq 1 30); do
+    if $KUBECTL get deployment argocd-server -n argocd &>/dev/null; then
+        AVAILABLE=$($KUBECTL get deployment argocd-server -n argocd -o jsonpath='{.status.availableReplicas}' 2>/dev/null || echo "0")
+        if [[ "${AVAILABLE:-0}" -ge 1 ]]; then
+            ok "ArgoCD server is running"
+            ARGO_READY=true
+            break
+        fi
+    fi
+    sleep 5
+done
+
+if ! $ARGO_READY; then
+    warn "ArgoCD server not ready yet — it may still be starting. Pods will sync once it's up."
 fi
 
 echo ""
