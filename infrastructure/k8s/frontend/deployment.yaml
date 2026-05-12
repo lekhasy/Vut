@@ -33,7 +33,9 @@ spec:
               protocol: TCP
           env:
             - name: NODE_ENV
-              value: "development"
+              value: "production"
+            - name: APP_URL
+              value: "https://velucid.app"
             - name: SILO_API_URL
               value: "http://velucid-silo:5000"
             - name: AUTH0_DOMAIN
