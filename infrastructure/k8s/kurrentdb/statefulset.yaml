@@ -41,8 +41,6 @@ spec:
               value: "None"
             - name: EVENTSTORE_DB
               value: "/data/db"
-            - name: EVENTSTORE_DEV
-              value: "true"
             - name: EVENTSTORE_ENABLE_ATOM_PUB_OVER_HTTP
               value: "true"
             - name: EVENTSTORE_INSECURE
