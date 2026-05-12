@@ -47,14 +47,6 @@ spec:
               value: "true"
             - name: EVENTSTORE_INSECURE
               value: "true"
-            - name: EVENTSTORE_INT_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            - name: EVENTSTORE_EXT_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
           resources:
             requests:
               cpu: 500m
