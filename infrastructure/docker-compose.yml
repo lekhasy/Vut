@@ -132,38 +132,41 @@ services:
   #       reservations:
   #         memory: ${PROJECTOR_SERVICE_MEMORY_RESERVATION:-128M}
 
-  # # ─── Frontend (Astro.js SSR + BFF) ──────────────────────────────
-  # # DISABLED: Uncomment when the frontend Docker image is ready.
-  # frontend:
-  #   image: ghcr.io/lekhasy/vut/frontend:latest
-  #   container_name: velucid-frontend
-  #   build:
-  #     context: ../frontend
-  #     dockerfile: Dockerfile
-  #   restart: unless-stopped
-  #   ports:
-  #     - "${FRONTEND_PORT:-3000}:3000"
-  #   environment:
-  #     SILO_API_URL: ${SILO_API_URL:-http://silo:5000}
-  #     AUTH0_DOMAIN: ${AUTH0_DOMAIN:-dev-velucid.us.auth0.com}
-  #     AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID}
-  #     AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-https://velucid-api-dev}
-  #     AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET}
-  #   depends_on:
-  #     silo:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-  #     interval: 15s
-  #     timeout: 5s
-  #     retries: 5
-  #     start_period: 20s
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: ${FRONTEND_MEMORY_LIMIT:-512M}
-  #       reservations:
-  #         memory: ${FRONTEND_MEMORY_RESERVATION:-128M}
+  # ─── Frontend (Astro.js SSR + BFF) ──────────────────────────────
+  frontend:
+    image: ghcr.io/lekhasy/vut/frontend:latest
+    container_name: velucid-frontend
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      HOST: "0.0.0.0"
+      PORT: "3000"
+      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-}
+      SILO_API_URL: ${SILO_API_URL:-http://silo:5000}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:-dev-velucid.us.auth0.com}
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:-https://velucid-api-dev}
+      AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET}
+    # depends_on:
+    #   silo:
+    #     condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          memory: ${FRONTEND_MEMORY_LIMIT:-512M}
+        reservations:
+          memory: ${FRONTEND_MEMORY_RESERVATION:-128M}
 
   # ─── pgAdmin (PostgreSQL management UI) ─────────────────────────
   pgadmin:
