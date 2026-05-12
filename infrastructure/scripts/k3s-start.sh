@@ -146,7 +146,46 @@ fi
 
 echo ""
 
-# ── 4. Wait for Velucid pods ────────────────────────────────────────
+# ── 4. Ensure Infisical Operator is installed ───────────────────────
+
+info "Checking Infisical Operator..."
+
+if ! $KUBECTL get crd infisicalsecrets.secrets.infisical.com &>/dev/null; then
+    info "Infisical Operator not found — installing via Helm..."
+
+    # Install Helm if not available
+    if ! command -v helm &>/dev/null; then
+        info "Installing Helm..."
+        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    fi
+
+    helm repo add infisical https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts/ 2>/dev/null || true
+    helm repo update infisical
+
+    helm upgrade --install infisical-secrets-operator infisical/secrets-operator \
+        --namespace infisical \
+        --create-namespace \
+        --wait --timeout 120s
+
+    ok "Infisical Operator installed"
+else
+    ok "Infisical Operator is installed"
+fi
+
+# Ensure the machine identity secret exists
+if ! $KUBECTL get secret infisical-machine-identity -n velucid &>/dev/null; then
+    warn "Infisical machine identity secret not found in velucid namespace."
+    echo ""
+    echo "  Create it with:"
+    echo "    sudo k3s kubectl create namespace velucid  # if not exists"
+    echo "    sudo k3s kubectl create secret generic infisical-machine-identity \\"
+    echo "      -n velucid \\"
+    echo "      --from-literal=clientId=<YOUR_MACHINE_IDENTITY_CLIENT_ID> \\"
+    echo "      --from-literal=clientSecret=<YOUR_MACHINE_IDENTITY_CLIENT_SECRET>"
+    echo ""
+fi
+
+# ── 5. Wait for Velucid pods ────────────────────────────────────────
 
 info "Waiting for Velucid namespace pods..."
 
@@ -189,7 +228,7 @@ fi
 
 echo ""
 
-# ── 5. Show status ──────────────────────────────────────────────────
+# ── 6. Show status ──────────────────────────────────────────────────
 
 echo "=========================================="
 echo " Pod Status"

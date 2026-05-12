@@ -127,41 +127,52 @@ echo ""
 
 ---
 
-## 5. Configure Secrets
+## 5. Configure Secrets (Infisical)
 
-Before ArgoCD can deploy the full stack, update the secret files with your credentials:
+Secrets are managed by [Infisical](https://infisical.com) and synced into K8s automatically via the Infisical Operator. No secrets are stored in git.
 
-### PostgreSQL
+### a. Install Infisical Operator
 
-The default dev credentials work for initial setup. For production, edit:
-
-```bash
-nano infrastructure/k8s/secrets/velocit-postgresql-secret.yaml
-# Update the password, then:
-git add -A && git commit -m "chore: update postgresql secret" && git push
-```
-
-### Auth0
+The startup script (`k3s-start.sh`) installs this automatically. If you need to do it manually:
 
 ```bash
-nano infrastructure/k8s/secrets/velocit-auth0-secret.yaml
-# Set your Auth0 tenant values:
-#   domain: velucid.us.auth0.com
-#   audience: https://velucid-api-prod
-#   client-id: <your-production-client-id>
-#   client-secret: <your-production-client-secret>
-git add -A && git commit -m "chore: update auth0 secret" && git push
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+helm repo add infisical https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts/
+helm repo update infisical
+helm upgrade --install infisical-secrets-operator infisical/secrets-operator \
+    --namespace infisical --create-namespace --wait
 ```
 
-### Resend (Email API)
+### b. Create Machine Identity credentials
+
+1. In [Infisical Cloud](https://app.infisical.com), create a **Machine Identity** with access to the `velucid-8i-fk` project (Production environment).
+2. Create the K8s secret with the identity credentials:
 
 ```bash
-nano infrastructure/k8s/secrets/velocit-resend-secret.yaml
-# Set: api-key: <your-resend-api-key>
-git add -A && git commit -m "chore: update resend secret" && git push
+sudo k3s kubectl create namespace velucid  # if not already created
+sudo k3s kubectl create secret generic infisical-machine-identity \
+  -n velucid \
+  --from-literal=clientId=<YOUR_MACHINE_IDENTITY_CLIENT_ID> \
+  --from-literal=clientSecret=<YOUR_MACHINE_IDENTITY_CLIENT_SECRET>
 ```
 
-> **Note:** For true secret management, consider using [Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets) so encrypted secrets can live in git safely. For now, keep the repo private and use placeholder values in the committed manifests.
+### c. Required secrets in Infisical
+
+Ensure these keys exist in the **Production** environment of your Infisical project:
+
+| Key | Used by | Description |
+|-----|---------|-------------|
+| `AUTH0_DOMAIN` | Frontend, Silo | Auth0 tenant domain |
+| `AUTH0_AUDIENCE` | Frontend, Silo | Auth0 API identifier |
+| `AUTH0_APP_CLIENT_ID` | Frontend, Silo | Auth0 application client ID |
+| `AUTH0_APP_CLIENT_SECRET` | Frontend, Silo | Auth0 application client secret |
+| `POSTGRES_USERNAME` | PostgreSQL | Database username |
+| `POSTGRES_PASSWORD` | PostgreSQL | Database password |
+| `RESEND_API_KEY` | Silo | Resend email API key |
+
+The Infisical Operator syncs these into K8s secrets every 60 seconds. Changes in Infisical propagate automatically.
+
+> **Note:** The `cloudflared-tunnel-credentials` secret is managed separately via `kubectl create secret` since it contains a JSON file, not key-value pairs.
 
 ---
 

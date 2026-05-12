@@ -53,27 +53,27 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: velucid-auth0-secret
-                  key: domain
+                  key: AUTH0_DOMAIN
             - name: Auth0__Audience
               valueFrom:
                 secretKeyRef:
                   name: velucid-auth0-secret
-                  key: audience
+                  key: AUTH0_AUDIENCE
             - name: Auth0__ClientId
               valueFrom:
                 secretKeyRef:
                   name: velucid-auth0-secret
-                  key: client-id
+                  key: AUTH0_APP_CLIENT_ID
             - name: Auth0__ClientSecret
               valueFrom:
                 secretKeyRef:
                   name: velucid-auth0-secret
-                  key: client-secret
+                  key: AUTH0_APP_CLIENT_SECRET
             - name: Resend__ApiKey
               valueFrom:
                 secretKeyRef:
                   name: velucid-resend-secret
-                  key: api-key
+                  key: RESEND_API_KEY
           resources:
             requests:
               cpu: 250m

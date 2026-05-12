@@ -38,12 +38,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: velucid-postgresql-secret
-                  key: username
+                  key: POSTGRES_USERNAME
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: velucid-postgresql-secret
-                  key: password
+                  key: POSTGRES_PASSWORD
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
           resources:
