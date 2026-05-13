@@ -23,7 +23,7 @@ spec:
     spec:
       containers:
         - name: projector-service
-          image: ghcr.io/lekhasy/vut/projector-service:e5e2018
+          image: ghcr.io/lekhasy/vut/projector-service:2a92486
           imagePullPolicy: IfNotPresent
           env:
             - name: KurrentDb__ConnectionString
