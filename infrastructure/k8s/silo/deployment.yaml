@@ -11,6 +11,7 @@ metadata:
     reloader.stakater.com/auto: "true"
 spec:
   replicas: 1
+  revisionHistoryLimit: 2
   selector:
     matchLabels:
       app.kubernetes.io/part-of: velucid
@@ -45,8 +46,18 @@ spec:
               value: "Development"
             - name: KurrentDb__ConnectionString
               value: "esdb://velucid-kurrentdb:2113?tls=false"
+            - name: POSTGRES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: velucid-postgresql-secret
+                  key: POSTGRES_USERNAME
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: velucid-postgresql-secret
+                  key: POSTGRES_PASSWORD
             - name: ConnectionStrings__PostgreSQL
-              value: "Host=velucid-postgresql;Database=velucid_readmodel;Username=velucid_app;Password=velucid_dev_password"
+              value: "Host=velucid-postgresql;Database=velucid_readmodel;Username=$(POSTGRES_USERNAME);Password=$(POSTGRES_PASSWORD)"
             - name: Orleans__ClusterId
               value: "velucid-cluster"
             - name: Orleans__ServiceId
