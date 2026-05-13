@@ -1,40 +1,24 @@
-function getEnv(key: string): string {
-  const value = process.env[key];
-  if (!value) throw new Error(`${key} environment variable is not set`);
-  return value;
-}
+import {
+  AUTH0_DOMAIN,
+  AUTH0_CLIENT_ID,
+  AUTH0_CLIENT_SECRET,
+  AUTH0_AUDIENCE,
+  APP_URL,
+} from 'astro:env/server';
 
-export function getAuth0Domain(): string {
-  return getEnv('AUTH0_DOMAIN');
-}
+export type AuthConnection = 'github';
 
-export function getAuth0ClientId(): string {
-  return getEnv('AUTH0_CLIENT_ID');
-}
-
-function getAuth0ClientSecret(): string {
-  return getEnv('AUTH0_CLIENT_SECRET');
-}
-
-function getAuth0Audience(): string {
-  return getEnv('AUTH0_AUDIENCE');
-}
-
-function getAppUrl(): string {
-  return getEnv('APP_URL');
-}
-
-export function buildAuthorizationUrl(state: string): string {
+export function buildAuthorizationUrl(state: string, connection: AuthConnection): string {
   const params = new URLSearchParams({
     response_type: 'code',
-    client_id: getAuth0ClientId(),
-    redirect_uri: `${getAppUrl()}/auth/callback`,
+    client_id: AUTH0_CLIENT_ID,
+    redirect_uri: `${APP_URL}/auth/callback`,
     scope: 'openid profile email',
-    audience: getAuth0Audience(),
-    connection: 'github',
+    audience: AUTH0_AUDIENCE,
+    connection,
     state,
   });
-  return `https://${getAuth0Domain()}/authorize?${params}`;
+  return `https://${AUTH0_DOMAIN}/authorize?${params}`;
 }
 
 export interface Auth0TokenResponse {
@@ -49,16 +33,16 @@ export async function exchangeCodeForTokens(
   code: string,
 ): Promise<Auth0TokenResponse> {
   const response = await fetch(
-    `https://${getAuth0Domain()}/oauth/token`,
+    `https://${AUTH0_DOMAIN}/oauth/token`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         grant_type: 'authorization_code',
-        client_id: getAuth0ClientId(),
-        client_secret: getAuth0ClientSecret(),
+        client_id: AUTH0_CLIENT_ID,
+        client_secret: AUTH0_CLIENT_SECRET,
         code,
-        redirect_uri: `${getAppUrl()}/auth/callback`,
+        redirect_uri: `${APP_URL}/auth/callback`,
       }),
     },
   );
@@ -75,8 +59,8 @@ export async function exchangeCodeForTokens(
 
 export function buildLogoutUrl(): string {
   const params = new URLSearchParams({
-    returnTo: getAppUrl(),
-    client_id: getAuth0ClientId(),
+    returnTo: APP_URL,
+    client_id: AUTH0_CLIENT_ID,
   });
-  return `https://${getAuth0Domain()}/v2/logout?${params}`;
+  return `https://${AUTH0_DOMAIN}/v2/logout?${params}`;
 }

@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.PUBLIC_API_BASE_URL || '';
+import { PUBLIC_API_BASE_URL } from 'astro:env/client';
+
+const API_BASE = PUBLIC_API_BASE_URL;
 
 export async function apiFetch<T>(
   path: string,

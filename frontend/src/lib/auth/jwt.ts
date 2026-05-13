@@ -1,5 +1,5 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { getAuth0Domain, getAuth0ClientId } from './auth0';
+import { AUTH0_DOMAIN, AUTH0_CLIENT_ID } from 'astro:env/server';
 
 export interface IdTokenClaims {
   sub: string;
@@ -14,7 +14,7 @@ let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 function getJWKS(): ReturnType<typeof createRemoteJWKSet> {
   if (!jwks) {
     const url = new URL(
-      `https://${getAuth0Domain()}/.well-known/jwks.json`,
+      `https://${AUTH0_DOMAIN}/.well-known/jwks.json`,
     );
     jwks = createRemoteJWKSet(url);
   }
@@ -23,8 +23,8 @@ function getJWKS(): ReturnType<typeof createRemoteJWKSet> {
 
 export async function validateIdToken(idToken: string): Promise<IdTokenClaims> {
   const { payload } = await jwtVerify(idToken, getJWKS(), {
-    issuer: `https://${getAuth0Domain()}/`,
-    audience: getAuth0ClientId(),
+    issuer: `https://${AUTH0_DOMAIN}/`,
+    audience: AUTH0_CLIENT_ID,
   });
 
   if (!payload.sub) {

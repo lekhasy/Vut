@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { SESSION_SECRET } from 'astro:env/server';
 
 export interface SessionPayload {
   userId: string;
@@ -13,9 +14,7 @@ export const SESSION_COOKIE = 'vut_session';
 const SESSION_MAX_AGE = 86400; // 24 hours
 
 function getKey(): Buffer {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error('SESSION_SECRET environment variable is not set');
-  return Buffer.from(secret, 'base64');
+  return Buffer.from(SESSION_SECRET, 'base64');
 }
 
 export function encrypt(payload: SessionPayload): string {

@@ -6,6 +6,7 @@ import {
   buildSessionCookieHeader,
   type SessionPayload,
 } from '@/lib/auth/session';
+import { SILO_API_URL } from 'astro:env/server';
 
 const url = Astro.url;
 const code = url.searchParams.get('code');
@@ -46,7 +47,7 @@ try {
   const avatarUrl = claims.picture ?? '';
   const email = claims.email ?? null;
 
-  const siloApiUrl = process.env.SILO_API_URL;
+  const siloApiUrl = SILO_API_URL;
 
   // Look up user by providerId
   let userId: string | null = null;
