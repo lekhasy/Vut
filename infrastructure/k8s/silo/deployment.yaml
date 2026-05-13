@@ -46,6 +46,8 @@ spec:
               value: "Development"
             - name: KurrentDb__ConnectionString
               value: "esdb://velucid-kurrentdb:2113?tls=false"
+            - name: Redis__ConnectionString
+              value: "velucid-redis:6379"
             - name: POSTGRES_USERNAME
               valueFrom:
                 secretKeyRef:

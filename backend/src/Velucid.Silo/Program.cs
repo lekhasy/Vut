@@ -1,5 +1,6 @@
 using KurrentDB.Client;
 using Orleans.Configuration;
+using StackExchange.Redis;
 using Velucid.Silo.Configuration;
 using Velucid.Silo.Events;
 
@@ -8,13 +9,14 @@ var builder = WebApplication.CreateBuilder(args);
 // ─── Orleans Silo ────────────────────────────────────────────────
 builder.UseOrleans(siloBuilder =>
 {
+    var redisConnectionString = builder.Configuration["Redis:ConnectionString"]
+        ?? "velucid-redis:6379";
+    var configurationOptions = ConfigurationOptions.Parse(redisConnectionString);
+
+    siloBuilder.UseRedisClustering(options =>
+        options.ConfigurationOptions = configurationOptions);
+
     siloBuilder
-        .UseAdoNetClustering(options =>
-        {
-            options.ConnectionString = builder.Configuration
-                .GetConnectionString("PostgreSQL");
-            options.Invariant = "Npgsql";
-        })
         .ConfigureEndpoints(
             siloPort: 11111,
             gatewayPort: 30000)

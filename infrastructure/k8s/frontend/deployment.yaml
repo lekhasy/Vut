@@ -59,6 +59,11 @@ spec:
                 secretKeyRef:
                   name: velucid-auth0-secret
                   key: AUTH0_CLIENT_SECRET
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: velucid-auth0-secret
+                  key: SESSION_SECRET
           resources:
             requests:
               cpu: 100m
