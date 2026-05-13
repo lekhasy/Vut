@@ -7,11 +7,17 @@ metadata:
     app.kubernetes.io/part-of: velucid
     app.kubernetes.io/component: backend
     app.kubernetes.io/name: silo
+    orleans/serviceId: velucid
   annotations:
     reloader.stakater.com/auto: "true"
 spec:
   replicas: 1
   revisionHistoryLimit: 2
+  minReadySeconds: 60
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app.kubernetes.io/part-of: velucid
@@ -23,7 +29,10 @@ spec:
         app.kubernetes.io/part-of: velucid
         app.kubernetes.io/component: backend
         app.kubernetes.io/name: silo
+        orleans/serviceId: velucid
+        orleans/clusterId: velucid-cluster
     spec:
+      terminationGracePeriodSeconds: 180
       containers:
         - name: silo
           image: ghcr.io/lekhasy/vut/silo:8f7cfcf
@@ -43,7 +52,29 @@ spec:
               protocol: TCP
           env:
             - name: ASPNETCORE_ENVIRONMENT
-              value: "Development"
+              value: "Production"
+            - name: DOTNET_SHUTDOWNTIMEOUTSECONDS
+              value: "120"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: ORLEANS_SERVICE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['orleans/serviceId']
+            - name: ORLEANS_CLUSTER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['orleans/clusterId']
             - name: KurrentDb__ConnectionString
               value: "esdb://velucid-kurrentdb:2113?tls=false"
             - name: Redis__ConnectionString
@@ -60,10 +91,6 @@ spec:
                   key: POSTGRES_PASSWORD
             - name: ConnectionStrings__PostgreSQL
               value: "Host=velucid-postgresql;Database=velucid_readmodel;Username=$(POSTGRES_USERNAME);Password=$(POSTGRES_PASSWORD)"
-            - name: Orleans__ClusterId
-              value: "velucid-cluster"
-            - name: Orleans__ServiceId
-              value: "velucid"
             - name: Auth0__Domain
               valueFrom:
                 secretKeyRef:

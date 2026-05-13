@@ -13,19 +13,16 @@ builder.UseOrleans(siloBuilder =>
         ?? "velucid-redis:6379";
     var configurationOptions = ConfigurationOptions.Parse(redisConnectionString);
 
-    siloBuilder.UseRedisClustering(options =>
-        options.ConfigurationOptions = configurationOptions);
+    siloBuilder
+        .UseKubernetesHosting()
+        .UseRedisClustering(options =>
+            options.ConfigurationOptions = configurationOptions);
 
     siloBuilder
         .ConfigureEndpoints(
             siloPort: 11111,
             gatewayPort: 30000)
         .AddMemoryGrainStorageAsDefault()
-        .Configure<ClusterOptions>(options =>
-        {
-            options.ClusterId = "velucid-cluster";
-            options.ServiceId = "velucid";
-        })
         .Configure<GrainCollectionOptions>(options =>
         {
             options.CollectionAge = TimeSpan.FromMinutes(30);
@@ -51,9 +48,11 @@ EventTypeMapping.Freeze();
 
 // ─── Co-hosted ASP.NET Core API ──────────────────────────────────
 builder.Services.AddControllers();
+builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 app.Run();
