@@ -85,15 +85,15 @@ spec:
       # No init SQL ConfigMap — read model schema is managed by the application
       # via code-first migrations (EF Core). PostgreSQL only creates the empty
       # database via POSTGRES_DB env var; tables are created at app startup.
-      volumeClaimTemplates:
-        - metadata:
-            name: data
-            labels:
-              app.kubernetes.io/part-of: velucid
-              app.kubernetes.io/component: database
-          spec:
-            accessModes: ["ReadWriteOnce"]
-            storageClassName: local-path
-            resources:
-              requests:
-                storage: 5Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          app.kubernetes.io/part-of: velucid
+          app.kubernetes.io/component: database
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 5Gi
