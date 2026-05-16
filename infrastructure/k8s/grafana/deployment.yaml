@@ -49,7 +49,7 @@ spec:
               mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
               subPath: datasources.yaml
             - name: dashboard-provider
-              mountPath: /etc/grafana/provisioning/dashboards
+              mountPath: /etc/grafana/provisioning/dashboards/dashboards.yaml
               subPath: dashboards.yaml
             - name: dashboards
               mountPath: /var/lib/grafana/dashboards
