@@ -37,7 +37,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: velucid-grafana-secret
-                  key: GF_SECURITY_ADMIN_PASSWORD
+                  key: GRAFANA_ADMIN_PASSWORD
             - name: GF_USERS_ALLOW_SIGN_UP
               value: "false"
             - name: GF_SERVER_ROOT_URL
