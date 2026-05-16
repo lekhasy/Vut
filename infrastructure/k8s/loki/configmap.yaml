@@ -51,8 +51,3 @@ data:
 
     ruler:
       rule_path: /var/loki/rules-temp
-      evaluation:
-        mode: local
-      evaluation_interval: 1m
-      alertmanager:
-        alertmanager_url: http://localhost:9093
