@@ -50,8 +50,8 @@ builder.Services.AddSingleton<IEventStreamClient, KurrentDbStreamClient>();
 builder.Services.AddSingleton<IEmailVerificationStore, RedisEmailVerificationStore>();
 
 // ─── Read Model (PostgreSQL) ────────────────────────────────────
-var readModelConnectionString = builder.Configuration["ReadModel:ConnectionString"]
-    ?? "Host=velucid-postgres;Port=5432;Database=velucid_readmodel;Username=velucid;Password=velucid";
+var readModelConnectionString = builder.Configuration["ConnectionStrings:PostgreSQL"]
+    ?? "Host=localhost;Port=5432;Database=velucid_readmodel;Username=velucid;Password=velucid";
 
 builder.Services.AddDbContext<ReadModelDbContext>(options =>
     options.UseNpgsql(readModelConnectionString, npgsql =>
