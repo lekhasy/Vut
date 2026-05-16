@@ -57,6 +57,11 @@ data:
       k8sattributes:
         passthrough: true
 
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+        path: /health
+
     exporters:
       loki:
         endpoint: "http://velucid-loki:3100/loki/api/v1/push"
@@ -73,11 +78,10 @@ data:
           cluster: velucid
 
       otlp:
-        endpoint: "http://velucid-tempo:4317"
-        tls:
-          insecure: true
+        endpoint: "grpc://velucid-tempo:4317"
 
     service:
+      extensions: [health_check]
       pipelines:
         logs:
           receivers: [filelog]
