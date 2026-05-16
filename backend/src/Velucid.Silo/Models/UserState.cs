@@ -8,45 +8,30 @@ public class UserState
     /// <summary>
     /// The unique identifier for the user.
     /// </summary>
-    public Guid UserId { get; set; }
+    public Guid UserId { get; internal set; }
 
     /// <summary>
     /// The user's display name.
     /// </summary>
-    public string DisplayName { get; set; } = string.Empty;
+    public string DisplayName { get; internal set; } = string.Empty;
 
     /// <summary>
     /// The URL of the user's avatar.
     /// </summary>
-    public string AvatarUrl { get; set; } = string.Empty;
+    public string AvatarUrl { get; internal set; } = string.Empty;
 
     /// <summary>
     /// The user's verified or pending email address.
     /// </summary>
-    public string? Email { get; set; }
+    public string? Email { get; internal set; }
 
     /// <summary>
     /// Whether the user's email has been verified.
     /// </summary>
-    public bool IsEmailVerified { get; set; }
+    public bool IsEmailVerified { get; internal set; }
 
     /// <summary>
-    /// The current email verification token, if a verification is pending.
+    /// The map of linked identity providers, keyed by Auth0 sub.
     /// </summary>
-    public string EmailVerificationToken { get; set; } = string.Empty;
-
-    /// <summary>
-    /// The UTC expiry time for the current email verification token.
-    /// </summary>
-    public DateTimeOffset EmailVerificationTokenExpiresAt { get; set; }
-
-    /// <summary>
-    /// The map of linked identity providers, keyed by provider ID.
-    /// </summary>
-    public Dictionary<string, IdentityEntry> Identities { get; set; } = new();
-
-    /// <summary>
-    /// Whether this user aggregate has been created (has a <see cref="UserCreatedEvent"/>).
-    /// </summary>
-    public bool Exists { get; set; }
+    public Dictionary<string, IdentityEntry> Identities { get; internal set; } = new();
 }

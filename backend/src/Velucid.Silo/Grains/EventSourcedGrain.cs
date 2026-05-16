@@ -40,6 +40,19 @@ public abstract class EventSourcedGrain<TState> : Grain
     private string _streamId = string.Empty;
     private TState _state = new();
     private StreamState _currentStreamState = StreamState.NoStream;
+    private bool _exists;
+
+    /// <summary>
+    /// Gets whether this aggregate exists — i.e., whether any events have been
+    /// persisted to its event stream in KurrentDB. A new aggregate starts as
+    /// non-existent and transitions to existing once its first event is written.
+    /// </summary>
+    /// <remarks>
+    /// This is determined during hydration: if at least one event was replayed
+    /// from the stream, the aggregate exists. An empty stream means the aggregate
+    /// has not yet been created.
+    /// </remarks>
+    protected bool Exists => _exists;
 
     /// <summary>
     /// Gets the current aggregate state, hydrated from the event stream.
@@ -53,12 +66,24 @@ public abstract class EventSourcedGrain<TState> : Grain
     protected string StreamId => _streamId;
 
     /// <summary>
+    /// Gets the current UTC time via the injected <see cref="TimeProvider"/>.
+    /// Defaults to <see cref="TimeProvider.System"/> in production.
+    /// </summary>
+    protected DateTimeOffset UtcNow => _timeProvider.GetUtcNow();
+
+    private readonly TimeProvider _timeProvider;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="EventSourcedGrain{TState}"/> class.
     /// </summary>
     /// <param name="eventStreamClient">The event stream client for persistence operations.</param>
-    protected EventSourcedGrain(IEventStreamClient eventStreamClient)
+    /// <param name="timeProvider">The time provider for UTC timestamps. Defaults to <see cref="TimeProvider.System"/>.</param>
+    protected EventSourcedGrain(
+        IEventStreamClient eventStreamClient,
+        TimeProvider? timeProvider = null)
     {
         _eventStreamClient = eventStreamClient ?? throw new ArgumentNullException(nameof(eventStreamClient));
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -103,6 +128,7 @@ public abstract class EventSourcedGrain<TState> : Grain
         _currentStreamState = await _eventStreamClient.AppendToStreamAsync(
             _streamId, _currentStreamState, eventData, cancellationToken);
 
+        _exists = true;
         Apply(_state, @event);
         return resultSelector(_state);
     }
@@ -120,6 +146,7 @@ public abstract class EventSourcedGrain<TState> : Grain
         _currentStreamState = await _eventStreamClient.AppendToStreamAsync(
             _streamId, _currentStreamState, eventData, cancellationToken);
 
+        _exists = true;
         Apply(_state, @event);
     }
 
@@ -137,6 +164,7 @@ public abstract class EventSourcedGrain<TState> : Grain
         await foreach (var streamEvent in _eventStreamClient.ReadStreamForwardAsync(
             _streamId, cancellationToken))
         {
+            _exists = true;
             var @event = DeserializeEvent(streamEvent);
             Apply(_state, @event);
             _currentStreamState = streamEvent.Position;

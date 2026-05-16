@@ -1,6 +1,37 @@
+using KurrentDB.Client;
+using Microsoft.EntityFrameworkCore;
+using Velucid.ProjectorService.Configuration;
+using Velucid.ProjectorService.Handlers;
+using Velucid.ReadModel;
+
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.Services.AddHostedService<Worker>();
+// Configuration
+builder.Services.Configure<KurrentDbOptions>(
+    builder.Configuration.GetSection(KurrentDbOptions.SectionName));
+builder.Services.Configure<PostgresOptions>(
+    builder.Configuration.GetSection(PostgresOptions.SectionName));
+
+// KurrentDB client
+var kurrentDbConnectionString = builder.Configuration
+    .GetSection(KurrentDbOptions.SectionName)
+    .Get<KurrentDbOptions>()?.ConnectionString
+    ?? KurrentDbOptions.DefaultConnectionString;
+var kurrentDbSettings = KurrentDBClientSettings.Create(kurrentDbConnectionString);
+builder.Services.AddSingleton(new KurrentDBClient(kurrentDbSettings));
+builder.Services.AddSingleton(new KurrentDBPersistentSubscriptionsClient(kurrentDbSettings));
+
+// PostgreSQL via EF Core
+var postgresConnectionString = builder.Configuration
+    .GetSection(PostgresOptions.SectionName)
+    .Get<PostgresOptions>()?.ConnectionString
+    ?? PostgresOptions.DefaultConnectionString;
+
+builder.Services.AddDbContext<ReadModelDbContext>(options =>
+    options.UseNpgsql(postgresConnectionString));
+
+// Projectors
+builder.Services.AddHostedService<UserProjector>();
 
 var host = builder.Build();
 host.Run();

@@ -19,25 +19,25 @@ public interface IUserGrain : IGrainWithGuidKey
     /// Creates a new user with the specified identity provider and profile information.
     /// Idempotent: if the user already exists, returns the existing user ID without emitting events.
     /// </summary>
-    /// <param name="providerId">The identity provider subject (e.g., "github|12345678").</param>
+    /// <param name="sub">The Auth0 subject identifier (e.g., "github|12345678").</param>
     /// <param name="providerName">The identity provider name (e.g., "github", "google").</param>
     /// <param name="displayName">The user's display name from the identity provider.</param>
     /// <param name="avatarUrl">The URL of the user's avatar.</param>
     /// <param name="email">The user's email address, if provided.</param>
     /// <returns>A <see cref="CreateUserResult"/> containing the user's ID.</returns>
     Task<CreateUserResult> CreateUser(
-        string providerId, string providerName,
+        string sub, string providerName,
         string displayName, string avatarUrl, string? email);
 
     /// <summary>
     /// Links an additional identity provider to the user's account.
     /// No-op if the provider is already linked.
     /// </summary>
-    /// <param name="providerId">The identity provider subject.</param>
+    /// <param name="sub">The Auth0 subject identifier.</param>
     /// <param name="providerName">The identity provider name.</param>
     /// <param name="email">The email associated with this identity, if available.</param>
     Task LinkIdentity(
-        string providerId, string providerName, string? email);
+        string sub, string providerName, string? email);
 
     /// <summary>
     /// Updates the user's profile display name and avatar URL.

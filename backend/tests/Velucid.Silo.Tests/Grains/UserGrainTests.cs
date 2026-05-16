@@ -10,6 +10,7 @@ namespace Velucid.Silo.Tests.Grains;
 /// Unit tests for the <see cref="UserGrain"/> using Orleans TestCluster
 /// with an in-memory event stream client.
 /// </summary>
+[Collection("Orleans TestCluster")]
 public sealed class UserGrainTests : IAsyncLifetime
 {
     private TestCluster _cluster = null!;
@@ -27,6 +28,7 @@ public sealed class UserGrainTests : IAsyncLifetime
 
         _eventStore = new InMemoryEventStreamClient();
         TestSiloConfigurator.SharedEventStreamClient = _eventStore;
+        TestSiloConfigurator.SharedEmailVerificationStore = new InMemoryEmailVerificationStore();
 
         var builder = new TestClusterBuilder();
         builder.AddSiloBuilderConfigurator<TestSiloConfigurator>();
@@ -39,6 +41,7 @@ public sealed class UserGrainTests : IAsyncLifetime
     {
         await _cluster.StopAllSilosAsync();
         await _cluster.DisposeAsync();
+        TestSiloConfigurator.SharedEmailVerificationStore = null;
         EventTypeMapping.Reset();
     }
 
@@ -70,7 +73,7 @@ public sealed class UserGrainTests : IAsyncLifetime
             .Which.Should().BeEquivalentTo(new
             {
                 UserId = userId,
-                ProviderId = "github|12345",
+                Sub = "github|12345",
                 ProviderName = "github",
                 Email = "test@example.com"
             });
@@ -113,7 +116,7 @@ public sealed class UserGrainTests : IAsyncLifetime
         events[2].Should().BeOfType<IdentityLinkedEvent>()
             .Which.Should().BeEquivalentTo(new
             {
-                ProviderId = "google|67890",
+                Sub = "google|67890",
                 ProviderName = "google",
                 Email = "test@gmail.com"
             });
@@ -258,26 +261,6 @@ public sealed class UserGrainTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task VerifyEmail_ExpiredToken_ThrowsInvalidOperationException()
-    {
-        // Arrange — we cannot easily manipulate time in the grain, so we test
-        // the wrong-token path instead. Expiry logic is validated by the Apply
-        // method setting EmailVerificationTokenExpiresAt to Timestamp + 15 min.
-        // This test verifies the error path works for the wrong-token case.
-        var userId = Guid.NewGuid();
-        var grain = _cluster.GrainFactory.GetGrain<IUserGrain>(userId);
-        await grain.CreateUser(
-            "github|12345", "github", "Test User", "https://avatar.url", "test@example.com");
-        await grain.RequestEmailVerification("test@example.com");
-
-        // Act — using a clearly wrong token
-        var act = () => grain.VerifyEmail("999999");
-
-        // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>();
-    }
-
-    [Fact]
     public async Task CreateUser_NullEmail_EmitsEventsWithNullEmail()
     {
         // Arrange
@@ -294,4 +277,35 @@ public sealed class UserGrainTests : IAsyncLifetime
         events[0].Should().BeOfType<UserCreatedEvent>()
             .Which.Email.Should().BeNull();
     }
+
+    [Fact]
+    public async Task RequestEmailVerification_NonExistentUser_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var grain = _cluster.GrainFactory.GetGrain<IUserGrain>(userId);
+
+        // Act
+        var act = () => grain.RequestEmailVerification("test@example.com");
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*does not exist*");
+    }
+
+    [Fact]
+    public async Task VerifyEmail_NonExistentUser_ThrowsInvalidOperationException()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var grain = _cluster.GrainFactory.GetGrain<IUserGrain>(userId);
+
+        // Act
+        var act = () => grain.VerifyEmail("123456");
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*does not exist*");
+    }
+
 }

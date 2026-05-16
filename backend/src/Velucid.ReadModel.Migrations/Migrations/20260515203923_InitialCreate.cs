@@ -110,14 +110,14 @@ namespace Velucid.ReadModel.Migrations.Migrations
                 columns: table => new
                 {
                     user_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    provider_id = table.Column<string>(type: "text", nullable: false),
+                    sub = table.Column<string>(type: "text", nullable: false),
                     provider_name = table.Column<string>(type: "text", nullable: false),
                     email = table.Column<string>(type: "text", nullable: true),
                     linked_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "NOW()")
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("pk_user_identity", x => new { x.user_id, x.provider_id });
+                    table.PrimaryKey("pk_user_identity", x => new { x.user_id, x.sub });
                     table.ForeignKey(
                         name: "fk_user_identity_user_projection_user_id",
                         column: x => x.user_id,
@@ -175,10 +175,10 @@ namespace Velucid.ReadModel.Migrations.Migrations
                 filter: "email IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "ix_user_identity_provider_id",
+                name: "ix_user_identity_sub",
                 schema: "public",
                 table: "user_identity",
-                column: "provider_id",
+                column: "sub",
                 unique: true);
 
             migrationBuilder.CreateIndex(

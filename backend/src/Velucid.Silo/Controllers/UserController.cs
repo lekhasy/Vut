@@ -1,150 +1,80 @@
 using Microsoft.AspNetCore.Mvc;
 using Velucid.Silo.Grains;
+using Velucid.Silo.Models;
+using Velucid.Silo.Services;
+using SignInResult = Velucid.Silo.Models.SignInResult;
 
 namespace Velucid.Silo.Controllers;
 
-/// <summary>
-/// API controller for user operations. Delegates to the <see cref="IUserGrain"/>
-/// via <see cref="IGrainFactory"/>.
-/// </summary>
 [ApiController]
-[Route("api/users")]
 public class UserController : ControllerBase
 {
     private readonly IGrainFactory _grainFactory;
+    private readonly ISignInService _signInService;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="UserController"/> class.
-    /// </summary>
-    /// <param name="grainFactory">The Orleans grain factory for activating user grains.</param>
-    public UserController(IGrainFactory grainFactory)
+    public UserController(IGrainFactory grainFactory, ISignInService signInService)
     {
         _grainFactory = grainFactory;
+        _signInService = signInService;
     }
 
     /// <summary>
-    /// Creates a new user with the specified identity and profile information.
+    /// Signs in a user by resolving their identity provider claims to an existing user
+    /// or creating a new one. Queries the read model for lookups, delegates to grains
+    /// for aggregate operations.
     /// </summary>
-    /// <param name="request">The user creation request.</param>
-    /// <returns>The created user result with the assigned user ID.</returns>
-    [HttpPost("create")]
-    public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request)
+    [HttpPost("api/auth/sign-in")]
+    public async Task<ActionResult<SignInResult>> SignIn([FromBody] SignInRequest request)
     {
-        var userId = Guid.NewGuid();
-        var grain = _grainFactory.GetGrain<IUserGrain>(userId);
-        var result = await grain.CreateUser(
-            request.ProviderId, request.ProviderName,
-            request.DisplayName, request.AvatarUrl, request.Email);
+        var result = await _signInService.SignIn(
+            request.Sub,
+            request.ProviderName,
+            request.DisplayName,
+            request.AvatarUrl,
+            request.Email);
 
-        return CreatedAtAction(nameof(CreateUser), result);
+        return Ok(result);
     }
 
-    /// <summary>
-    /// Links an additional identity provider to an existing user.
-    /// </summary>
-    /// <param name="userId">The user's unique identifier.</param>
-    /// <param name="request">The identity linking request.</param>
-    [HttpPost("{userId:guid}/link-identity")]
-    public async Task<IActionResult> LinkIdentity(
-        Guid userId, [FromBody] LinkIdentityRequest request)
-    {
-        var grain = _grainFactory.GetGrain<IUserGrain>(userId);
-        await grain.LinkIdentity(
-            request.ProviderId, request.ProviderName, request.Email);
-
-        return Ok();
-    }
-
-    /// <summary>
-    /// Updates a user's profile information.
-    /// </summary>
-    /// <param name="userId">The user's unique identifier.</param>
-    /// <param name="request">The profile update request.</param>
-    [HttpPut("{userId:guid}/profile")]
+    [HttpPut("api/users/{userId:guid}/profile")]
     public async Task<IActionResult> UpdateProfile(
         Guid userId, [FromBody] UpdateProfileRequest request)
     {
         var grain = _grainFactory.GetGrain<IUserGrain>(userId);
         await grain.UpdateProfile(request.DisplayName, request.AvatarUrl);
-
         return Ok();
     }
 
-    /// <summary>
-    /// Requests email verification for a user.
-    /// </summary>
-    /// <param name="userId">The user's unique identifier.</param>
-    /// <param name="request">The email verification request.</param>
-    /// <returns>The generated verification token.</returns>
-    [HttpPost("{userId:guid}/request-email-verification")]
-    public async Task<IActionResult> RequestEmailVerification(
+    [HttpPost("api/users/{userId:guid}/request-email-verification")]
+    public async Task<ActionResult<EmailVerificationResponse>> RequestEmailVerification(
         Guid userId, [FromBody] RequestEmailVerificationRequest request)
     {
         var grain = _grainFactory.GetGrain<IUserGrain>(userId);
         var token = await grain.RequestEmailVerification(request.Email);
-
-        return Ok(new { Token = token });
+        return Ok(new EmailVerificationResponse(token));
     }
 
-    /// <summary>
-    /// Verifies a user's email address using the provided token.
-    /// </summary>
-    /// <param name="userId">The user's unique identifier.</param>
-    /// <param name="request">The email verification request containing the token.</param>
-    [HttpPost("{userId:guid}/verify-email")]
+    [HttpPost("api/users/{userId:guid}/verify-email")]
     public async Task<IActionResult> VerifyEmail(
         Guid userId, [FromBody] VerifyEmailRequest request)
     {
         var grain = _grainFactory.GetGrain<IUserGrain>(userId);
         await grain.VerifyEmail(request.Token);
-
         return Ok();
     }
 }
 
-/// <summary>
-/// Request body for creating a new user.
-/// </summary>
-/// <param name="ProviderId">The identity provider subject (e.g., "github|12345678").</param>
-/// <param name="ProviderName">The identity provider name (e.g., "github").</param>
-/// <param name="DisplayName">The user's display name.</param>
-/// <param name="AvatarUrl">The URL of the user's avatar.</param>
-/// <param name="Email">The user's email address, if provided.</param>
-public record CreateUserRequest(
-    string ProviderId,
+public record SignInRequest(
+    string Sub,
     string ProviderName,
     string DisplayName,
     string AvatarUrl,
     string? Email);
 
-/// <summary>
-/// Request body for linking an identity provider to an existing user.
-/// </summary>
-/// <param name="ProviderId">The identity provider subject.</param>
-/// <param name="ProviderName">The identity provider name.</param>
-/// <param name="Email">The email associated with this identity, if available.</param>
-public record LinkIdentityRequest(
-    string ProviderId,
-    string ProviderName,
-    string? Email);
-
-/// <summary>
-/// Request body for updating a user's profile.
-/// </summary>
-/// <param name="DisplayName">The new display name.</param>
-/// <param name="AvatarUrl">The new avatar URL.</param>
 public record UpdateProfileRequest(
     string DisplayName,
     string AvatarUrl);
 
-/// <summary>
-/// Request body for requesting email verification.
-/// </summary>
-/// <param name="Email">The email address to verify.</param>
 public record RequestEmailVerificationRequest(string Email);
-
-/// <summary>
-/// Request body for verifying an email address.
-/// </summary>
-/// <param name="Token">The 6-digit verification code.</param>
 public record VerifyEmailRequest(string Token);
+public record EmailVerificationResponse(string Token);

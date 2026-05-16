@@ -49,8 +49,8 @@ public sealed class ReadModelDbContext : DbContext
         modelBuilder.Entity<UserIdentity>(e =>
         {
             e.ToTable("user_identity");
-            e.HasKey(x => new { x.UserId, x.ProviderId });
-            e.Property(x => x.ProviderId).IsRequired();
+            e.HasKey(x => new { x.UserId, x.Sub });
+            e.Property(x => x.Sub).IsRequired();
             e.Property(x => x.ProviderName).IsRequired();
             e.Property(x => x.LinkedAt).HasDefaultValueSql("NOW()");
 
@@ -58,7 +58,7 @@ public sealed class ReadModelDbContext : DbContext
                 .WithMany(x => x.Identities)
                 .HasForeignKey(x => x.UserId);
 
-            e.HasIndex(x => x.ProviderId).IsUnique();
+            e.HasIndex(x => x.Sub).IsUnique();
             e.HasIndex(x => x.Email).HasFilter("email IS NOT NULL");
         });
     }

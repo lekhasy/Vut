@@ -41,90 +41,47 @@ try {
   const claims = await validateIdToken(tokens.id_token);
 
   // Extract user info from claims
-  const providerId = claims.sub;
-  const providerName = providerId.split('|')[0];
+  const sub = claims.sub;
+  const providerName = sub.split('|')[0];
   const displayName = claims.name ?? claims.nickname ?? 'User';
   const avatarUrl = claims.picture ?? '';
   const email = claims.email ?? null;
 
   const siloApiUrl = SILO_API_URL;
 
-  // Look up user by providerId
-  let userId: string | null = null;
-  let isEmailVerified = false;
+  // Single sign-in call — backend handles lookup, linking, and creation
+  const signInRes = await fetch(`${siloApiUrl}/api/auth/sign-in`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sub: sub,
+      providerName,
+      displayName,
+      avatarUrl,
+      email,
+    }),
+  });
 
-  const lookupRes = await fetch(
-    `${siloApiUrl}/api/users/by-provider/${encodeURIComponent(providerId)}`,
-  );
-
-  if (lookupRes.ok) {
-    // Existing user found
-    const userData = await lookupRes.json();
-    userId = userData.userId;
-    isEmailVerified = userData.isEmailVerified ?? false;
-  } else if (lookupRes.status === 404) {
-    // User not found — try auto-linking by email or create new user
-    if (email) {
-      const emailLookupRes = await fetch(
-        `${siloApiUrl}/api/users/by-email/${encodeURIComponent(email)}`,
-      );
-
-      if (emailLookupRes.ok) {
-        // Existing user found by email — link the new identity
-        const existingUser = await emailLookupRes.json();
-        userId = existingUser.userId;
-        isEmailVerified = existingUser.isEmailVerified ?? false;
-
-        await fetch(`${siloApiUrl}/api/users/${userId}/link-identity`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ providerId, providerName, email }),
-        });
-      }
-    }
-
-    if (!userId) {
-      // Truly new user — create
-      const createRes = await fetch(`${siloApiUrl}/api/users/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          providerId,
-          providerName,
-          displayName,
-          avatarUrl,
-          email,
-        }),
-      });
-
-      if (!createRes.ok) {
-        const errBody = await createRes.text();
-        throw new Error(`User creation failed (${createRes.status}): ${errBody}`);
-      }
-
-      const created = await createRes.json();
-      userId = created.userId;
-      isEmailVerified = false;
-    }
-  } else {
-    throw new Error(`User lookup failed (${lookupRes.status})`);
+  if (!signInRes.ok) {
+    const errBody = await signInRes.text();
+    throw new Error(`Sign-in failed (${signInRes.status}): ${errBody}`);
   }
+
+  const user = await signInRes.json();
 
   // Build session payload and set encrypted cookie
   const sessionPayload: SessionPayload = {
-    userId: userId!,
-    providerId,
-    displayName,
-    avatarUrl,
-    isEmailVerified,
+    userId: user.userId,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    isEmailVerified: user.isEmailVerified,
     iat: Math.floor(Date.now() / 1000),
   };
 
   const encryptedSession = encrypt(sessionPayload);
   const cookieHeader = buildSessionCookieHeader(encryptedSession);
 
-  // Redirect based on email verification status
-  const redirectTo = isEmailVerified ? '/dashboard' : '/verify-email';
+  const redirectTo = '/dashboard';
 
   return new Response(null, {
     status: 302,

@@ -1,18 +1,26 @@
 using KurrentDB.Client;
+using Microsoft.EntityFrameworkCore;
 using Orleans.Configuration;
 using StackExchange.Redis;
+using Velucid.ReadModel;
 using Velucid.Silo.Configuration;
 using Velucid.Silo.Events;
+using Velucid.Silo.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ─── Redis (shared connection for Orleans clustering + token store) ──
+var redisConnectionString = builder.Configuration["Redis:ConnectionString"]
+    ?? "velucid-redis:6379";
+var configurationOptions = ConfigurationOptions.Parse(redisConnectionString);
+
+// Register Redis connection for token store
+builder.Services.AddSingleton<IConnectionMultiplexer>(
+    ConnectionMultiplexer.Connect(configurationOptions));
 
 // ─── Orleans Silo ────────────────────────────────────────────────
 builder.UseOrleans(siloBuilder =>
 {
-    var redisConnectionString = builder.Configuration["Redis:ConnectionString"]
-        ?? "velucid-redis:6379";
-    var configurationOptions = ConfigurationOptions.Parse(redisConnectionString);
-
     siloBuilder
         .UseKubernetesHosting()
         .UseRedisClustering(options =>
@@ -37,6 +45,20 @@ var kurrentDbConnectionString = builder.Configuration
 
 builder.Services.AddKurrentDBClient(kurrentDbConnectionString);
 builder.Services.AddSingleton<IEventStreamClient, KurrentDbStreamClient>();
+
+// ─── Email Verification Store (Redis-backed) ──────────────────────
+builder.Services.AddSingleton<IEmailVerificationStore, RedisEmailVerificationStore>();
+
+// ─── Read Model (PostgreSQL) ────────────────────────────────────
+var readModelConnectionString = builder.Configuration["ReadModel:ConnectionString"]
+    ?? "Host=velucid-postgres;Port=5432;Database=velucid_readmodel;Username=velucid;Password=velucid";
+
+builder.Services.AddDbContext<ReadModelDbContext>(options =>
+    options.UseNpgsql(readModelConnectionString, npgsql =>
+        npgsql.MigrationsAssembly("Velucid.ReadModel.Migrations")));
+
+// ─── Application Services ────────────────────────────────────────
+builder.Services.AddSingleton<ISignInService, SignInService>();
 
 // ─── Event Type Registrations ────────────────────────────────────
 EventTypeMapping.Register<UserCreatedEvent>("UserCreated");

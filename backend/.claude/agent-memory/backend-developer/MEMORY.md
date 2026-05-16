@@ -1,0 +1,1 @@
+- [Project Architecture](project_architecture.md) — Orleans event-sourced grain patterns, test infrastructure, key design decisions

@@ -8,6 +8,9 @@ export default defineConfig({
   adapter: node({
     mode: 'standalone',
   }),
+  server: {
+    port: 4321,
+  },
   env: {
     schema: {
       AUTH0_DOMAIN: envField.string({ context: 'server', access: 'secret' }),

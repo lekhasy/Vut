@@ -1,7 +1,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import { decrypt, SESSION_COOKIE } from '@/lib/auth/session';
 
-const PUBLIC_PATHS = new Set(['/', '/auth/login', '/auth/callback', '/verify-email']);
+const PUBLIC_PATHS = new Set(['/', '/auth/login', '/auth/callback']);
 
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_PATHS.has(pathname)) return true;
@@ -52,15 +52,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   // Attach session data to Astro.locals
   context.locals.userId = session.userId;
-  context.locals.providerId = session.providerId;
   context.locals.displayName = session.displayName;
   context.locals.avatarUrl = session.avatarUrl;
   context.locals.isEmailVerified = session.isEmailVerified;
-
-  // Email verification guard
-  if (!session.isEmailVerified && pathname !== '/verify-email') {
-    return context.redirect('/verify-email', 302);
-  }
 
   return next();
 });

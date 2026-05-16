@@ -1,6 +1,5 @@
 export interface User {
   userId: string;
-  providerId: string;
   displayName: string;
   avatarUrl: string;
   email?: string;

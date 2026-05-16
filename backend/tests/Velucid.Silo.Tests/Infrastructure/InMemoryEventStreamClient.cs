@@ -18,6 +18,7 @@ public sealed class InMemoryEventStreamClient : IEventStreamClient
     };
 
     private readonly ConcurrentDictionary<string, List<StoredEvent>> _streams = new();
+    private readonly Lock _appendLock = new();
 
     /// <summary>
     /// Gets all domain events stored for the specified stream.
@@ -44,8 +45,12 @@ public sealed class InMemoryEventStreamClient : IEventStreamClient
             eventData.Data.Span, clrType, JsonOptions)
             ?? throw new InvalidOperationException($"Failed to deserialize event '{typeName}'."));
 
-        var position = (ulong)events.Count;
-        events.Add(new StoredEvent(domainEvent, eventData.Data, typeName, position));
+        ulong position;
+        lock (_appendLock)
+        {
+            position = (ulong)events.Count;
+            events.Add(new StoredEvent(domainEvent, eventData.Data, typeName, position));
+        }
 
         return Task.FromResult<StreamState>(position);
     }
