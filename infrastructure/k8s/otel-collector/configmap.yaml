@@ -17,10 +17,23 @@ data:
           http:
             endpoint: 0.0.0.0:4318
 
-      # Collect container logs
+      # Collect container logs from all velucid pods
       filelog:
         include: ["/var/log/pods/*/*/*.log"]
         start_at: end
+
+      # Collect kubelet metrics (node, pod, container stats)
+      kubeletstats:
+        collection_interval: 30s
+        auth_type: serviceAccount
+        endpoint: https://localhost:10250
+        insecure_skip_verify: true
+        extra_metadata_labels:
+          - container.id
+        metric_groups:
+          - node
+          - pod
+          - container
 
     processors:
       batch:
@@ -57,7 +70,7 @@ data:
           exporters: [loki]
 
         metrics:
-          receivers: []
+          receivers: [kubeletstats]
           processors: [memory_limiter, batch]
           exporters: [prometheus]
 
