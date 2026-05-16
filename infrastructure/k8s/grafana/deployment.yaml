@@ -46,7 +46,7 @@ spec:
               value: "grafana.velucid.app"
           volumeMounts:
             - name: config
-              mountPath: /etc/grafana/provisioning/datasources
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
               subPath: datasources.yaml
             - name: dashboard-provider
               mountPath: /etc/grafana/provisioning/dashboards
@@ -76,7 +76,7 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: velucid-grafana-datasources
+            name: velucid-grafana-datasources-datasource
         - name: dashboard-provider
           configMap:
             name: velucid-grafana-dashboard-provider
@@ -85,11 +85,10 @@ spec:
             name: velucid-grafana-dashboard-overview
 
 ---
-# Dashboard provisioning ConfigMap
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: velucid-grafana-datasources
+  name: velucid-grafana-datasources-datasource
   namespace: velucid
   labels:
     app.kubernetes.io/part-of: velucid
