@@ -78,7 +78,7 @@ data:
           cluster: velucid
 
       otlp:
-        endpoint: "grpc://velucid-tempo:4317"
+        endpoint: "velucid-tempo:4317"
 
     service:
       extensions: [health_check]
