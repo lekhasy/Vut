@@ -110,3 +110,14 @@ data:
         access: proxy
         url: http://velucid-loki:3100
         editable: false
+      - name: Tempo
+        type: tempo
+        access: proxy
+        url: http://velucid-tempo:3100
+        editable: false
+        jsonData:
+          httpMethod: GET
+          tracesToLogs:
+            datasourceUid: Loki
+          nodeGraph:
+            enabled: true

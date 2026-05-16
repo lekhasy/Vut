@@ -1,46 +1,52 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: velucid-loki
+  name: velucid-tempo
   namespace: velucid
   labels:
     app.kubernetes.io/part-of: velucid
     app.kubernetes.io/component: observability
-    app.kubernetes.io/name: loki
+    app.kubernetes.io/name: tempo
 spec:
-  serviceName: velucid-loki
+  serviceName: velucid-tempo
   replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/part-of: velucid
       app.kubernetes.io/component: observability
-      app.kubernetes.io/name: loki
+      app.kubernetes.io/name: tempo
   template:
     metadata:
       labels:
         app.kubernetes.io/part-of: velucid
         app.kubernetes.io/component: observability
-        app.kubernetes.io/name: loki
+        app.kubernetes.io/name: tempo
     spec:
       terminationGracePeriodSeconds: 30
       containers:
-        - name: loki
-          image: grafana/loki:3.0.0
+        - name: tempo
+          image: grafana/tempo:2.5.0
           imagePullPolicy: IfNotPresent
           args:
-            - -config.file=/etc/loki/loki.yaml
+            - -config.file=/etc/tempo/tempo.yaml
           ports:
             - name: http
               containerPort: 3100
               protocol: TCP
             - name: grpc
-              containerPort: 9096
+              containerPort: 9095
+              protocol: TCP
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
               protocol: TCP
           volumeMounts:
             - name: config
-              mountPath: /etc/loki
+              mountPath: /etc/tempo
             - name: data
-              mountPath: /var/loki
+              mountPath: /var/tempo
           resources:
             requests:
               cpu: 100m
@@ -58,7 +64,7 @@ spec:
             failureThreshold: 5
           livenessProbe:
             httpGet:
-              path: /ready
+              path: /health
               port: 3100
             initialDelaySeconds: 30
             periodSeconds: 15
@@ -67,7 +73,7 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: velucid-loki-config
+            name: velucid-tempo-config
   volumeClaimTemplates:
     - metadata:
         name: data

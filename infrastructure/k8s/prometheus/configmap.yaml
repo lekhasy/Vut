@@ -39,6 +39,10 @@ data:
         static_configs:
           - targets: ['velucid-grafana:3000']
 
+      - job_name: 'tempo'
+        static_configs:
+          - targets: ['velucid-tempo:3100']
+
       - job_name: 'kubernetes-apiservers'
         kubernetes_sd_configs:
           - role: endpoints
