@@ -9,18 +9,25 @@ metadata:
     app.kubernetes.io/name: tempo
 data:
   tempo.yaml: |
-    stream_over_http_enabled: true
-
     server:
       http_listen_port: 3100
       grpc_listen_port: 9095
 
-    dist:
-      ring:
-        instance_addr: 127.0.0.1
-        replication_factor: 1
-        kvstore:
-          store: inmemory
+    distributor:
+      receivers:
+        otlp:
+          protocols:
+            grpc:
+              endpoint: 0.0.0.0:4317
+            http:
+              endpoint: 0.0.0.0:4318
+
+    ingester:
+      max_block_duration: 5m
+
+    compactor:
+      compaction:
+        block_retention: 336h
 
     storage:
       trace:
@@ -30,8 +37,6 @@ data:
         local:
           path: /var/tempo/blocks
 
-    limits:
-      max_bytes_per_trace: 5000000
-
     overrides:
-      max_bytes_per_trace: 5000000
+      defaults:
+        max_bytes_per_trace: 5000000
