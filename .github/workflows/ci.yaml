@@ -91,6 +91,39 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+  # ── Build & push migrations image ─────────────────────────────────
+  build-migrations:
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}/migrations
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: backend/src
+          file: backend/src/Velucid.ReadModel.Migrations/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
   # ── Build & push frontend image ─────────────────────────────────
   build-frontend:
     runs-on: ubuntu-latest
@@ -127,8 +160,8 @@ jobs:
   # ── Update K8s manifests with new image tags ─────────────────────
   update-manifests:
     runs-on: ubuntu-latest
-    needs: [build-silo, build-projector-service, build-frontend]
-    if: always() && (needs.build-silo.result == 'success' || needs.build-projector-service.result == 'success' || needs.build-frontend.result == 'success')
+    needs: [build-silo, build-projector-service, build-migrations, build-frontend]
+    if: always() && (needs.build-silo.result == 'success' || needs.build-projector-service.result == 'success' || needs.build-migrations.result == 'success' || needs.build-frontend.result == 'success')
     steps:
       - uses: actions/checkout@v4
         with:
@@ -146,6 +179,13 @@ jobs:
         run: |
           SHA="${GITHUB_SHA::7}"
           sed -i "s|image: ghcr.io/lekhasy/vut/projector-service:.*|image: ghcr.io/lekhasy/vut/projector-service:${SHA}|" \
+            infrastructure/k8s/projector-service/deployment.yaml
+
+      - name: Update migrations image tag
+        if: needs.build-migrations.result == 'success'
+        run: |
+          SHA="${GITHUB_SHA::7}"
+          sed -i "s|image: ghcr.io/lekhasy/vut/migrations:.*|image: ghcr.io/lekhasy/vut/migrations:${SHA}|" \
             infrastructure/k8s/projector-service/deployment.yaml
 
       - name: Update frontend image tag

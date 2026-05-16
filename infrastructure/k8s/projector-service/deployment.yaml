@@ -22,6 +22,23 @@ spec:
         app.kubernetes.io/component: projector
         app.kubernetes.io/name: projector-service
     spec:
+      initContainers:
+        - name: run-migrations
+          image: ghcr.io/lekhasy/vut/migrations:4b5eab3
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: velucid-postgresql-secret
+                  key: POSTGRES_USERNAME
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: velucid-postgresql-secret
+                  key: POSTGRES_PASSWORD
+            - name: CONNECTION_STRING
+              value: "Host=velucid-postgresql;Database=velucid_readmodel;Username=$(POSTGRES_USERNAME);Password=$(POSTGRES_PASSWORD)"
       containers:
         - name: projector-service
           image: ghcr.io/lekhasy/vut/projector-service:4b5eab3
