@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: velucid-loki-config
+  namespace: velucid
+  labels:
+    app.kubernetes.io/part-of: velucid
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/name: loki
+data:
+  loki.yaml: |
+    auth_enabled: false
+
+    server:
+      http_listen_port: 3100
+      grpc_listen_port: 9096
+
+    common:
+      path_prefix: /var/loki
+      storage:
+        filesystem:
+          chunks_directory: /var/loki/chunks
+          rules_directory: /var/loki/rules
+      replication_factor: 1
+      ring:
+        instance_addr: 127.0.0.1
+        kvstore:
+          store: inmemory
+
+    query_range:
+      align_queries_with_step: true
+
+    limits:
+      reject_old_samples: true
+      reject_old_samples_max_age: 168h
+
+    compactor:
+      working_directory: /var/loki/compactor
+      retention_enabled: true
+      retention_delete_delay: 2h
+
+    schema_config:
+      configs:
+        - from: 2024-01-01
+          store: boltdb-shipper
+          object_store: filesystem
+          schema: v13
+          index:
+            period: 24h
+            prefix: loki_index_
+
+    ruler:
+      storage:
+        filesystem:
+          directory: /var/loki/rules
+      rule_path: /var/loki/rules-temp
+      evaluation:
+        mode: local
+      evaluation_interval: 1m
+      alerting:
+        alertmanager_url: http://localhost:9093

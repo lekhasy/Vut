@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: velucid-grafana
+  namespace: velucid
+  labels:
+    app.kubernetes.io/part-of: velucid
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/name: grafana
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/part-of: velucid
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/name: grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
