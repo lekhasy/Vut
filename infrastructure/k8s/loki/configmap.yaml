@@ -30,7 +30,7 @@ data:
     query_range:
       align_queries_with_step: true
 
-    limits:
+    limits_config:
       reject_old_samples: true
       reject_old_samples_max_age: 168h
 
@@ -50,12 +50,9 @@ data:
             prefix: loki_index_
 
     ruler:
-      storage:
-        filesystem:
-          directory: /var/loki/rules
       rule_path: /var/loki/rules-temp
       evaluation:
         mode: local
       evaluation_interval: 1m
-      alerting:
+      alertmanager:
         alertmanager_url: http://localhost:9093
