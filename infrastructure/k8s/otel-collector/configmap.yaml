@@ -22,18 +22,28 @@ data:
         include: ["/var/log/pods/*/*/*.log"]
         start_at: end
 
-      # Collect kubelet metrics (node, pod, container stats)
-      kubeletstats:
-        collection_interval: 30s
-        auth_type: serviceAccount
-        endpoint: https://localhost:10250
-        insecure_skip_verify: true
-        extra_metadata_labels:
-          - container.id
-        metric_groups:
-          - node
-          - pod
-          - container
+      # NOTE: kubeletstats is commented out due to two issues:
+      # 1. hostNetwork:true is required to reach kubelet API on localhost:10250, but this
+      #    causes the pod to use the host's DNS resolver, making cluster DNS names (like
+      #    velucid-loki) unresolvable from within the pod.
+      # 2. Even with hostNetwork, the default ServiceAccount lacks 'nodes/stats' permission
+      #    (403 Forbidden). A ClusterRoleBinding for 'nodes/stats' get/list would fix it,
+      #    but DNS resolution from hostNetwork pods remains broken.
+      #
+      # For cluster-level metrics, Prometheus is configured to scrape K3s kubelet directly
+      # via kubernetes-apiservers/nodes jobs in prometheus.yaml. Use that instead.
+      #
+      # kubeletstats:
+      #   collection_interval: 30s
+      #   auth_type: serviceAccount
+      #   endpoint: https://localhost:10250
+      #   insecure_skip_verify: true
+      #   extra_metadata_labels:
+      #     - container.id
+      #   metric_groups:
+      #     - node
+      #     - pod
+      #     - container
 
     processors:
       batch:
@@ -73,11 +83,6 @@ data:
           receivers: [filelog]
           processors: [memory_limiter, batch, k8sattributes]
           exporters: [loki]
-
-        metrics:
-          receivers: [kubeletstats]
-          processors: [memory_limiter, batch]
-          exporters: [prometheus]
 
         traces:
           receivers: [otlp]

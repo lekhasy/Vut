@@ -20,18 +20,10 @@ spec:
         app.kubernetes.io/component: observability
         app.kubernetes.io/name: otel-collector
     spec:
-      # hostNetwork: true is required for kubeletstats receiver to reach kubelet API on each node.
-      # Without it, the kubelet API is only accessible from the node's network namespace.
-      #
-      # Trade-offs:
-      # PRO: OTEL DaemonSet can scrape kubelet metrics (node CPU, memory, network, volumes) directly.
-      # PRO: OTEL becomes the single source of truth for all metrics, traces, and logs.
-      #
-      # CON: Pod uses node's network namespace directly — may conflict with host port mappings
-      #      from other Daemonsets or node-level services on the same port.
-      # CON: Each pod gets the node's IP. If you run other hostNetwork pods, port conflicts possible.
-      # CON: Network policies scoped to namespace won't apply to host network traffic.
-      hostNetwork: true
+      # hostNetwork: true was previously needed for kubeletstats (kubelet API on localhost:10250).
+      # DISABLED: hostNetwork pods use the host's DNS resolver, breaking cluster DNS resolution.
+      # See configmap.yaml kubeletstats comment for full details.
+      # hostNetwork: true
       terminationGracePeriodSeconds: 30
       containers:
         - name: otel-collector
