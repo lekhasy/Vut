@@ -1,9 +1,16 @@
 ---
 import crypto from 'node:crypto';
 import { buildAuthorizationUrl, type AuthConnection } from '@/lib/auth/auth0';
+import { decrypt, SESSION_COOKIE } from '@/lib/auth/session';
 import '../../styles/global.css';
 
 const VALID_CONNECTIONS = new Set<AuthConnection>(['github']);
+
+// Redirect to dashboard if already logged in
+const existingSession = Astro.cookies.get(SESSION_COOKIE)?.value;
+if (existingSession && decrypt(existingSession)) {
+  return Astro.redirect('/dashboard', 302);
+}
 
 const provider = Astro.url.searchParams.get('provider') as AuthConnection | null;
 
