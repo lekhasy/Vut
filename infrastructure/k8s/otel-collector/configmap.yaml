@@ -22,6 +22,12 @@ data:
         include: ["/var/log/pods/*/*/*.log"]
         start_at: end
 
+    resource:
+      attributes:
+        - action: upsert
+          key: service.name
+          from_attribute: app.kubernetes.io/name
+
       # NOTE: kubeletstats is commented out due to two issues:
       # 1. hostNetwork:true is required to reach kubelet API on localhost:10250, but this
       #    causes the pod to use the host's DNS resolver, making cluster DNS names (like

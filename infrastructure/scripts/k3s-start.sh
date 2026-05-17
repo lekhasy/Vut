@@ -177,12 +177,18 @@ if $KUBECTL get namespace velucid &>/dev/null; then
     if ! $KUBECTL get secret infisical-machine-identity -n velucid &>/dev/null; then
         warn "Infisical machine identity secret not found in velucid namespace."
         echo ""
-        echo "  Create it with:"
-        echo "    sudo k3s kubectl create secret generic infisical-machine-identity \\"
-        echo "      -n velucid \\"
-        echo "      --from-literal=clientId=<YOUR_MACHINE_IDENTITY_CLIENT_ID> \\"
-        echo "      --from-literal=clientSecret=<YOUR_MACHINE_IDENTITY_CLIENT_SECRET>"
-        echo ""
+        read -p "  Infisical Machine Identity Client ID: " CLIENT_ID
+        read -p "  Infisical Machine Identity Client Secret: " CLIENT_SECRET
+        if [ -n "$CLIENT_ID" ] && [ -n "$CLIENT_SECRET" ]; then
+            $KUBECTL create secret generic infisical-machine-identity \
+                -n velucid \
+                --from-literal=clientId="$CLIENT_ID" \
+                --from-literal=clientSecret="$CLIENT_SECRET" \
+                2>/dev/null && ok "Infisical machine identity secret created" \
+                || warn "Failed to create infisical-machine-identity secret"
+        else
+            warn "Skipped — Infisical secrets will not be synced"
+        fi
     fi
 fi
 
