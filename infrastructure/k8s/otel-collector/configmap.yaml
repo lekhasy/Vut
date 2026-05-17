@@ -55,13 +55,20 @@ data:
         limit_percentage: 75
 
       k8sattributes:
-        passthrough: true
-
-    resource:
-      attributes:
-        - action: upsert
-          key: service.name
-          value: ${app.kubernetes.io/name}
+        auth_type: "serviceAccount"
+        passthrough: false
+        extract:
+          metadata:
+            - k8s.pod.name
+            - k8s.namespace.name
+            - k8s.deployment.name
+          labels:
+            - key: app.kubernetes.io/name
+              from: pod
+        pod_association:
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.name
 
     extensions:
       health_check:
@@ -76,6 +83,10 @@ data:
           initial_interval: 1s
           max_interval: 30s
           max_elapsed_time: 5m
+        labels:
+          resource:
+            service.name:
+              from_attribute: k8s.deployment.name
 
       prometheus:
         endpoint: "0.0.0.0:8889"

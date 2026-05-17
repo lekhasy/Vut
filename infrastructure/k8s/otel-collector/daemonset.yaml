@@ -22,10 +22,7 @@ spec:
       annotations:
         reloader.stakater.com/auto: "true"
     spec:
-      # hostNetwork: true was previously needed for kubeletstats (kubelet API on localhost:10250).
-      # DISABLED: hostNetwork pods use the host's DNS resolver, breaking cluster DNS resolution.
-      # See configmap.yaml kubeletstats comment for full details.
-      # hostNetwork: true
+      serviceAccountName: velucid-otel-collector
       terminationGracePeriodSeconds: 30
       containers:
         - name: otel-collector
