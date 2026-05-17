@@ -1,15 +1,275 @@
 ---
 import AppLayout from '../layouts/AppLayout.astro';
-import EmptyState from '../components/ui/EmptyState.astro';
 import Button from '../components/ui/Button.astro';
 ---
 
 <AppLayout title="Dashboard" pageTitle="Dashboard">
-  <EmptyState
-    title="Welcome to Velocid"
-    description="Get started by creating your first organization or accepting an invitation."
-    icon="inbox"
-  >
-    <Button variant="primary">Create Organization</Button>
-  </EmptyState>
+  <div class="dashboard space-y-6">
+
+    <!-- 1. Welcome Hero Section -->
+    <section class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-600 via-brand-700 to-purple-700 p-6 sm:p-8 lg:p-10">
+      <!-- Dot grid overlay -->
+      <div class="hero-dot-grid absolute inset-0 opacity-[0.07]" aria-hidden="true"></div>
+      <!-- Gradient mesh blobs -->
+      <div class="absolute -top-20 -right-20 h-64 w-64 rounded-full bg-white/10 blur-3xl pointer-events-none" aria-hidden="true"></div>
+      <div class="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-purple-400/20 blur-3xl pointer-events-none" aria-hidden="true"></div>
+
+      <div class="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            Welcome to Velucid
+          </h2>
+          <p class="mt-2 text-base text-brand-100 max-w-lg leading-relaxed">
+            Your command center for shipping software. Track projects, forecast delivery dates, and keep your team moving forward.
+          </p>
+        </div>
+        <div class="flex-shrink-0">
+          <a
+            href="/dashboard"
+            class="inline-flex items-center justify-center rounded-xl bg-white/15 px-5 py-2.5 text-sm font-semibold text-white ring-1 ring-white/20 backdrop-blur-sm transition-all duration-200 hover:bg-white/25 hover:ring-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
+          >
+            View Docs
+            <svg class="ml-1.5 h-4 w-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Quick Stats Row -->
+    <section aria-label="Quick statistics">
+      <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <!-- Active Projects -->
+        <div class="stat-card group rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 transition-all duration-200 hover:border-brand-500/40 hover:shadow-lg hover:shadow-brand-500/5">
+          <div class="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400 ring-1 ring-brand-500/20 transition-colors group-hover:bg-brand-500/15">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+          </div>
+          <div class="text-2xl font-extrabold text-[var(--color-text)]">0</div>
+          <div class="mt-0.5 text-sm text-[var(--color-text-secondary)]">Active Projects</div>
+        </div>
+
+        <!-- Tasks This Week -->
+        <div class="stat-card group rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 transition-all duration-200 hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-500/5">
+          <div class="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 ring-1 ring-purple-500/20 transition-colors group-hover:bg-purple-500/15">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </div>
+          <div class="text-2xl font-extrabold text-[var(--color-text)]">0</div>
+          <div class="mt-0.5 text-sm text-[var(--color-text-secondary)]">Tasks This Week</div>
+        </div>
+
+        <!-- Team Members -->
+        <div class="stat-card group rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 transition-all duration-200 hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5">
+          <div class="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20 transition-colors group-hover:bg-emerald-500/15">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </div>
+          <div class="text-2xl font-extrabold text-[var(--color-text)]">1</div>
+          <div class="mt-0.5 text-sm text-[var(--color-text-secondary)]">Team Members</div>
+        </div>
+
+        <!-- Completion Rate -->
+        <div class="stat-card group rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 transition-all duration-200 hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-500/5">
+          <div class="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20 transition-colors group-hover:bg-amber-500/15">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+          </div>
+          <div class="text-2xl font-extrabold text-[var(--color-text)]">&mdash;</div>
+          <div class="mt-0.5 text-sm text-[var(--color-text-secondary)]">Completion Rate</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Getting Started Section -->
+    <section aria-labelledby="getting-started-heading">
+      <h3 id="getting-started-heading" class="text-lg font-bold text-[var(--color-text)] mb-4">Get started</h3>
+      <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+
+        <!-- Step 1: Create your first project -->
+        <a
+          href="/dashboard"
+          class="step-card group rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-brand-500/10 hover:border-brand-500/40 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-[var(--color-bg)]"
+        >
+          <!-- Gradient header with illustration -->
+          <div class="bg-gradient-to-br from-brand-500/20 to-indigo-500/10 p-6 pb-5 border-b border-[var(--color-border)]">
+            <div class="flex items-center gap-2 mb-4">
+              <span class="flex-shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-600 text-white font-bold text-xs shadow-md shadow-brand-500/30">1</span>
+              <span class="text-xs font-semibold text-brand-400 uppercase tracking-wider">Create</span>
+            </div>
+            <!-- Mini kanban illustration -->
+            <div class="rounded-lg bg-[var(--color-surface)]/60 border border-brand-500/10 shadow-sm p-3">
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <div class="h-1.5 w-10 rounded bg-slate-500/40 mb-2"></div>
+                  <div class="space-y-1.5">
+                    <div class="h-6 rounded bg-[var(--color-bg)] border border-[var(--color-border)]"></div>
+                    <div class="h-6 rounded bg-[var(--color-bg)] border border-[var(--color-border)]"></div>
+                    <div class="h-6 rounded bg-brand-500/10 border border-brand-500/20"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="h-1.5 w-12 rounded bg-amber-400/50 mb-2"></div>
+                  <div class="space-y-1.5">
+                    <div class="h-6 rounded bg-amber-500/10 border border-amber-500/20"></div>
+                  </div>
+                </div>
+                <div>
+                  <div class="h-1.5 w-8 rounded bg-emerald-400/50 mb-2"></div>
+                  <div class="space-y-1.5">
+                    <div class="h-6 rounded bg-emerald-500/10 border border-emerald-500/20"></div>
+                    <div class="h-6 rounded bg-emerald-500/10 border border-emerald-500/20"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Text -->
+          <div class="p-6">
+            <h4 class="text-base font-semibold text-[var(--color-text)] group-hover:text-brand-400 transition-colors">Create your first project</h4>
+            <p class="mt-2 text-sm text-[var(--color-text-secondary)] leading-relaxed">
+              Set up a board in minutes. Define your columns, add your tasks, and start tracking work immediately.
+            </p>
+            <div class="mt-3 inline-flex items-center text-sm font-medium text-brand-400 transition-transform group-hover:translate-x-0.5">
+              Get started
+              <svg class="ml-1 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </div>
+          </div>
+        </a>
+
+        <!-- Step 2: Invite your team -->
+        <div class="step-card rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 hover:border-purple-500/40">
+          <!-- Gradient header with illustration -->
+          <div class="bg-gradient-to-br from-purple-500/20 to-fuchsia-500/10 p-6 pb-5 border-b border-[var(--color-border)]">
+            <div class="flex items-center gap-2 mb-4">
+              <span class="flex-shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full bg-purple-600 text-white font-bold text-xs shadow-md shadow-purple-500/30">2</span>
+              <span class="text-xs font-semibold text-purple-400 uppercase tracking-wider">Invite</span>
+            </div>
+            <!-- People/team illustration -->
+            <div class="rounded-lg bg-[var(--color-surface)]/60 border border-purple-500/10 shadow-sm p-3">
+              <div class="flex items-center gap-3">
+                <!-- Avatars -->
+                <div class="flex -space-x-2">
+                  <div class="h-8 w-8 rounded-full bg-brand-500/20 border-2 border-[var(--color-surface)] flex items-center justify-center">
+                    <span class="text-[10px] font-bold text-brand-400">SY</span>
+                  </div>
+                  <div class="h-8 w-8 rounded-full bg-purple-500/20 border-2 border-[var(--color-surface)] flex items-center justify-center">
+                    <span class="text-[10px] font-bold text-purple-400">JD</span>
+                  </div>
+                  <div class="h-8 w-8 rounded-full bg-emerald-500/20 border-2 border-[var(--color-surface)] flex items-center justify-center">
+                    <span class="text-[10px] font-bold text-emerald-400">AK</span>
+                  </div>
+                </div>
+                <!-- Invite button placeholder -->
+                <div class="flex-1">
+                  <div class="h-8 rounded-lg border-2 border-dashed border-purple-500/30 bg-purple-500/5 flex items-center justify-center">
+                    <svg class="h-3.5 w-3.5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              <!-- Activity line -->
+              <div class="mt-3 flex items-center gap-1.5 rounded bg-[var(--color-bg)]/50 border border-[var(--color-border)] px-2 py-1">
+                <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                <span class="text-[9px] text-[var(--color-text-secondary)] font-medium">3 members ready to collaborate</span>
+              </div>
+            </div>
+          </div>
+          <!-- Text -->
+          <div class="p-6">
+            <h4 class="text-base font-semibold text-[var(--color-text)]">Invite your team</h4>
+            <p class="mt-2 text-sm text-[var(--color-text-secondary)] leading-relaxed">
+              Add teammates by email. Everyone gets instant access to shared boards, tasks, and forecasts.
+            </p>
+          </div>
+        </div>
+
+        <!-- Step 3: Start tracking -->
+        <div class="step-card rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10 hover:border-emerald-500/40 sm:col-span-2 lg:col-span-1">
+          <!-- Gradient header with illustration -->
+          <div class="bg-gradient-to-br from-emerald-500/20 to-teal-500/10 p-6 pb-5 border-b border-[var(--color-border)]">
+            <div class="flex items-center gap-2 mb-4">
+              <span class="flex-shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-500/30">3</span>
+              <span class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Track</span>
+            </div>
+            <!-- Mini chart illustration -->
+            <div class="rounded-lg bg-[var(--color-surface)]/60 border border-emerald-500/10 shadow-sm p-3">
+              <svg viewBox="0 0 200 80" class="w-full h-auto" role="img" aria-label="Probability forecast chart illustration">
+                <!-- Grid lines -->
+                <line x1="20" y1="15" x2="180" y2="15" stroke="#334155" stroke-width="0.5" />
+                <line x1="20" y1="35" x2="180" y2="35" stroke="#334155" stroke-width="0.5" />
+                <line x1="20" y1="55" x2="180" y2="55" stroke="#334155" stroke-width="0.5" />
+                <!-- Y-axis labels -->
+                <text x="16" y="17" text-anchor="end" fill="#94a3b8" font-size="5">100%</text>
+                <text x="16" y="57" text-anchor="end" fill="#94a3b8" font-size="5">20%</text>
+                <text x="16" y="72" text-anchor="end" fill="#94a3b8" font-size="5">0%</text>
+                <!-- Histogram bars -->
+                <rect x="30" y="64" width="12" height="6" rx="1" fill="#818cf8" opacity="0.15" />
+                <rect x="44" y="56" width="12" height="14" rx="1" fill="#818cf8" opacity="0.18" />
+                <rect x="58" y="44" width="12" height="26" rx="1" fill="#818cf8" opacity="0.22" />
+                <rect x="72" y="40" width="12" height="30" rx="1" fill="#818cf8" opacity="0.25" />
+                <rect x="86" y="48" width="12" height="22" rx="1" fill="#818cf8" opacity="0.2" />
+                <rect x="100" y="56" width="12" height="14" rx="1" fill="#818cf8" opacity="0.15" />
+                <rect x="114" y="60" width="12" height="10" rx="1" fill="#818cf8" opacity="0.1" />
+                <!-- Amber fill under S-curve -->
+                <path d="M20,70 L30,70 L42,69 L55,66 L65,60 L75,52 L85,42 L92,36 L98,32 L98,70 Z" fill="#fbbf24" opacity="0.15" />
+                <!-- S-curve line -->
+                <polyline points="20,70 30,70 42,69 55,66 65,60 75,52 85,42 92,36 98,32 108,27 118,23 128,20 138,18 148,16 158,15 168,14 180,13" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                <!-- Threshold line -->
+                <line x1="98" y1="8" x2="98" y2="70" stroke="#fbbf24" stroke-width="1.5" />
+                <!-- Crosshair -->
+                <line x1="20" y1="32" x2="98" y2="32" stroke="#fbbf24" stroke-width="0.8" stroke-dasharray="2,2" />
+                <!-- Intersection dot -->
+                <circle cx="98" cy="32" r="2.5" fill="#fbbf24" stroke="white" stroke-width="1" />
+                <!-- p70 badge -->
+                <rect x="78" y="2" width="40" height="10" rx="3" fill="#fbbf24" />
+                <text x="98" y="9.5" text-anchor="middle" fill="#1e293b" font-size="5" font-weight="700">70% confidence</text>
+              </svg>
+            </div>
+          </div>
+          <!-- Text -->
+          <div class="p-6">
+            <h4 class="text-base font-semibold text-[var(--color-text)]">Start tracking</h4>
+            <p class="mt-2 text-sm text-[var(--color-text-secondary)] leading-relaxed">
+              Move tasks across your board. Velucid learns your flow and builds probability forecasts automatically.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 4. Quick Actions -->
+    <section aria-label="Quick actions">
+      <div class="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 sm:p-8">
+        <h3 class="text-base font-bold text-[var(--color-text)] mb-1">Set up your workspace</h3>
+        <p class="text-sm text-[var(--color-text-secondary)] mb-5">Create or join an organization to unlock collaboration features.</p>
+        <div class="flex flex-col gap-3 sm:flex-row sm:gap-4">
+          <Button variant="primary" size="lg" class="rounded-xl shadow-lg shadow-brand-500/20 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
+            Create Organization
+          </Button>
+          <Button variant="secondary" size="lg" class="rounded-xl transition-all duration-200 hover:-translate-y-0.5">
+            Join Organization
+          </Button>
+        </div>
+      </div>
+    </section>
+
+  </div>
 </AppLayout>
+
+<style>
+  /* Dot grid pattern for the hero banner */
+  .hero-dot-grid {
+    background-image: radial-gradient(circle, #ffffff 0.7px, transparent 0.7px);
+    background-size: 24px 24px;
+  }
+</style>
