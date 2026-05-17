@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Grpc.Core;
 using KurrentDB.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -60,8 +61,15 @@ public sealed class UserProjector : BackgroundService
     private async Task SubscribeAsync(CancellationToken ct)
     {
         var settings = new PersistentSubscriptionSettings(resolveLinkTos: true);
-        await _psClient.CreateToAllAsync(
-            SubscriptionGroup, StreamFilter.Prefix("user"), settings);
+        try
+        {
+            await _psClient.CreateToAllAsync(
+                SubscriptionGroup, StreamFilter.Prefix("user"), settings);
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.AlreadyExists)
+        {
+            _logger.LogInformation("Subscription group {Group} already exists, using existing", SubscriptionGroup);
+        }
 
         await using var subscription = _psClient.SubscribeToAll(
             SubscriptionGroup, cancellationToken: ct);

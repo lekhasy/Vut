@@ -25,7 +25,7 @@ import AppLayout from '../layouts/AppLayout.astro';
     <div class="columns">
 
       <!-- Backlog -->
-      <div class="column">
+      <div class="column" data-column>
         <div class="column-header">
           <h3 class="column-title">
             <span class="column-dot column-dot--slate"></span>
@@ -34,50 +34,50 @@ import AppLayout from '../layouts/AppLayout.astro';
           </h3>
         </div>
         <div class="column-cards">
-          <div class="card">
+          <div class="card" draggable="true" data-card>
             <div class="card-top">
               <span class="card-tag card-tag--feature">Feature</span>
               <span class="card-priority card-priority--low">Low</span>
             </div>
             <p class="card-title">Rate limiting on public endpoints</p>
-            <div class="card-bottom">
+            <div class="card-footer">
               <span class="card-id">VEL-012</span>
             </div>
           </div>
-          <div class="card">
+          <div class="card" draggable="true" data-card>
             <div class="card-top">
               <span class="card-tag card-tag--bug">Bug</span>
               <span class="card-priority card-priority--med">Med</span>
             </div>
             <p class="card-title">Token refresh race condition</p>
-            <div class="card-bottom">
+            <div class="card-footer">
               <span class="card-id">VEL-018</span>
             </div>
           </div>
-          <div class="card">
+          <div class="card" draggable="true" data-card>
             <div class="card-top">
               <span class="card-tag card-tag--feature">Feature</span>
             </div>
             <p class="card-title">Webhook delivery retry queue</p>
-            <div class="card-bottom">
+            <div class="card-footer">
               <span class="card-id">VEL-021</span>
             </div>
           </div>
-          <div class="card">
+          <div class="card" draggable="true" data-card>
             <div class="card-top">
               <span class="card-tag card-tag--chore">Chore</span>
             </div>
             <p class="card-title">Upgrade to Node 22 LTS</p>
-            <div class="card-bottom">
+            <div class="card-footer">
               <span class="card-id">VEL-024</span>
             </div>
           </div>
-          <div class="card">
+          <div class="card" draggable="true" data-card>
             <div class="card-top">
               <span class="card-tag card-tag--feature">Feature</span>
             </div>
             <p class="card-title">Audit log export to CSV</p>
-            <div class="card-bottom">
+            <div class="card-footer">
               <span class="card-id">VEL-027</span>
             </div>
           </div>
@@ -85,7 +85,7 @@ import AppLayout from '../layouts/AppLayout.astro';
       </div>
 
       <!-- In Progress -->
-      <div class="column">
+      <div class="column" data-column>
         <div class="column-header">
           <h3 class="column-title">
             <span class="column-dot column-dot--amber"></span>
@@ -94,7 +94,7 @@ import AppLayout from '../layouts/AppLayout.astro';
           </h3>
         </div>
         <div class="column-cards">
-          <div class="card">
+          <div class="card" draggable="true" data-card>
             <div class="card-top">
               <span class="card-tag card-tag--feature">Feature</span>
               <span class="card-priority card-priority--high">High</span>
@@ -105,7 +105,7 @@ import AppLayout from '../layouts/AppLayout.astro';
               <div class="card-avatar">SY</div>
             </div>
           </div>
-          <div class="card">
+          <div class="card" draggable="true" data-card>
             <div class="card-top">
               <span class="card-tag card-tag--feature">Feature</span>
               <span class="card-priority card-priority--med">Med</span>
@@ -120,7 +120,7 @@ import AppLayout from '../layouts/AppLayout.astro';
       </div>
 
       <!-- In Review -->
-      <div class="column">
+      <div class="column" data-column>
         <div class="column-header">
           <h3 class="column-title">
             <span class="column-dot column-dot--purple"></span>
@@ -129,7 +129,7 @@ import AppLayout from '../layouts/AppLayout.astro';
           </h3>
         </div>
         <div class="column-cards">
-          <div class="card">
+          <div class="card" draggable="true" data-card>
             <div class="card-top">
               <span class="card-tag card-tag--feature">Feature</span>
             </div>
@@ -139,7 +139,7 @@ import AppLayout from '../layouts/AppLayout.astro';
               <div class="card-avatar">SY</div>
             </div>
           </div>
-          <div class="card">
+          <div class="card" draggable="true" data-card>
             <div class="card-top">
               <span class="card-tag card-tag--bug">Bug</span>
               <span class="card-priority card-priority--high">High</span>
@@ -154,7 +154,7 @@ import AppLayout from '../layouts/AppLayout.astro';
       </div>
 
       <!-- Done -->
-      <div class="column">
+      <div class="column" data-column>
         <div class="column-header">
           <h3 class="column-title">
             <span class="column-dot column-dot--emerald"></span>
@@ -163,7 +163,7 @@ import AppLayout from '../layouts/AppLayout.astro';
           </h3>
         </div>
         <div class="column-cards">
-          <div class="card card--done">
+          <div class="card card--done" draggable="true" data-card>
             <div class="card-top">
               <span class="card-tag card-tag--feature">Feature</span>
             </div>
@@ -173,7 +173,7 @@ import AppLayout from '../layouts/AppLayout.astro';
               <div class="card-avatar">SY</div>
             </div>
           </div>
-          <div class="card card--done">
+          <div class="card card--done" draggable="true" data-card>
             <div class="card-top">
               <span class="card-tag card-tag--chore">Chore</span>
             </div>
@@ -183,7 +183,7 @@ import AppLayout from '../layouts/AppLayout.astro';
               <div class="card-avatar">SY</div>
             </div>
           </div>
-          <div class="card card--done">
+          <div class="card card--done" draggable="true" data-card>
             <div class="card-top">
               <span class="card-tag card-tag--bug">Bug</span>
             </div>
@@ -199,6 +199,148 @@ import AppLayout from '../layouts/AppLayout.astro';
     </div>
   </div>
 </AppLayout>
+
+<script>
+  function initBoard() {
+    let draggedCard: HTMLElement | null = null;
+    let dropIndicator: HTMLElement | null = null;
+
+    function getDropIndicator(): HTMLElement {
+      if (!dropIndicator) {
+        dropIndicator = document.createElement('div');
+        dropIndicator.className = 'drop-indicator';
+      }
+      return dropIndicator;
+    }
+
+    function removeDropIndicator() {
+      getDropIndicator().remove();
+    }
+
+    function getColumnCards(column: Element): HTMLElement[] {
+      return Array.from(column.querySelectorAll<HTMLElement>('[data-card]'));
+    }
+
+    function updateCount(column: Element) {
+      const count = column.querySelectorAll('[data-card]').length;
+      const badge = column.querySelector('.column-count');
+      if (badge) badge.textContent = String(count);
+    }
+
+    // Determine insert position based on cursor Y
+    function getInsertBefore(container: Element, y: number): HTMLElement | null {
+      const cards = getColumnCards(container);
+      let closest: HTMLElement | null = null;
+      let closestOffset = Number.NEGATIVE_INFINITY;
+
+      for (const card of cards) {
+        if (card === draggedCard) continue;
+        const box = card.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closestOffset) {
+          closestOffset = offset;
+          closest = card;
+        }
+      }
+
+      return closest;
+    }
+
+    // Card drag events
+    document.addEventListener('dragstart', (e) => {
+      const card = (e.target as HTMLElement).closest<HTMLElement>('[data-card]');
+      if (!card) return;
+
+      draggedCard = card;
+      card.classList.add('card--dragging');
+      e.dataTransfer!.effectAllowed = 'move';
+      e.dataTransfer!.setData('text/plain', '');
+
+      // Slight delay so the dragging style applies after the ghost image is captured
+      requestAnimationFrame(() => {
+        card.classList.add('card--dragging-active');
+      });
+    });
+
+    document.addEventListener('dragend', () => {
+      if (!draggedCard) return;
+
+      draggedCard.classList.remove('card--dragging', 'card--dragging-active');
+      removeDropIndicator();
+
+      // Clear all column highlights
+      document.querySelectorAll('.column--drop-target').forEach((col) => {
+        col.classList.remove('column--drop-target');
+      });
+
+      draggedCard = null;
+    });
+
+    // Column drag events
+    document.addEventListener('dragover', (e) => {
+      if (!draggedCard) return;
+      e.preventDefault();
+      e.dataTransfer!.dropEffect = 'move';
+
+      const column = (e.target as HTMLElement).closest('[data-column]');
+      if (!column) return;
+
+      // Highlight target column
+      document.querySelectorAll('.column--drop-target').forEach((col) => {
+        if (col !== column) col.classList.remove('column--drop-target');
+      });
+      column.classList.add('column--drop-target');
+
+      // Position drop indicator
+      const container = column.querySelector('.column-cards')!;
+      const indicator = getDropIndicator();
+      const before = getInsertBefore(container, e.clientY);
+
+      if (before) {
+        container.insertBefore(indicator, before);
+      } else {
+        container.appendChild(indicator);
+      }
+    });
+
+    document.addEventListener('dragleave', (e) => {
+      const column = (e.target as HTMLElement).closest('[data-column]');
+      if (!column) return;
+
+      // Only remove highlight if actually leaving the column
+      const related = e.relatedTarget as HTMLElement | null;
+      if (!related || !column.contains(related)) {
+        column.classList.remove('column--drop-target');
+        removeDropIndicator();
+      }
+    });
+
+    document.addEventListener('drop', (e) => {
+      if (!draggedCard) return;
+      e.preventDefault();
+
+      const column = (e.target as HTMLElement).closest('[data-column]');
+      if (!column) return;
+
+      const container = column.querySelector('.column-cards')!;
+      const before = getInsertBefore(container, e.clientY);
+
+      if (before) {
+        container.insertBefore(draggedCard, before);
+      } else {
+        container.appendChild(draggedCard);
+      }
+
+      // Update counts for source and target columns
+      document.querySelectorAll('[data-column]').forEach(updateCount);
+
+      column.classList.remove('column--drop-target');
+      removeDropIndicator();
+    });
+  }
+
+  initBoard();
+</script>
 
 <style>
   .board {
@@ -281,6 +423,12 @@ import AppLayout from '../layouts/AppLayout.astro';
     border: 1px solid var(--color-border);
     border-radius: 0.625rem;
     overflow: hidden;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .column--drop-target {
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.1), 0 4px 16px rgba(99, 102, 241, 0.08);
   }
 
   .column-header {
@@ -317,6 +465,14 @@ import AppLayout from '../layouts/AppLayout.astro';
     padding: 0.0625rem 0.4375rem;
     border-radius: 9999px;
     margin-left: auto;
+    min-width: 1.25rem;
+    text-align: center;
+    transition: background 0.15s;
+  }
+
+  .column--drop-target .column-count {
+    background: rgba(99, 102, 241, 0.1);
+    color: #6366f1;
   }
 
   .column-cards {
@@ -334,14 +490,27 @@ import AppLayout from '../layouts/AppLayout.astro';
     border-radius: 0.5rem;
     border: 1px solid var(--color-border);
     background: var(--color-bg);
-    cursor: pointer;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    cursor: grab;
+    transition: border-color 0.15s, box-shadow 0.15s, opacity 0.15s, transform 0.15s;
     flex-shrink: 0;
+  }
+
+  .card:active {
+    cursor: grabbing;
   }
 
   .card:hover {
     border-color: rgba(129, 140, 248, 0.3);
     box-shadow: 0 2px 8px rgba(79, 70, 229, 0.08);
+  }
+
+  .card--dragging {
+    opacity: 0;
+  }
+
+  .card--dragging-active {
+    opacity: 0.4;
+    transform: rotate(1.5deg);
   }
 
   .card--done {
@@ -414,11 +583,13 @@ import AppLayout from '../layouts/AppLayout.astro';
     font-weight: 700;
   }
 
-  .card-bottom {
-    margin-top: 0.5rem;
-  }
-
-  .card-bottom .card-id {
-    display: block;
+  /* ─── Drop Indicator ──────────────────────────── */
+  .drop-indicator {
+    flex-shrink: 0;
+    height: 2px;
+    border-radius: 1px;
+    background: #6366f1;
+    margin: 0.125rem 0.25rem;
+    box-shadow: 0 0 6px rgba(99, 102, 241, 0.3);
   }
 </style>
