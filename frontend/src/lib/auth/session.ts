@@ -3,6 +3,7 @@ import { SESSION_SECRET } from 'astro:env/server';
 
 export interface SessionPayload {
   userId: string;
+  email: string;
   displayName: string;
   avatarUrl: string;
   isEmailVerified: boolean;

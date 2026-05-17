@@ -72,6 +72,7 @@ try {
   // Build session payload and set encrypted cookie
   const sessionPayload: SessionPayload = {
     userId: user.userId,
+    email: user.email ?? '',
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
     isEmailVerified: user.isEmailVerified,

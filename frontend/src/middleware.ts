@@ -52,6 +52,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   // Attach session data to Astro.locals
   context.locals.userId = session.userId;
+  context.locals.email = session.email;
   context.locals.displayName = session.displayName;
   context.locals.avatarUrl = session.avatarUrl;
   context.locals.isEmailVerified = session.isEmailVerified;
