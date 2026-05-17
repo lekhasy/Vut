@@ -21,6 +21,29 @@ data:
       filelog:
         include: ["/var/log/pods/*/*/*.log"]
         start_at: end
+        include_file_path: true
+        include_file_name: false
+        operators:
+          # Parse the K8s log file path to extract pod metadata
+          # Path format: /var/log/pods/<namespace>_<pod-name>_<pod-uid>/<container>/<N>.log
+          - type: regex_parser
+            id: extract_metadata_from_filepath
+            regex: '^.*\/var\/log\/pods\/(?P<namespace>[^_]+)_(?P<pod_name>[^_]+)_(?P<uid>[a-f0-9\-]+)\/(?P<container_name>[^\/_]+)\/(?P<restart_count>\d+)\.log$'
+            parse_from: attributes["log.file.path"]
+          - type: move
+            from: attributes.namespace
+            to: resource["k8s.namespace.name"]
+          - type: move
+            from: attributes.pod_name
+            to: resource["k8s.pod.name"]
+          - type: move
+            from: attributes.container_name
+            to: resource["k8s.container.name"]
+          - type: move
+            from: attributes.uid
+            to: resource["k8s.pod.uid"]
+          - type: remove
+            field: attributes.restart_count
 
     # NOTE: kubeletstats is commented out due to two issues:
       # 1. hostNetwork:true is required to reach kubelet API on localhost:10250, but this
@@ -65,6 +88,7 @@ data:
           labels:
             - key: app.kubernetes.io/name
               from: pod
+              tag_name: service.name
         pod_association:
           - sources:
               - from: resource_attribute
@@ -98,10 +122,10 @@ data:
       pipelines:
         logs:
           receivers: [filelog]
-          processors: [memory_limiter, batch, k8sattributes]
+          processors: [memory_limiter, k8sattributes, batch]
           exporters: [loki]
 
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, batch, k8sattributes]
+          processors: [memory_limiter, k8sattributes, batch]
           exporters: [otlp]
