@@ -83,10 +83,6 @@ data:
           initial_interval: 1s
           max_interval: 30s
           max_elapsed_time: 5m
-        labels:
-          resource:
-            service.name:
-              from_attribute: k8s.deployment.name
 
       prometheus:
         endpoint: "0.0.0.0:8889"
