@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: ghcr.io/lekhasy/vut/frontend:fec5fcc
+          image: ghcr.io/lekhasy/vut/frontend:bd1bc54
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
