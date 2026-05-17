@@ -19,6 +19,8 @@ spec:
         app.kubernetes.io/part-of: velucid
         app.kubernetes.io/component: observability
         app.kubernetes.io/name: otel-collector
+      annotations:
+        reloader.stakater.com/auto: "true"
     spec:
       # hostNetwork: true was previously needed for kubeletstats (kubelet API on localhost:10250).
       # DISABLED: hostNetwork pods use the host's DNS resolver, breaking cluster DNS resolution.
