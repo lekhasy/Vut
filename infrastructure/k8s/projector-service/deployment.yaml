@@ -24,7 +24,7 @@ spec:
     spec:
       initContainers:
         - name: run-migrations
-          image: ghcr.io/lekhasy/vut/migrations:7540f61
+          image: ghcr.io/lekhasy/vut/migrations:783d07b
           imagePullPolicy: IfNotPresent
           env:
             - name: POSTGRES_USERNAME
@@ -41,7 +41,7 @@ spec:
               value: "Host=velucid-postgresql;Database=velucid_readmodel;Username=$(POSTGRES_USERNAME);Password=$(POSTGRES_PASSWORD)"
       containers:
         - name: projector-service
-          image: ghcr.io/lekhasy/vut/projector-service:7540f61
+          image: ghcr.io/lekhasy/vut/projector-service:783d07b
           imagePullPolicy: IfNotPresent
           env:
             - name: KurrentDb__ConnectionString
