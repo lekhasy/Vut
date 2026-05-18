@@ -319,10 +319,14 @@ import AppLayout from '../layouts/AppLayout.astro';
       if (!draggedCard) return;
       e.preventDefault();
 
-      const column = (e.target as HTMLElement).closest('[data-column]');
-      if (!column) return;
+      const targetColumn = (e.target as HTMLElement).closest('[data-column]');
+      if (!targetColumn) return;
 
-      const container = column.querySelector('.column-cards')!;
+      // Capture source info before moving the card
+      const sourceColumn = draggedCard.closest('[data-column]');
+      const cardId = draggedCard.querySelector('.card-id')?.textContent ?? '';
+
+      const container = targetColumn.querySelector('.column-cards')!;
       const before = getInsertBefore(container, e.clientY);
 
       if (before) {
@@ -331,11 +335,25 @@ import AppLayout from '../layouts/AppLayout.astro';
         container.appendChild(draggedCard);
       }
 
-      // Update counts for source and target columns
+      // New index in target column
+      const cards = getColumnCards(container);
+      const newIndex = cards.indexOf(draggedCard);
+
+      // Update counts for all columns
       document.querySelectorAll('[data-column]').forEach(updateCount);
 
-      column.classList.remove('column--drop-target');
+      targetColumn.classList.remove('column--drop-target');
       removeDropIndicator();
+
+      // Dispatch custom event so listeners can persist the change
+      document.dispatchEvent(new CustomEvent('card-moved', {
+        detail: {
+          cardId,
+          fromColumn: sourceColumn?.querySelector('.column-title')?.textContent?.trim(),
+          toColumn: targetColumn.querySelector('.column-title')?.textContent?.trim(),
+          newIndex,
+        },
+      }));
     });
   }
 
