@@ -61,11 +61,12 @@ builder.Services.AddDbContext<ReadModelDbContext>(options =>
 builder.Services.AddSingleton<ISignInService, SignInService>();
 
 // ─── Event Type Registrations ────────────────────────────────────
-EventTypeMapping.Register<UserCreatedEvent>("UserCreated");
-EventTypeMapping.Register<IdentityLinkedEvent>("IdentityLinked");
+EventTypeMapping.Register<UserRegisteredEvent>("UserCreated");
+EventTypeMapping.Register<IdentityInfoUpdatedEvent>("IdentityInfoUpdated");
 EventTypeMapping.Register<UserProfileUpdatedEvent>("UserProfileUpdated");
 EventTypeMapping.Register<EmailVerificationRequestedEvent>("EmailVerificationRequested");
 EventTypeMapping.Register<EmailVerifiedEvent>("EmailVerified");
+EventTypeMapping.Register<IdentityLinkedToUserEvent>("IdentityLinkedToUser");
 EventTypeMapping.Freeze();
 
 // ─── Co-hosted ASP.NET Core API ──────────────────────────────────

@@ -1,63 +1,40 @@
 using FluentAssertions;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using NSubstitute;
-using Velucid.ReadModel;
-using Velucid.ReadModel.Entities;
 using Velucid.Silo.Grains;
 using Velucid.Silo.Models;
 using Velucid.Silo.Services;
+using SignInResult = Velucid.Silo.Models.SignInResult;
 
 namespace Velucid.Silo.Tests.Services;
 
-public sealed class SignInServiceTests : IAsyncLifetime
+public sealed class SignInServiceTests
 {
     private readonly IGrainFactory _grainFactory = Substitute.For<IGrainFactory>();
-    private ReadModelDbContext _db = null!;
-    private SignInService _sut = null!;
+    private readonly SignInService _sut;
 
-    public Task InitializeAsync()
+    public SignInServiceTests()
     {
-        var options = new DbContextOptionsBuilder<ReadModelDbContext>()
-            .UseInMemoryDatabase($"SignInTest-{Guid.NewGuid()}")
-            .Options;
-
-        _db = new ReadModelDbContext(options);
-        _sut = new SignInService(_grainFactory, _db, Substitute.For<ILogger<SignInService>>());
-
-        return Task.CompletedTask;
-    }
-
-    public async Task DisposeAsync()
-    {
-        await _db.DisposeAsync();
+        _sut = new SignInService(_grainFactory);
     }
 
     [Fact]
-    public async Task SignIn_ExistingProvider_ReturnsExistingUser()
+    public async Task SignIn_AlreadyLinked_ReturnsExistingUser()
     {
-        // Arrange — seed a user with a linked identity
+        // Arrange
         var userId = Guid.NewGuid();
-        _db.UserProjections.Add(new UserProjection
-        {
-            UserId = userId,
-            DisplayName = "Existing",
-            AvatarUrl = "https://avatar.url",
-            Email = "existing@test.com",
-            IsEmailVerified = true,
-            Identities =
-            [
-                new UserIdentity
-                {
-                    UserId = userId, Sub = "github|12345",
-                    ProviderName = "github", Email = "existing@test.com"
-                }
-            ]
-        });
-        await _db.SaveChangesAsync();
+        var sub = "github|12345";
+
+        var identityGrain = Substitute.For<IIdentityGrain>();
+        identityGrain.GetLinkedUserId().Returns(userId);
+        _grainFactory.GetGrain<IIdentityGrain>(sub).Returns(identityGrain);
+
+        var userGrain = Substitute.For<IUserGrain>();
+        userGrain.GetUserInfo().Returns(new UserInfo(
+            userId, "Existing", "https://avatar.url", "existing@test.com", IsEmailVerified: true));
+        _grainFactory.GetGrain<IUserGrain>(userId).Returns(userGrain);
 
         // Act
-        var result = await _sut.SignIn("github|12345", "github", "Existing", "https://avatar.url", "existing@test.com");
+        var result = await _sut.SignIn(sub, "github", "New Name", "https://new-avatar.url", "new@test.com");
 
         // Assert
         result.Should().BeEquivalentTo(new
@@ -68,88 +45,123 @@ public sealed class SignInServiceTests : IAsyncLifetime
             IsEmailVerified = true
         });
 
-        // No grain should have been called — resolved entirely from read model
-        _grainFactory.DidNotReceive().GetGrain<IUserGrain>(Arg.Any<Guid>());
+        // IdentityGrain.SetLinkedUserId must NOT be called for existing users
+        identityGrain.DidNotReceiveWithAnyArgs().SetLinkedUserId(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string?>());
     }
 
     [Fact]
-    public async Task SignIn_NoMatch_CreatesNewUser()
+    public async Task SignIn_NotLinked_CreatesUserAndLinks()
     {
         // Arrange
-        var grain = Substitute.For<IUserGrain>();
-        grain.CreateUser(default!, default!, default!, default!, default!)
-            .ReturnsForAnyArgs(new CreateUserResult(Guid.Empty));
-        _grainFactory.GetGrain<IUserGrain>(Arg.Any<Guid>()).Returns(grain);
+        var sub = "github|99999";
+
+        var identityGrain = Substitute.For<IIdentityGrain>();
+        identityGrain.GetLinkedUserId()
+            .Returns(Task.FromException<Guid>(new IdentityOrphanedException(sub)));
+        _grainFactory.GetGrain<IIdentityGrain>(sub).Returns(identityGrain);
+
+        var userGrain = Substitute.For<IUserGrain>();
+        userGrain.CreateUser(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>())
+            .Returns(callInfo => new CreateUserResult(Guid.Empty));
+        userGrain.GetUserInfo()
+            .Returns(callInfo => new UserInfo(Guid.Empty, "New User", "https://avatar.url", "new@test.com", IsEmailVerified: false));
+        _grainFactory.GetGrain<IUserGrain>(Arg.Any<Guid>()).Returns(userGrain);
 
         // Act
-        var result = await _sut.SignIn("github|99999", "github", "New User", "https://avatar.url", "new@test.com");
+        var result = await _sut.SignIn(sub, "github", "New User", "https://avatar.url", "new@test.com");
 
         // Assert
-        result.Should().BeEquivalentTo(new
-        {
-            DisplayName = "New User",
-            AvatarUrl = "https://avatar.url",
-            Email = "new@test.com",
-            IsEmailVerified = false,
-            IsNewUser = true
-        });
-
-        await grain.Received(1).CreateUser(
-            "github|99999", "github", "New User", "https://avatar.url", "new@test.com");
-    }
-
-    [Fact]
-    public async Task SignIn_NoMatchNoEmail_CreatesNewUser()
-    {
-        // Arrange
-        var grain = Substitute.For<IUserGrain>();
-        _grainFactory.GetGrain<IUserGrain>(Arg.Any<Guid>()).Returns(grain);
-
-        // Act
-        var result = await _sut.SignIn("github|11111", "github", "No Email", "https://avatar.url", null);
-
-        // Assert
-        result.Should().BeEquivalentTo(new
-        {
-            DisplayName = "No Email",
-            Email = (string?)null,
-            IsNewUser = true
-        });
-    }
-
-    [Fact]
-    public async Task SignIn_NewProviderWithSameEmail_CreatesNewUser()
-    {
-        // Arrange — seed a user with a github identity and same email
-        var existingUserId = Guid.NewGuid();
-        _db.UserProjections.Add(new UserProjection
-        {
-            UserId = existingUserId,
-            DisplayName = "Existing",
-            AvatarUrl = "https://avatar.url",
-            Email = "shared@test.com",
-            IsEmailVerified = false,
-            Identities =
-            [
-                new UserIdentity
-                {
-                    UserId = existingUserId, Sub = "github|12345",
-                    ProviderName = "github", Email = "shared@test.com"
-                }
-            ]
-        });
-        await _db.SaveChangesAsync();
-
-        var grain = Substitute.For<IUserGrain>();
-        _grainFactory.GetGrain<IUserGrain>(Arg.Any<Guid>()).Returns(grain);
-
-        // Act — different provider but same email
-        // Since we don't auto-link, this creates a brand new user
-        var result = await _sut.SignIn("google|67890", "google", "New User", "https://avatar.url", "shared@test.com");
-
-        // Assert — new user created, no auto-linking
         result.IsNewUser.Should().BeTrue();
-        await grain.Received(1).CreateUser(
-            "google|67890", "google", "New User", "https://avatar.url", "shared@test.com");
+        result.DisplayName.Should().Be("New User");
+        result.Email.Should().Be("new@test.com");
+
+        // Verify SetLinkedUserId was called before CreateUser to prevent orphaned users on retry
+        await identityGrain.Received(1).SetLinkedUserId(
+            Arg.Any<Guid>(), "github", "new@test.com");
+        await userGrain.Received(1).CreateUser(
+            sub, "github", "New User", "https://avatar.url", "new@test.com");
+    }
+
+    [Fact]
+    public async Task SignIn_NotLinkedNoEmail_CreatesUserAndLinks()
+    {
+        // Arrange
+        var sub = "github|11111";
+
+        var identityGrain = Substitute.For<IIdentityGrain>();
+        identityGrain.GetLinkedUserId()
+            .Returns(Task.FromException<Guid>(new IdentityOrphanedException(sub)));
+        _grainFactory.GetGrain<IIdentityGrain>(sub).Returns(identityGrain);
+
+        var userGrain = Substitute.For<IUserGrain>();
+        userGrain.CreateUser(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>())
+            .Returns(callInfo => new CreateUserResult(Guid.Empty));
+        userGrain.GetUserInfo()
+            .Returns(callInfo => new UserInfo(Guid.Empty, "No Email", "https://avatar.url", null, IsEmailVerified: false));
+        _grainFactory.GetGrain<IUserGrain>(Arg.Any<Guid>()).Returns(userGrain);
+
+        // Act
+        var result = await _sut.SignIn(sub, "github", "No Email", "https://avatar.url", null);
+
+        // Assert
+        result.IsNewUser.Should().BeTrue();
+        result.Email.Should().BeNull();
+
+        await identityGrain.Received(1).SetLinkedUserId(
+            Arg.Any<Guid>(), "github", null);
+    }
+
+    [Fact]
+    public async Task SignIn_DifferentProviderSameEmail_CreatesNewUser()
+    {
+        // Arrange — different provider with same email creates new user (no auto-linking)
+        var sub = "google|67890";
+
+        var identityGrain = Substitute.For<IIdentityGrain>();
+        identityGrain.GetLinkedUserId()
+            .Returns(Task.FromException<Guid>(new IdentityOrphanedException(sub)));
+        _grainFactory.GetGrain<IIdentityGrain>(sub).Returns(identityGrain);
+
+        var userGrain = Substitute.For<IUserGrain>();
+        userGrain.CreateUser(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>())
+            .Returns(callInfo => new CreateUserResult(Guid.Empty));
+        userGrain.GetUserInfo()
+            .Returns(callInfo => new UserInfo(Guid.Empty, "New User", "https://avatar.url", "shared@test.com", IsEmailVerified: false));
+        _grainFactory.GetGrain<IUserGrain>(Arg.Any<Guid>()).Returns(userGrain);
+
+        // Act
+        var result = await _sut.SignIn(sub, "google", "New User", "https://avatar.url", "shared@test.com");
+
+        // Assert
+        result.IsNewUser.Should().BeTrue();
+        await userGrain.Received(1).CreateUser(
+            sub, "google", "New User", "https://avatar.url", "shared@test.com");
+    }
+
+    [Fact]
+    public async Task SignIn_GetUserInfoFails_ReturnsPartialResult()
+    {
+        // Arrange — user was created via UserGrain but GetUserInfo fails
+        // SignInService should still return a partial result
+        var sub = "github|55555";
+
+        var identityGrain = Substitute.For<IIdentityGrain>();
+        identityGrain.GetLinkedUserId()
+            .Returns(Task.FromException<Guid>(new IdentityOrphanedException(sub)));
+        _grainFactory.GetGrain<IIdentityGrain>(sub).Returns(identityGrain);
+
+        var userGrain = Substitute.For<IUserGrain>();
+        userGrain.CreateUser(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>())
+            .Returns(callInfo => new CreateUserResult(Guid.Empty));
+        userGrain.GetUserInfo()
+            .Returns(Task.FromException<UserInfo>(new InvalidOperationException("User does not exist.")));
+        _grainFactory.GetGrain<IUserGrain>(Arg.Any<Guid>()).Returns(userGrain);
+
+        // Act
+        var result = await _sut.SignIn(sub, "github", "Partial User", "https://avatar.url", "partial@test.com");
+
+        // Assert — should still return a result despite GetUserInfo failure
+        result.IsNewUser.Should().BeTrue();
+        result.DisplayName.Should().Be("Partial User");
     }
 }

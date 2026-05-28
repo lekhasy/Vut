@@ -1,7 +1,7 @@
 namespace Velucid.Silo.Models;
 
 /// <summary>
-/// Represents a linked identity provider entry for a user.
+/// Represents a linked identity for a user.
 /// </summary>
 public class IdentityEntry
 {
@@ -11,7 +11,7 @@ public class IdentityEntry
     public string Sub { get; internal set; } = string.Empty;
 
     /// <summary>
-    /// The identity provider name (e.g., "github", "google", "microsoft").
+    /// The Auth0 provider name (e.g., "github").
     /// </summary>
     public string ProviderName { get; internal set; } = string.Empty;
 

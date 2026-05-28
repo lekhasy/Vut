@@ -16,7 +16,7 @@ public sealed class UserGrainRehydrationTests
     private static void RegisterEventTypes()
     {
         EventTypeMapping.Reset();
-        EventTypeMapping.Register<UserCreatedEvent>("UserCreated");
+        EventTypeMapping.Register<UserRegisteredEvent>("UserCreated");
         EventTypeMapping.Register<IdentityLinkedEvent>("IdentityLinked");
         EventTypeMapping.Register<UserProfileUpdatedEvent>("UserProfileUpdated");
         EventTypeMapping.Register<EmailVerificationRequestedEvent>("EmailVerificationRequested");
@@ -46,12 +46,12 @@ public sealed class UserGrainRehydrationTests
             var grain = cluster1.GrainFactory.GetGrain<IUserGrain>(userId);
             await grain.CreateUser("github|12345", "github", "Original", "https://avatar.url", "test@example.com");
             await grain.UpdateProfile("Updated", "https://new-avatar.url");
-            await grain.LinkIdentity("google|67890", "google", "test@gmail.com");
+            await grain.LinkIdentity("google|67890", "google", "https://avatar.url", "test@gmail.com", null);
             var token = await grain.RequestEmailVerification("test@example.com");
             await grain.VerifyEmail(token);
 
-            // 6 events: UserCreated, IdentityLinked(github), ProfileUpdated, IdentityLinked(google), EmailVerificationRequested, EmailVerified
-            eventStore.GetEvents($"user-{userId}").Should().HaveCount(6);
+            // 5 events: UserRegistered(github), ProfileUpdated, IdentityLinked(google), EmailVerificationRequested, EmailVerified
+            eventStore.GetEvents($"user-{userId}").Should().HaveCount(5);
 
             // Tear down the silo — all grain activations are destroyed
             await cluster1.StopAllSilosAsync();
@@ -85,22 +85,22 @@ public sealed class UserGrainRehydrationTests
             result.UserId.Should().Be(userId);
 
             // No new events — the grain correctly saw the user already exists
-            eventStore.GetEvents($"user-{userId}").Should().HaveCount(6,
+            eventStore.GetEvents($"user-{userId}").Should().HaveCount(5,
                 "rehydrated grain should not emit new events for duplicate creation");
 
             // Already-linked identity is still known — no-op
-            await rehydratedGrain.LinkIdentity("google|67890", "google", "test@gmail.com");
-            eventStore.GetEvents($"user-{userId}").Should().HaveCount(6,
+            await rehydratedGrain.LinkIdentity("google|67890", "google", "https://avatar.url", "test@gmail.com", null);
+            eventStore.GetEvents($"user-{userId}").Should().HaveCount(5,
                 "already-linked identity should remain a no-op after rehydration");
 
             // New identity can be linked — proves state was fully rebuilt
-            await rehydratedGrain.LinkIdentity("microsoft|11111", "microsoft", null);
-            eventStore.GetEvents($"user-{userId}").Should().HaveCount(7,
+            await rehydratedGrain.LinkIdentity("microsoft|11111", "microsoft", "https://avatar.url", null, null);
+            eventStore.GetEvents($"user-{userId}").Should().HaveCount(6,
                 "new identity should be linkable after rehydration");
 
             // Profile update with same values is a no-op — proves DisplayName and AvatarUrl were restored
             await rehydratedGrain.UpdateProfile("Updated", "https://new-avatar.url");
-            eventStore.GetEvents($"user-{userId}").Should().HaveCount(7,
+            eventStore.GetEvents($"user-{userId}").Should().HaveCount(6,
                 "no event for unchanged profile after rehydration");
         }
         finally

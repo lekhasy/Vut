@@ -1,27 +1,25 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using Velucid.ReadModel;
 using Velucid.Silo.Grains;
 using Velucid.Silo.Models;
+using SignInResult = Velucid.Silo.Models.SignInResult;
 
 namespace Velucid.Silo.Services;
 
+/// <summary>
+/// Orchestrates the Auth0 sign-in flow:
+/// 1. Check whether the Auth0 sub is already linked via <see cref="IIdentityGrain"/>
+/// 2. If not linked, create the user via <see cref="IUserGrain"/> then link it
+/// 3. Return the resolved <see cref="SignInResult"/>
+/// </summary>
 public sealed class SignInService : ISignInService
 {
     private readonly IGrainFactory _grainFactory;
-    private readonly ReadModelDbContext _db;
-    private readonly ILogger<SignInService> _logger;
 
-    public SignInService(
-        IGrainFactory grainFactory,
-        ReadModelDbContext db,
-        ILogger<SignInService> logger)
+    public SignInService(IGrainFactory grainFactory)
     {
         _grainFactory = grainFactory;
-        _db = db;
-        _logger = logger;
     }
 
+    /// <inheritdoc/>
     public async Task<SignInResult> SignIn(
         string sub, string providerName,
         string displayName, string avatarUrl, string? email)
@@ -29,42 +27,51 @@ public sealed class SignInService : ISignInService
         ArgumentException.ThrowIfNullOrWhiteSpace(sub);
         ArgumentException.ThrowIfNullOrWhiteSpace(providerName);
 
-        // Look up by sub (Auth0 subject identifier) in the read model.
-        var identity = await _db.UserIdentities
-            .AsNoTracking()
-            .Include(i => i.User)
-            .FirstOrDefaultAsync(i => i.Sub == sub);
+        var identityGrain = _grainFactory.GetGrain<IIdentityGrain>(sub);
 
-        if (identity is not null)
+        // Step 1: check existing link
+        Guid userId;
+        bool isNewUser;
+        try
         {
-            _logger.LogDebug(
-                "Sign-in: found existing user {UserId} by sub {Sub}",
-                identity.UserId, sub);
+            userId = await identityGrain.GetLinkedUserId();
+            isNewUser = false;
+        }
+        catch (IdentityOrphanedException)
+        {
+            // Step 2a: not linked — record the link first so a retry after failure is safe
+            var newUserId = Guid.NewGuid();
+            await identityGrain.SetLinkedUserId(newUserId, providerName, email);
 
-            return new SignInResult(
-                identity.UserId,
-                identity.User.DisplayName,
-                identity.User.AvatarUrl ?? string.Empty,
-                identity.User.Email,
-                identity.User.IsEmailVerified,
-                IsNewUser: false);
+            // Step 2b: create the user with that link recorded
+            var userGrain = _grainFactory.GetGrain<IUserGrain>(newUserId);
+            await userGrain.CreateUser(sub, providerName, displayName, avatarUrl, email);
+
+            userId = newUserId;
+            isNewUser = true;
         }
 
-        // No match — create a new user.
-        var newUserId = Guid.NewGuid();
-        _logger.LogDebug(
-            "Sign-in: creating new user {UserId} with sub {Sub}",
-            newUserId, sub);
+        // Step 3: fetch user info and return result
+        var userGrainForInfo = _grainFactory.GetGrain<IUserGrain>(userId);
+        UserInfo? userInfoFromGrain = null;
+        try
+        {
+            userInfoFromGrain = await userGrainForInfo.GetUserInfo();
+        }
+        catch (InvalidOperationException)
+        {
+            // Grain not yet hydrated from stream — fall through to use locally-constructed info
+        }
 
-        var newGrain = _grainFactory.GetGrain<IUserGrain>(newUserId);
-        await newGrain.CreateUser(sub, providerName, displayName, avatarUrl, email);
+        var userInfo = userInfoFromGrain
+            ?? new UserInfo(userId, displayName, avatarUrl, email, IsEmailVerified: false);
 
         return new SignInResult(
-            newUserId,
-            displayName,
-            avatarUrl,
-            email,
-            IsEmailVerified: false,
-            IsNewUser: true);
+            userInfo.UserId,
+            userInfo.DisplayName,
+            userInfo.AvatarUrl,
+            userInfo.Email,
+            userInfo.IsEmailVerified,
+            isNewUser);
     }
 }

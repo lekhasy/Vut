@@ -19,7 +19,7 @@ public sealed class UserGrainTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         EventTypeMapping.Reset();
-        EventTypeMapping.Register<UserCreatedEvent>("UserCreated");
+        EventTypeMapping.Register<UserRegisteredEvent>("UserCreated");
         EventTypeMapping.Register<IdentityLinkedEvent>("IdentityLinked");
         EventTypeMapping.Register<UserProfileUpdatedEvent>("UserProfileUpdated");
         EventTypeMapping.Register<EmailVerificationRequestedEvent>("EmailVerificationRequested");
@@ -46,7 +46,7 @@ public sealed class UserGrainTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task CreateUser_NewUser_EmitsUserCreatedAndIdentityLinkedEvents()
+    public async Task CreateUser_NewUser_EmitsSingleUserRegisteredEventWithIdentity()
     {
         // Arrange
         var userId = Guid.NewGuid();
@@ -60,22 +60,16 @@ public sealed class UserGrainTests : IAsyncLifetime
         result.UserId.Should().Be(userId);
 
         var events = _eventStore.GetEvents($"user-{userId}");
-        events.Should().HaveCount(2);
-        events[0].Should().BeOfType<UserCreatedEvent>()
+        events.Should().HaveCount(1);
+        events[0].Should().BeOfType<UserRegisteredEvent>()
             .Which.Should().BeEquivalentTo(new
             {
                 UserId = userId,
                 DisplayName = "Test User",
                 AvatarUrl = "https://avatar.url",
-                Email = "test@example.com"
-            });
-        events[1].Should().BeOfType<IdentityLinkedEvent>()
-            .Which.Should().BeEquivalentTo(new
-            {
-                UserId = userId,
+                Email = "test@example.com",
                 Sub = "github|12345",
-                ProviderName = "github",
-                Email = "test@example.com"
+                ProviderName = "github"
             });
     }
 
@@ -95,7 +89,7 @@ public sealed class UserGrainTests : IAsyncLifetime
         // Assert
         result.UserId.Should().Be(userId);
         var events = _eventStore.GetEvents($"user-{userId}");
-        events.Should().HaveCount(2, "no new events should be emitted for duplicate creation");
+        events.Should().HaveCount(1, "no new events should be emitted for duplicate creation");
     }
 
     [Fact]
@@ -108,12 +102,12 @@ public sealed class UserGrainTests : IAsyncLifetime
             "github|12345", "github", "Test User", "https://avatar.url", null);
 
         // Act
-        await grain.LinkIdentity("google|67890", "google", "test@gmail.com");
+        await grain.LinkIdentity("google|67890", "google", "Test User", "https://avatar.url", "test@gmail.com");
 
         // Assert
         var events = _eventStore.GetEvents($"user-{userId}");
-        events.Should().HaveCount(3);
-        events[2].Should().BeOfType<IdentityLinkedEvent>()
+        events.Should().HaveCount(2);
+        events[1].Should().BeOfType<IdentityLinkedEvent>()
             .Which.Should().BeEquivalentTo(new
             {
                 Sub = "google|67890",
@@ -132,11 +126,13 @@ public sealed class UserGrainTests : IAsyncLifetime
             "github|12345", "github", "Test User", "https://avatar.url", null);
 
         // Act
-        await grain.LinkIdentity("github|12345", "github", "test@example.com");
+        await grain.LinkIdentity("github|12345", "github", "https://avatar.url", "test@example.com", null);
 
         // Assert
+        // 1 event: UserRegistered (with linked identity). LinkIdentity emits nothing
+        // for already-linked identity. UpdateProfile emits nothing (same values).
         var events = _eventStore.GetEvents($"user-{userId}");
-        events.Should().HaveCount(2, "no event should be emitted for already-linked provider");
+        events.Should().HaveCount(1, "no new events for already-linked identity or unchanged profile");
     }
 
     [Fact]
@@ -153,8 +149,8 @@ public sealed class UserGrainTests : IAsyncLifetime
 
         // Assert
         var events = _eventStore.GetEvents($"user-{userId}");
-        events.Should().HaveCount(3);
-        events[2].Should().BeOfType<UserProfileUpdatedEvent>()
+        events.Should().HaveCount(2);
+        events[1].Should().BeOfType<UserProfileUpdatedEvent>()
             .Which.Should().BeEquivalentTo(new
             {
                 DisplayName = "Updated Name",
@@ -176,7 +172,7 @@ public sealed class UserGrainTests : IAsyncLifetime
 
         // Assert
         var events = _eventStore.GetEvents($"user-{userId}");
-        events.Should().HaveCount(2, "no event should be emitted when nothing changed");
+        events.Should().HaveCount(1, "no event should be emitted when nothing changed");
     }
 
     [Fact]
@@ -210,8 +206,8 @@ public sealed class UserGrainTests : IAsyncLifetime
         token.Should().MatchRegex(@"^\d{6}$", "token should be a 6-digit code");
 
         var events = _eventStore.GetEvents($"user-{userId}");
-        events.Should().HaveCount(3);
-        events[2].Should().BeOfType<EmailVerificationRequestedEvent>()
+        events.Should().HaveCount(2);
+        events[1].Should().BeOfType<EmailVerificationRequestedEvent>()
             .Which.Should().BeEquivalentTo(new
             {
                 Email = "test@example.com",
@@ -234,8 +230,8 @@ public sealed class UserGrainTests : IAsyncLifetime
 
         // Assert
         var events = _eventStore.GetEvents($"user-{userId}");
-        events.Should().HaveCount(4);
-        events[3].Should().BeOfType<EmailVerifiedEvent>()
+        events.Should().HaveCount(3);
+        events[2].Should().BeOfType<EmailVerifiedEvent>()
             .Which.Should().BeEquivalentTo(new
             {
                 Email = "test@example.com"
@@ -274,7 +270,7 @@ public sealed class UserGrainTests : IAsyncLifetime
         // Assert
         result.UserId.Should().Be(userId);
         var events = _eventStore.GetEvents($"user-{userId}");
-        events[0].Should().BeOfType<UserCreatedEvent>()
+        events[0].Should().BeOfType<UserRegisteredEvent>()
             .Which.Email.Should().BeNull();
     }
 

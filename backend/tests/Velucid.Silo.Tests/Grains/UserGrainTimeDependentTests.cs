@@ -20,8 +20,7 @@ public sealed class UserGrainTimeDependentTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         EventTypeMapping.Reset();
-        EventTypeMapping.Register<UserCreatedEvent>("UserCreated");
-        EventTypeMapping.Register<IdentityLinkedEvent>("IdentityLinked");
+        EventTypeMapping.Register<UserRegisteredEvent>("UserCreated");
         EventTypeMapping.Register<UserProfileUpdatedEvent>("UserProfileUpdated");
         EventTypeMapping.Register<EmailVerificationRequestedEvent>("EmailVerificationRequested");
         EventTypeMapping.Register<EmailVerifiedEvent>("EmailVerified");

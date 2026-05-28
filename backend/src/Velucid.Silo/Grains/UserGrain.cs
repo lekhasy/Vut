@@ -35,12 +35,19 @@ public class UserGrain : EventSourcedGrain<UserState>, IUserGrain
     {
         switch (@event)
         {
-            case UserCreatedEvent e:
+            case UserRegisteredEvent e:
                 state.UserId = e.UserId;
                 state.DisplayName = e.DisplayName;
                 state.AvatarUrl = e.AvatarUrl;
                 state.Email = e.Email;
                 state.IsEmailVerified = false;
+                state.Identities[e.Sub] = new IdentityEntry
+                {
+                    Sub = e.Sub,
+                    ProviderName = e.ProviderName,
+                    Email = e.Email,
+                    LinkedAt = e.Timestamp
+                };
                 break;
 
             case IdentityLinkedEvent e:
@@ -76,27 +83,32 @@ public class UserGrain : EventSourcedGrain<UserState>, IUserGrain
         var userId = this.GetPrimaryKey();
         var now = UtcNow;
 
-        await EmitEvent(new UserCreatedEvent(
+        await EmitEvent(new UserRegisteredEvent(
             userId, displayName, avatarUrl, email,
-            userId, now));
-
-        await EmitEvent(new IdentityLinkedEvent(
-            userId, sub, providerName, email,
+            sub, providerName,
             userId, now));
 
         return new CreateUserResult(userId);
     }
 
     /// <inheritdoc/>
-    public async Task LinkIdentity(
-        string sub, string providerName, string? email)
+    public async Task<CreateUserResult> LinkIdentity(
+        string sub, string providerName,
+        string displayName, string avatarUrl, string? email)
     {
+        // Check if this specific identity is already linked
         if (State.Identities.ContainsKey(sub))
-            return;
+            return new CreateUserResult(State.UserId);
 
+        var userId = this.GetPrimaryKey();
+        var now = UtcNow;
+
+        // Emit IdentityLinkedEvent — the user may already exist, but this is a new identity link
         await EmitEvent(new IdentityLinkedEvent(
-            State.UserId, sub, providerName, email,
-            State.UserId, UtcNow));
+            userId, sub, providerName, email,
+            userId, now));
+
+        return new CreateUserResult(userId);
     }
 
     /// <inheritdoc/>
@@ -156,6 +168,20 @@ public class UserGrain : EventSourcedGrain<UserState>, IUserGrain
         await EmitEvent(new EmailVerifiedEvent(
             State.UserId, State.Email!,
             State.UserId, UtcNow));
+    }
+
+    /// <inheritdoc/>
+    public Task<UserInfo> GetUserInfo()
+    {
+        if (!Exists)
+            throw new InvalidOperationException("User does not exist.");
+
+        return Task.FromResult(new UserInfo(
+            State.UserId,
+            State.DisplayName,
+            State.AvatarUrl,
+            State.Email,
+            State.IsEmailVerified));
     }
 
 }
