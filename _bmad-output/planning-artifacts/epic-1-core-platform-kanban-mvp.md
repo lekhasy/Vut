@@ -10,6 +10,29 @@ Ship a working Velucid instance where teams can create organizations, add produc
 
 ---
 
+## Story 1.0: React Foundation 🔥 NEW
+
+**What's needed:**
+- `npx astro add react` + TypeScript config updates
+- Install: zustand, react-hook-form, @hookform/resolvers, zod
+- Install shadcn/ui + Radix primitives: dialog, dropdown-menu, select, tabs, form, toast
+- Migrate `MainLayout.astro` → React component with Tailwind
+- Wrap nanostores in React-compatible `useStore` hooks
+- Org selector sidebar component (replaces getElementById-based vanilla JS)
+- Nav header with org/product tabs as React components
+- Shared `useAuth`, `useOrg`, `useProduct` hooks over nanostores
+
+**Acceptance criteria:**
+- React renders correctly inside Astro pages via `client:load` directives
+- shadcn/ui components work with Tailwind and are styled consistently
+- Zustand store is accessible from React components
+- All interactive UI (org selector, nav, modals) uses React, not getElementById
+- No TypeScript errors on fresh `astro check`
+
+**Blocks:** All remaining stories (1-2 through 1-5)
+
+---
+
 ## Story 1.1: Organizations
 
 **What's needed:**

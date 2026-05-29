@@ -1,6 +1,6 @@
 ---
 import NavItem from './NavItem.astro';
-import OrgSelector from './OrgSelector.astro';
+import { OrgSelector } from './OrgSelector.tsx';
 
 interface Props {
   currentPath?: string;
@@ -23,7 +23,7 @@ const { currentPath = '/' } = Astro.props;
 >
   <!-- Org Selector - takes the place of a logo header -->
   <div class="border-b border-[var(--color-border)]">
-    <OrgSelector />
+    <OrgSelector client:load />
   </div>
 
   <!-- Navigation -->

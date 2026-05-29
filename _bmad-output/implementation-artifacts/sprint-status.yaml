@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-28T00:00:00Z
-last_updated: 2026-05-28T23:45:00Z
+last_updated: 2026-05-29T15:55:00Z
 project: Velucid
 project_key: NOKEY
 tracking_system: file-system
@@ -44,6 +44,7 @@ story_location: _bmad-output/implementation-artifacts
 development_status:
   # Epic 1 — Core Platform Kanban MVP
   epic-1: in-progress
+  1-0-react-foundation: review
   1-1-organizations: done
   1-2-products: backlog
   1-3-tasks-kanban: backlog
