@@ -34,6 +34,16 @@ spec:
               containerPort: 8081
               protocol: TCP
           env:
+            - name: POSTGRES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: velucid-postgresql-secret
+                  key: POSTGRES_USERNAME
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: velucid-postgresql-secret
+                  key: POSTGRES_PASSWORD
             - name: OPENFGA_LOG_LEVEL
               value: "info"
             - name: OPENFGA_TRACING_ENABLED
@@ -45,11 +55,6 @@ spec:
                 secretKeyRef:
                   name: velucid-openfga-secret
                   key: OPENFGA_DATASTORE_URI
-            - name: OPENFGA_STORE_NAME
-              valueFrom:
-                configMapKeyRef:
-                  name: velucid-openfga-config
-                  key: OPENFGA_STORE_NAME
           resources:
             requests:
               cpu: 100m
