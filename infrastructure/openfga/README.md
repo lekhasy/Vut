@@ -27,28 +27,23 @@ This starts OpenFGA and its PostgreSQL dependency only. Health check: `http://lo
 
 ### Deployment Steps
 
-1. Create namespace:
-   ```bash
-   kubectl apply -f namespace.yaml
-   ```
-
-2. Create secrets (update with actual credentials):
+1. Create secrets (update with actual credentials):
    ```bash
    kubectl apply -f secrets.yaml
    ```
 
-3. Create configmap:
+2. Create configmap:
    ```bash
    kubectl apply -f configmap.yaml
    ```
 
-4. Deploy:
+3. Deploy:
    ```bash
    kubectl apply -f deployment.yaml
    kubectl apply -f service.yaml
    ```
 
-5. Initialize store and model:
+4. Initialize store and model:
    - The application startup (`OpenFgaInitializer`) automatically creates the store (by name) and authorization model if they don't exist
    - Store name is logged on successful initialization
 
@@ -96,3 +91,7 @@ The Velucid authorization model defines:
   - `create_product`, `delete_product`, `invite_member`, `change_member_role`, `remove_member`, `delete_org`, `manage_org_settings`: owner only
 
 See `backend/src/Velucid.Silo/Authorization/velucid-auth-model.fga` for the DSL model.
+
+## Kubernetes Manifests
+
+Production manifests are at `infrastructure/k8s/openfga/`.
