@@ -44,7 +44,7 @@ story_location: _bmad-output/implementation-artifacts
 development_status:
   # Epic 1 — Core Platform Kanban MVP
   epic-1: in-progress
-  1-0-react-foundation: review
+  1-0-react-foundation: done
   1-1-organizations: done
   1-2-products: backlog
   1-3-tasks-kanban: backlog
