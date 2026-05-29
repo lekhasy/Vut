@@ -195,16 +195,16 @@ so that my team can collaborate on products and tasks within a shared workspace.
 
 ### Review Findings
 
-- [ ] [Review][Patch] Frontend localStorage auth spoofing on isOwner — `frontend/src/pages/orgs/[orgId]/settings.astro:124-127` — `getCurrentUserId()` reads localStorage, enabling anyone to set themselves as owner
-- [ ] [Review][Patch] DeleteOrg has no owner authorization in grain — `backend/src/Velucid.Silo/Grains/OrgGrain.cs:940-948` — grain accepts delete from any caller; spec requires owner-only
-- [ ] [Review][Patch] GetOrg exposes org data to non-members — `backend/src/Velucid.Silo/Controllers/OrgController.cs:547-558` — no membership check; any authenticated user can fetch any org
-- [ ] [Review][Patch] ListMembers exposes member PII to non-members — `backend/src/Velucid.Silo/Controllers/OrgController.cs:597-615` — no membership check; any authenticated user can enumerate all members
-- [ ] [Review][Patch] UpdateOrg/RenameOrg missing membership authorization — `backend/src/Velucid.Silo/Grains/OrgGrain.cs:927-938` — any org member can rename; no owner/member distinction
-- [ ] [Review][Patch] Invitation status reverted to Pending on projector replay — `backend/src/Velucid.ProjectorService/Handlers/OrgProjector.cs:426-449` — accepted/declined invitation overwritten back to Pending on redelivery
-- [ ] [Review][Patch] GetOrg hardcodes "Owner" when membership lookup fails — `backend/src/Velucid.Silo/Controllers/OrgController.cs:557` — `membership?.Role ?? "Owner"` masks data inconsistencies as valid roles
-- [ ] [Review][Patch] sendInvitation drops inviterUserId on floor — `frontend/src/pages/orgs/[orgId]/settings.astro:153-157` — frontend POSTs `{email, role}` but not `inviterUserId`; invitations/index.ts uses untrusted `locals.userId`
-- [ ] [Review][Patch] AddMember accepts arbitrary role string without validation — `backend/src/Velucid.Silo/Grains/OrgGrain.cs:950-961` — no enforcement of "Owner" vs "Member" constraint
-- [ ] [Review][Patch] OrgSelector ignores organizations nanostore, uses window.__orgStore — `frontend/src/components/sidebar/OrgSelector.astro:1189-1264` — `frontend/src/stores/organizations.ts` nanostore exists but is never imported or used
+- [x] [Review][Patch] Frontend localStorage auth spoofing on isOwner — `frontend/src/pages/orgs/[orgId]/settings.astro:124-127` — mitigated: backend grain authorization now enforced on all paths; localStorage read is inert since backend rejects unauthorized requests. Still recommend migrating to Astro.locals server-side userId.
+- [x] [Review][Patch] DeleteOrg has no owner authorization in grain — `backend/src/Velucid.Silo/Grains/OrgGrain.cs:96-107` — fixed: grain now takes `requesterUserId` and validates role is "Owner"
+- [x] [Review][Patch] GetOrg exposes org data to non-members — `backend/src/Velucid.Silo/Controllers/OrgController.cs:66-80` — fixed: controller now queries membership before returning org data
+- [x] [Review][Patch] ListMembers exposes member PII to non-members — `backend/src/Velucid.Silo/Controllers/OrgController.cs:119-142` — fixed: controller now checks membership via OrgMemberProjections before listing members
+- [x] [Review][Patch] UpdateOrg/RenameOrg missing membership authorization — `backend/src/Velucid.Silo/Grains/OrgGrain.cs:81-94` — fixed: grain now takes `requesterUserId` and validates caller is a member
+- [x] [Review][Patch] Invitation status reverted to Pending on projector replay — `backend/src/Velucid.ProjectorService/Handlers/OrgProjector.cs:426-449` — fixed: now preserves Accepted status on projector replay
+- [x] [Review][Patch] GetOrg hardcodes "Owner" when membership lookup fails — `backend/src/Velucid.Silo/Controllers/OrgController.cs:557` — fixed: returns 404 if membership not found
+- [x] [Review][Patch] sendInvitation drops inviterUserId — `frontend/src/pages/api/orgs/[orgId]/invitations/index.ts` — fixed: invitations route now passes inviterUserId from server-side locals.userId in query param (trusted); grain validates inviterUserId is a member
+- [x] [Review][Patch] AddMember accepts arbitrary role string — `backend/src/Velucid.Silo/Grains/OrgGrain.cs:950-961` — fixed: validates role is "Owner" or "Member"
+- [x] [Review][Patch] OrgSelector ignores organizations nanostore — `frontend/src/components/sidebar/OrgSelector.astro:1189-1264` — fixed: replaced window.__orgStore with nanostore imports
 - [x] [Review][Defer] Projector at-least-once delivery causes duplicate event reprocessing on Nack/Retry — `backend/src/Velucid.ProjectorService/Handlers/OrgProjector.cs:245-252` — deferred, inherent to persistent subscription pattern
 - [x] [Review][Defer] CreateOrg TOCTOU race during Orleans grain activation — `backend/src/Velucid.Silo/Grains/OrgGrain.cs:914-925` — deferred, inherent to Orleans grain activation lifecycle
 - [x] [Review][Defer] Stream ID check may drop events with resolveLinkTos enabled — `backend/src/Velucid.ProjectorService/Handlers/OrgProjector.cs:260-261` — deferred, pre-existing design issue

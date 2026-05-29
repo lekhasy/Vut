@@ -40,3 +40,5 @@ packages/
 
 # Build artifacts
 publish/
+frontend/playwright-report/*
+frontend/test-results/*
