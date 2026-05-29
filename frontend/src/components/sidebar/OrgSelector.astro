@@ -1,22 +1,157 @@
 ---
-/**
- * Organization selector dropdown (placeholder).
- * Will be replaced with a hydrated interactive component when org switching is wired up.
- */
----
 
-<div class="px-3">
+<div class="px-3" x-data="orgSelector()" x-init="init()">
   <button
+    @click="toggle()"
     class="flex w-full items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-border)] transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500"
     aria-haspopup="listbox"
-    aria-expanded="false"
+    :aria-expanded="open"
   >
-    <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 text-xs font-bold text-white">
-      V
-    </span>
-    <span class="flex-1 truncate text-left">Select Organization</span>
+    <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 text-xs font-bold text-white" x-text="orgInitial"></span>
+    <span class="flex-1 truncate text-left" x-text="orgName"></span>
     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-[var(--color-text-secondary)]" viewBox="0 0 20 20" fill="currentColor">
       <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
     </svg>
   </button>
+
+  <div
+    x-show="open"
+    @click.away="open = false"
+    x-transition
+    class="absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-lg"
+  >
+    <div class="max-h-60 overflow-y-auto py-1">
+      <template x-for="org in orgList" :key="org.orgId">
+        <button
+          @click="selectOrg(org.orgId)"
+          class="flex w-full items-center gap-2 px-3 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-border)]"
+          :class="{ 'bg-[var(--color-border)]': org.orgId === currentOrgId }"
+        >
+          <span class="inline-flex h-6 w-6 items-center justify-center rounded bg-brand-600 text-xs font-bold text-white" x-text="org.name.charAt(0).toUpperCase()"></span>
+          <span class="flex-1 truncate text-left" x-text="org.name"></span>
+          <span class="text-xs text-[var(--color-text-secondary)]" x-text="org.role"></span>
+        </button>
+      </template>
+    </div>
+    <div class="border-t border-[var(--color-border)] px-3 py-2">
+      <button
+        @click="openNewOrgModal()"
+        class="flex w-full items-center gap-2 rounded px-2 py-1 text-sm text-brand-500 hover:bg-[var(--color-border)]"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+        </svg>
+        <span>Create Organization</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- New Org Modal -->
+  <div id="new-org-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+    <div class="rounded-lg bg-[var(--color-surface)] p-6 shadow-xl w-full max-w-md">
+      <h3 class="text-lg font-semibold text-[var(--color-text)] mb-4">Create Organization</h3>
+      <form id="new-org-form">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-[var(--color-text)] mb-1">Organization Name</label>
+          <input type="text" name="name" required class="w-full rounded border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)]" />
+        </div>
+        <div class="flex justify-end gap-2">
+          <button type="button" onclick="closeNewOrgModal()" class="rounded px-4 py-2 text-sm text-[var(--color-text)] hover:bg-[var(--color-border)]">Cancel</button>
+          <button type="submit" class="rounded bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
+
+<script>
+  // Subscribe to nanostores
+  import { organizations, currentOrgId } from '../../stores/organizations';
+  import { onMount } from 'astro:transitions/client';
+
+  function orgSelector() {
+    return {
+      open: false,
+      orgName: 'Select Organization',
+      orgInitial: '?',
+
+      toggle() {
+        this.open = !this.open;
+        this.refreshFromStore();
+      },
+
+      refreshFromStore() {
+        const list = organizations.get();
+        const id = currentOrgId.get();
+        const current = list.find(o => o.orgId === id);
+        this.orgName = current ? current.name : 'Select Organization';
+        this.orgInitial = current ? current.name.charAt(0).toUpperCase() : '?';
+      },
+
+      selectOrg(orgId: string) {
+        currentOrgId.set(orgId);
+        this.open = false;
+        this.refreshFromStore();
+      },
+
+      async init() {
+        // Subscribe to store changes
+        organizations.subscribe(() => this.refreshFromStore());
+        currentOrgId.subscribe(() => this.refreshFromStore());
+
+        await this.loadOrgs();
+        this.refreshFromStore();
+      },
+
+      async loadOrgs() {
+        try {
+          const response = await fetch('/api/orgs');
+          if (response.ok) {
+            const orgs = await response.json();
+            organizations.set(orgs);
+            if (orgs.length > 0 && !currentOrgId.get()) {
+              currentOrgId.set(orgs[0].orgId);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load orgs:', error);
+        }
+      },
+
+      openNewOrgModal() {
+        this.open = false;
+        document.getElementById('new-org-modal')?.classList.remove('hidden');
+      }
+    };
+  }
+
+  function closeNewOrgModal() {
+    document.getElementById('new-org-modal')?.classList.add('hidden');
+  }
+
+  document.getElementById('new-org-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const name = (form.querySelector('input[name="name"]') as HTMLInputElement)?.value;
+    if (!name) return;
+
+    try {
+      const response = await fetch('/api/orgs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+
+      if (response.ok) {
+        const org = await response.json();
+        const list = organizations.get();
+        organizations.set([...list, org]);
+        currentOrgId.set(org.orgId);
+        closeNewOrgModal();
+        form.reset();
+      }
+    } catch (error) {
+      console.error('Failed to create org:', error);
+    }
+  });
+</script>

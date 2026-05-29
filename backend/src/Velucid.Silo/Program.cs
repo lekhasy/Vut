@@ -67,6 +67,12 @@ EventTypeMapping.Register<UserProfileUpdatedEvent>("UserProfileUpdated");
 EventTypeMapping.Register<EmailVerificationRequestedEvent>("EmailVerificationRequested");
 EventTypeMapping.Register<EmailVerifiedEvent>("EmailVerified");
 EventTypeMapping.Register<IdentityLinkedToUserEvent>("IdentityLinkedToUser");
+EventTypeMapping.Register<OrgCreatedEvent>("OrgCreated");
+EventTypeMapping.Register<OrgRenamedEvent>("OrgRenamed");
+EventTypeMapping.Register<OrgDeletedEvent>("OrgDeleted");
+EventTypeMapping.Register<MemberAddedEvent>("MemberAdded");
+EventTypeMapping.Register<MemberRemovedEvent>("MemberRemoved");
+EventTypeMapping.Register<InvitationSentEvent>("InvitationSent");
 EventTypeMapping.Freeze();
 
 // ─── Co-hosted ASP.NET Core API ──────────────────────────────────

@@ -32,6 +32,7 @@ builder.Services.AddDbContext<ReadModelDbContext>(options =>
 
 // Projectors
 builder.Services.AddHostedService<UserProjector>();
+builder.Services.AddHostedService<OrgProjector>();
 
 var host = builder.Build();
 host.Run();
