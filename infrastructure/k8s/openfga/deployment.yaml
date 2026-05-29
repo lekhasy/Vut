@@ -51,10 +51,7 @@ spec:
             - name: OPENFGA_DATASTORE_ENGINE
               value: "postgres"
             - name: OPENFGA_DATASTORE_URI
-              valueFrom:
-                secretKeyRef:
-                  name: velucid-openfga-secret
-                  key: OPENFGA_DATASTORE_URI
+              value: "postgres://$(POSTGRES_USERNAME):$(POSTGRES_PASSWORD)@velucid-postgresql:5432/velucid_openfga?sslmode=disable"
           resources:
             requests:
               cpu: 100m
