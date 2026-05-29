@@ -26,8 +26,6 @@ spec:
         - name: openfga
           image: openfga/openfga:latest
           imagePullPolicy: IfNotPresent
-          command: ["openfga"]
-          args: ["run"]
           ports:
             - name: http
               containerPort: 8080
