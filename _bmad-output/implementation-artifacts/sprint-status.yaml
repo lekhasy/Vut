@@ -1,0 +1,62 @@
+# generated: 2026-05-28T00:00:00Z
+# last_updated: 2026-05-28T00:00:00Z
+# project: Velucid
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in implementation-artifacts
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-05-28T00:00:00Z
+last_updated: 2026-05-28T00:00:00Z
+project: Velucid
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 1 — Core Platform Kanban MVP
+  epic-1: in-progress
+  1-1-organizations: ready-for-dev
+  1-2-products: backlog
+  1-3-tasks-kanban: backlog
+  1-4-basic-navigation-dashboard: backlog
+  1-5-forecast-tab-gathering-data-state: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2 — Flow Features
+  epic-2: backlog
+  2-1-tags: backlog
+  2-2-saved-views: backlog
+  2-3-forecast-engine-monte-carlo: backlog
+  2-4-forecast-ui-stat-cards-s-curve: backlog
+  2-5-forecast-ui-progress-forecast-dual-cone: backlog
+  2-6-forecast-tag-based-filtering: backlog
+  epic-2-retrospective: optional
