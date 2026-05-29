@@ -63,7 +63,6 @@
 <script>
   // Subscribe to nanostores
   import { organizations, currentOrgId } from '../../stores/organizations';
-  import { onMount } from 'astro:transitions/client';
 
   function orgSelector() {
     return {
@@ -127,8 +126,8 @@
 
   document.getElementById('new-org-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const form = e.target;
-    const name = (form.querySelector('input[name="name"]'))?.value;
+    const form = e.target as HTMLFormElement | null;
+    const name = form?.querySelector<HTMLInputElement>('input[name="name"]')?.value;
     if (!name) return;
 
     try {
