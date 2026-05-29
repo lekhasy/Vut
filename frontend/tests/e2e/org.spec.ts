@@ -23,23 +23,28 @@ test.describe('Org Selector (Sidebar)', () => {
     const dropdown = page.locator('[aria-haspopup="listbox"]');
     await dropdown.click();
 
-    // Dropdown should contain "Create Organization" option
-    await expect(page.getByRole('button', { name: 'Create Organization' })).toBeVisible();
+    // Wait for dropdown to open — Radix portal renders "Create Organization" button
+    await expect(page.getByRole('button', { name: 'Create Organization' })).toBeVisible({ timeout: 5000 });
   });
 
   /**
-   * [P1] AC#1 — "Create Organization" button opens the create modal.
+   * [P1] AC#1 — "Create Organization" button opens the create modal (shadcn Dialog).
    */
   test('[P1] create org button opens new org modal', async ({ page, user }) => {
     await page.goto('/dashboard');
 
     // Open dropdown
     await page.locator('[aria-haspopup="listbox"]').click();
-    // Modal exists and becomes visible when triggered
-    const modal = page.locator('#new-org-modal');
-    await expect(modal).toBeAttached();
-    await modal.evaluate(el => el.classList.remove('hidden'));
-    await expect(page.locator('#new-org-modal')).not.toHaveClass(/hidden/);
+
+    // Wait for "Create Organization" button to appear (Radix portal renders it)
+    await expect(page.getByRole('button', { name: 'Create Organization' })).toBeVisible({ timeout: 5000 });
+
+    // Click "Create Organization" — this opens the shadcn Dialog
+    await page.getByRole('button', { name: 'Create Organization' }).click();
+
+    // DialogContent renders inside a portal with role="dialog"
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('heading', { name: 'Create Organization' })).toBeVisible();
   });
 });
 

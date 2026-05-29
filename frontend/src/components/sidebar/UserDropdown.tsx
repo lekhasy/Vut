@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { currentUser } from '../../stores/auth';
 import { useStore } from '../../hooks/useStore';
 import {
@@ -17,19 +16,18 @@ interface Props {
 
 export function UserDropdown({ displayName, email }: Props) {
   const user = useStore(currentUser);
-  const [open, setOpen] = useState(false);
 
   const name = displayName || user?.displayName || 'Not signed in';
   const emailAddr = email || user?.email || '';
   const initials = name
     .split(' ')
-    .map((n) => n[0])
+    .map((n: string) => n[0])
     .join('')
     .slice(0, 2)
     .toUpperCase() || '?';
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500"

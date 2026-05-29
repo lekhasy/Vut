@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { organizations, currentOrgId } from '../../stores/organizations';
 import { useStore } from '../../hooks/useStore';
 import type { Organization } from '../../stores/types';
+import { toast } from 'sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,8 +18,8 @@ import {
 } from '../ui/dialog';
 
 export function OrgSelector() {
-  const orgs = useStore(organizations);
-  const selectedOrgId = useStore(currentOrgId);
+  const orgs = useStore(organizations) as Organization[];
+  const selectedOrgId = useStore(currentOrgId) as string | null;
   const [open, setOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
@@ -68,9 +69,10 @@ export function OrgSelector() {
         currentOrgId.set(org.orgId);
         setCreateOpen(false);
         setNewOrgName('');
+        toast.success(`Organization "${org.name}" created`);
       }
     } catch (err) {
-      console.error('Failed to create org:', err);
+      toast.error('Failed to create organization. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -105,7 +107,7 @@ export function OrgSelector() {
 
         <DropdownMenuContent align="start" className="w-full min-w-[15rem]">
           <div className="max-h-60 overflow-y-auto py-1">
-            {orgs.map((org) => (
+            {orgs.map((org: Organization) => (
               <DropdownMenuItem
                 key={org.orgId}
                 onClick={() => selectOrg(org.orgId)}
