@@ -64,7 +64,7 @@ while [[ $elapsed -lt $timeout ]]; do
     all_healthy=true
     echo "--- Health check at ${elapsed}s ---"
 
-    for service in kurrentdb postgresql; do
+    for service in kurrentdb postgresql openfga; do
         result=$(check_health "$service") || true
         if ! echo "$result" | grep -q "\[OK\]"; then
             all_healthy=false

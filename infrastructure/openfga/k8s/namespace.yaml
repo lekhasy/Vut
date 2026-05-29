@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: velucid
+  labels:
+    app.kubernetes.io/part-of: velucid
+    app.kubernetes.io/managed-by: manual

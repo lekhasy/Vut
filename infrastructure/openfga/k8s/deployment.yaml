@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: velucid-openfga
+  namespace: velucid
+  labels:
+    app.kubernetes.io/part-of: velucid
+    app.kubernetes.io/component: authorization
+    app.kubernetes.io/name: openfga
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: velucid
+      app.kubernetes.io/component: authorization
+      app.kubernetes.io/name: openfga
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: velucid
+        app.kubernetes.io/component: authorization
+        app.kubernetes.io/name: openfga
+    spec:
+      containers:
+        - name: openfga
+          image: openfga/openfga:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: grpc
+              containerPort: 8081
+              protocol: TCP
+          env:
+            - name: OPENFGA_LOG_LEVEL
+              value: "info"
+            - name: OPENFGA_TRACING_ENABLED
+              value: "true"
+            - name: OPENFGA_DATASTORE_ENGINE
+              value: "postgres"
+            - name: OPENFGA_DATASTORE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: velucid-openfga-secret
+                  key: OPENFGA_DATASTORE_URI
+            - name: OPENFGA_STORE_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: velucid-openfga-config
+                  key: OPENFGA_STORE_NAME
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3

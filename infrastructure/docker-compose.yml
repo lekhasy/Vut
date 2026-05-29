@@ -65,6 +65,35 @@ services:
         reservations:
           memory: ${POSTGRESQL_MEMORY_RESERVATION:-512M}
 
+  # ─── OpenFGA (Centralized Authorization) ───────────────────────
+  openfga:
+    image: openfga/openfga:latest
+    container_name: velucid-openfga
+    restart: unless-stopped
+    ports:
+      - "${OPENFGA_PORT:-8080}:8080"
+      - "${OPENFGA_GRPC_PORT:-8081}:8081"
+    environment:
+      OPENFGA_LOG_LEVEL: debug
+      OPENFGA_TRACING_ENABLED: "false"
+      OPENFGA_DATASTORE_ENGINE: postgres
+      OPENFGA_DATASTORE_URI: postgres://velucid_app:velucid_dev_password@postgresql:5432/velucid_openfga?sslmode=disable
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: ${OPENFGA_MEMORY_LIMIT:-512M}
+        reservations:
+          memory: ${OPENFGA_MEMORY_RESERVATION:-128M}
+
   # # ─── Orleans Silo (.NET backend — API + Grains co-hosted) ──────
   # # DISABLED: Uncomment when the silo Docker image is ready.
   # silo:

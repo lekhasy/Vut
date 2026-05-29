@@ -92,6 +92,7 @@ check_url() {
 echo "--- Infrastructure Services ---"
 check_docker_service "kurrentdb"
 check_docker_service "postgresql"
+check_docker_service "openfga"
 echo ""
 
 # 2. Check application services
@@ -111,6 +112,7 @@ echo ""
 echo "--- HTTP Endpoints ---"
 check_url "KurrentDB (live)" "http://localhost:${KURRENTDB_HTTP_PORT:-2113}/health/live"
 check_url "KurrentDB (ready)" "http://localhost:${KURRENTDB_HTTP_PORT:-2113}/health/ready"
+check_url "OpenFGA (healthz)" "http://localhost:${OPENFGA_PORT:-8080}/healthz"
 echo ""
 
 # 5. Check PostgreSQL database
