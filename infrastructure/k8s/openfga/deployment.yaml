@@ -38,10 +38,12 @@ spec:
                   key: POSTGRES_PASSWORD
         - name: run-migrations
           image: openfga/openfga:latest
-          command: ["sh", "-c"]
+          command: ["openfga", "migrate"]
           args:
-            - |
-              openfga migrate --datastore-engine postgres --datastore-uri "postgres://$(POSTGRES_USERNAME):$(POSTGRES_PASSWORD)@velucid-postgresql:5432/velucid_openfga?sslmode=disable"
+            - --datastore-engine
+            - postgres
+            - --datastore-uri
+            - "postgres://$(POSTGRES_USERNAME):$(POSTGRES_PASSWORD)@velucid-postgresql:5432/velucid_openfga?sslmode=disable"
           env:
             - name: POSTGRES_USERNAME
               valueFrom:
