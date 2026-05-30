@@ -145,76 +145,13 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
                                 }
                             }
                         },
-                        ["create_product"] = new Userset
-                        {
-                            Union = new Usersets
-                            {
-                                Child = new List<Userset>
-                                {
-                                    new() { ComputedUserset = new ObjectRelation { Relation = "owner" } }
-                                }
-                            }
-                        },
-                        ["delete_product"] = new Userset
-                        {
-                            Union = new Usersets
-                            {
-                                Child = new List<Userset>
-                                {
-                                    new() { ComputedUserset = new ObjectRelation { Relation = "owner" } }
-                                }
-                            }
-                        },
-                        ["invite_member"] = new Userset
-                        {
-                            Union = new Usersets
-                            {
-                                Child = new List<Userset>
-                                {
-                                    new() { ComputedUserset = new ObjectRelation { Relation = "owner" } }
-                                }
-                            }
-                        },
-                        ["change_member_role"] = new Userset
-                        {
-                            Union = new Usersets
-                            {
-                                Child = new List<Userset>
-                                {
-                                    new() { ComputedUserset = new ObjectRelation { Relation = "owner" } }
-                                }
-                            }
-                        },
-                        ["remove_member"] = new Userset
-                        {
-                            Union = new Usersets
-                            {
-                                Child = new List<Userset>
-                                {
-                                    new() { ComputedUserset = new ObjectRelation { Relation = "owner" } }
-                                }
-                            }
-                        },
-                        ["delete_org"] = new Userset
-                        {
-                            Union = new Usersets
-                            {
-                                Child = new List<Userset>
-                                {
-                                    new() { ComputedUserset = new ObjectRelation { Relation = "owner" } }
-                                }
-                            }
-                        },
-                        ["manage_org_settings"] = new Userset
-                        {
-                            Union = new Usersets
-                            {
-                                Child = new List<Userset>
-                                {
-                                    new() { ComputedUserset = new ObjectRelation { Relation = "owner" } }
-                                }
-                            }
-                        }
+                        ["create_product"] = new Userset { ComputedUserset = new ObjectRelation { Relation = "owner" } },
+                        ["delete_product"] = new Userset { ComputedUserset = new ObjectRelation { Relation = "owner" } },
+                        ["invite_member"] = new Userset { ComputedUserset = new ObjectRelation { Relation = "owner" } },
+                        ["change_member_role"] = new Userset { ComputedUserset = new ObjectRelation { Relation = "owner" } },
+                        ["remove_member"] = new Userset { ComputedUserset = new ObjectRelation { Relation = "owner" } },
+                        ["delete_org"] = new Userset { ComputedUserset = new ObjectRelation { Relation = "owner" } },
+                        ["manage_org_settings"] = new Userset { ComputedUserset = new ObjectRelation { Relation = "owner" } }
                     }
                 }
             }
