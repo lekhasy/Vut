@@ -103,6 +103,7 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
                 SchemaVersion = "1.1",
                 TypeDefinitions = new List<TypeDefinition>
                 {
+                new() { Type = "user" },
                 new()
                 {
                     Type = "organization",
