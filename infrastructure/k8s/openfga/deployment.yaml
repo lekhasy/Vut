@@ -38,8 +38,8 @@ spec:
                   key: POSTGRES_PASSWORD
         - name: run-migrations
           image: openfga/openfga:latest
-          command: ["openfga", "migrate"]
           args:
+            - migrate
             - --datastore-engine
             - postgres
             - --datastore-uri
