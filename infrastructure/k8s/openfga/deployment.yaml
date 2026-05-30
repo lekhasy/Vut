@@ -36,6 +36,23 @@ spec:
                 secretKeyRef:
                   name: velucid-postgresql-secret
                   key: POSTGRES_PASSWORD
+        - name: run-migrations
+          image: openfga/openfga:latest
+          command: ["sh", "-c"]
+          args:
+            - |
+              openfga migrate --datastore-engine postgres --datastore-uri "postgres://$(POSTGRES_USERNAME):$(POSTGRES_PASSWORD)@velucid-postgresql:5432/velucid_openfga?sslmode=disable"
+          env:
+            - name: POSTGRES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: velucid-postgresql-secret
+                  key: POSTGRES_USERNAME
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: velucid-postgresql-secret
+                  key: POSTGRES_PASSWORD
       containers:
         - name: openfga
           image: openfga/openfga:latest
