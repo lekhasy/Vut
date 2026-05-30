@@ -1,0 +1,19 @@
+model
+  schema 1.1
+
+type organization
+  relations
+    define owner as self
+    define member as self
+    define viewer as self
+
+    define view_org as owner or member
+    define view_members as owner or member
+    define create_task as owner or member
+    define create_product as owner
+    define delete_product as owner
+    define invite_member as owner
+    define change_member_role as owner
+    define remove_member as owner
+    define delete_org as owner
+    define manage_org_settings as owner

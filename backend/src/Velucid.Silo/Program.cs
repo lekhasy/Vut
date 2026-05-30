@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Orleans.Configuration;
 using StackExchange.Redis;
 using Velucid.ReadModel;
+using Velucid.Silo.Authorization;
 using Velucid.Silo.Configuration;
 using Velucid.Silo.Events;
 using Velucid.Silo.Services;
@@ -60,6 +61,12 @@ builder.Services.AddDbContext<ReadModelDbContext>(options =>
 // ─── Application Services ────────────────────────────────────────
 builder.Services.AddSingleton<ISignInService, SignInService>();
 
+// ─── OpenFGA Authorization ────────────────────────────────────────
+builder.Services.Configure<OpenFgaOptions>(
+    builder.Configuration.GetSection(OpenFgaOptions.SectionName));
+builder.Services.AddSingleton<IOpenFgaAuthorizationService, OpenFgaAuthorizationService>();
+builder.Services.AddSingleton<IOpenFgaInitializer, OpenFgaInitializer>();
+
 // ─── Event Type Registrations ────────────────────────────────────
 EventTypeMapping.Register<UserRegisteredEvent>("UserCreated");
 EventTypeMapping.Register<IdentityInfoUpdatedEvent>("IdentityInfoUpdated");
@@ -80,6 +87,10 @@ builder.Services.AddControllers();
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
+
+// ─── OpenFGA Initialization ────────────────────────────────────────
+var openFgaInitializer = app.Services.GetRequiredService<IOpenFgaInitializer>();
+await openFgaInitializer.InitializeAsync();
 
 app.MapControllers();
 app.MapHealthChecks("/health");
