@@ -22,7 +22,8 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
 
         var configuration = new ClientConfiguration
         {
-            ApiUrl = _options.ApiUrl
+            ApiUrl = _options.ApiUrl,
+            StoreId = null // Will be set per-request
         };
 
         _fgaClient = new OpenFgaClient(configuration);
@@ -43,11 +44,13 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
             // Get or create store by name
             var storeId = await GetOrCreateStoreAsync(_options.StoreName);
 
+            // Share resolved store ID with OpenFgaAuthorizationService via static fields
+            OpenFgaAuthorizationService.ResolvedStoreId = storeId;
+
             // Get or create authorization model for this store
             var modelId = await GetOrCreateModelAsync(storeId);
 
-            // Share resolved IDs with OpenFgaAuthorizationService via static fields
-            OpenFgaAuthorizationService.ResolvedStoreId = storeId;
+            // Share resolved model ID with OpenFgaAuthorizationService via static fields
             OpenFgaAuthorizationService.ResolvedModelId = modelId;
 
             _logger.LogInformation(
@@ -80,7 +83,8 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
     private async Task<string> GetOrCreateModelAsync(string storeId)
     {
         // List existing models for this store
-        var models = await _fgaClient.ReadAuthorizationModels(new ClientReadAuthorizationModelsOptions { StoreId = storeId });
+        var models = await _fgaClient.ReadAuthorizationModels(
+            new ClientReadAuthorizationModelsOptions { StoreId = storeId });
 
         // If a model exists, use the latest one (first in list is typically latest)
         if (models.AuthorizationModels != null && models.AuthorizationModels.Count > 0)
@@ -91,11 +95,12 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
         }
 
         // Create new model
-        var model = await _fgaClient.WriteAuthorizationModel(new ClientWriteAuthorizationModelRequest
-        {
-            SchemaVersion = "1.1",
-            TypeDefinitions = new List<TypeDefinition>
+        var model = await _fgaClient.WriteAuthorizationModel(
+            new ClientWriteAuthorizationModelRequest
             {
+                SchemaVersion = "1.1",
+                TypeDefinitions = new List<TypeDefinition>
+                {
                 new()
                 {
                     Type = "organization",
