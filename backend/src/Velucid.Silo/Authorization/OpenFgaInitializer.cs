@@ -103,7 +103,10 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
                 SchemaVersion = "1.1",
                 TypeDefinitions = new List<TypeDefinition>
                 {
-                new() { Type = "user" },
+                new()
+                {
+                    Type = "user"
+                },
                 new()
                 {
                     Type = "organization",
@@ -118,7 +121,6 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
                             {
                                 Child = new List<Userset>
                                 {
-                                    new() { This = new object() },
                                     new() { ComputedUserset = new ObjectRelation { Relation = "owner" } },
                                     new() { ComputedUserset = new ObjectRelation { Relation = "member" } }
                                 }
@@ -153,6 +155,33 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
                         ["remove_member"] = new Userset { ComputedUserset = new ObjectRelation { Relation = "owner" } },
                         ["delete_org"] = new Userset { ComputedUserset = new ObjectRelation { Relation = "owner" } },
                         ["manage_org_settings"] = new Userset { ComputedUserset = new ObjectRelation { Relation = "owner" } }
+                    },
+                    Metadata = new Metadata
+                    {
+                        Relations = new Dictionary<string, RelationMetadata>
+                        {
+                            ["owner"] = new RelationMetadata
+                            {
+                                DirectlyRelatedUserTypes = new List<RelationReference>
+                                {
+                                    new() { Type = "user" }
+                                }
+                            },
+                            ["member"] = new RelationMetadata
+                            {
+                                DirectlyRelatedUserTypes = new List<RelationReference>
+                                {
+                                    new() { Type = "user" }
+                                }
+                            },
+                            ["viewer"] = new RelationMetadata
+                            {
+                                DirectlyRelatedUserTypes = new List<RelationReference>
+                                {
+                                    new() { Type = "user" }
+                                }
+                            }
+                        }
                     }
                 }
             }
