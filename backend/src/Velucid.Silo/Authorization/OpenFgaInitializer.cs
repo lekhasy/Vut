@@ -11,7 +11,6 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
 {
     private readonly OpenFgaOptions _options;
     private readonly ILogger<OpenFgaInitializer> _logger;
-    private readonly OpenFgaClient _fgaClient;
 
     public OpenFgaInitializer(
         IOptions<OpenFgaOptions> options,
@@ -19,14 +18,6 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
     {
         _options = options.Value;
         _logger = logger;
-
-        var configuration = new ClientConfiguration
-        {
-            ApiUrl = _options.ApiUrl,
-            StoreId = null // Will be set per-request
-        };
-
-        _fgaClient = new OpenFgaClient(configuration);
     }
 
     public async Task InitializeAsync()
@@ -41,16 +32,27 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
 
         try
         {
-            // Get or create store by name
-            var storeId = await GetOrCreateStoreAsync(_options.StoreName);
+            // Step 1: Create client without StoreId to list/create store
+            var initClient = new OpenFgaClient(new ClientConfiguration
+            {
+                ApiUrl = _options.ApiUrl
+            });
 
-            // Share resolved store ID with OpenFgaAuthorizationService via static fields
-            OpenFgaAuthorizationService.ResolvedStoreId = storeId;
+            // Get or create store by name
+            var storeId = await GetOrCreateStoreAsync(initClient, _options.StoreName);
+
+            // Step 2: Create new client WITH storeId for model operations
+            var modelClient = new OpenFgaClient(new ClientConfiguration
+            {
+                ApiUrl = _options.ApiUrl,
+                StoreId = storeId
+            });
 
             // Get or create authorization model for this store
-            var modelId = await GetOrCreateModelAsync(storeId);
+            var modelId = await GetOrCreateModelAsync(modelClient, storeId);
 
-            // Share resolved model ID with OpenFgaAuthorizationService via static fields
+            // Share resolved IDs with OpenFgaAuthorizationService via static fields
+            OpenFgaAuthorizationService.ResolvedStoreId = storeId;
             OpenFgaAuthorizationService.ResolvedModelId = modelId;
 
             _logger.LogInformation(
@@ -64,9 +66,9 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
         }
     }
 
-    private async Task<string> GetOrCreateStoreAsync(string storeName)
+    private async Task<string> GetOrCreateStoreAsync(OpenFgaClient client, string storeName)
     {
-        var stores = await _fgaClient.ListStores(new ClientListStoresRequest());
+        var stores = await client.ListStores(new ClientListStoresRequest());
 
         var existingStore = stores.Stores?.FirstOrDefault(s => s.Name == storeName);
         if (existingStore != null)
@@ -75,15 +77,15 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
             return existingStore.Id;
         }
 
-        var store = await _fgaClient.CreateStore(new ClientCreateStoreRequest { Name = storeName });
+        var store = await client.CreateStore(new ClientCreateStoreRequest { Name = storeName });
         _logger.LogInformation("Created new OpenFGA store '{StoreName}' with ID: {StoreId}", storeName, store.Id);
         return store.Id;
     }
 
-    private async Task<string> GetOrCreateModelAsync(string storeId)
+    private async Task<string> GetOrCreateModelAsync(OpenFgaClient client, string storeId)
     {
         // List existing models for this store
-        var models = await _fgaClient.ReadAuthorizationModels(
+        var models = await client.ReadAuthorizationModels(
             new ClientReadAuthorizationModelsOptions { StoreId = storeId });
 
         // If a model exists, use the latest one (first in list is typically latest)
@@ -95,7 +97,7 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
         }
 
         // Create new model
-        var model = await _fgaClient.WriteAuthorizationModel(
+        var model = await client.WriteAuthorizationModel(
             new ClientWriteAuthorizationModelRequest
             {
                 SchemaVersion = "1.1",
