@@ -1,3 +1,4 @@
+using Velucid.Silo.Authorization;
 using Velucid.Silo.Events;
 using Velucid.Silo.Models;
 
@@ -9,11 +10,15 @@ namespace Velucid.Silo.Grains;
 /// </summary>
 public class OrgGrain : EventSourcedGrain<OrgState>, IOrgGrain
 {
+    private readonly IOpenFgaAuthorizationService _authService;
+
     public OrgGrain(
         IEventStreamClient eventStreamClient,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IOpenFgaAuthorizationService authService)
         : base(eventStreamClient, timeProvider)
     {
+        _authService = authService;
     }
 
     protected override string BuildStreamId() => $"org-{this.GetPrimaryKey()}";
@@ -84,8 +89,9 @@ public class OrgGrain : EventSourcedGrain<OrgState>, IOrgGrain
             throw new InvalidOperationException("Organization does not exist.");
         if (State.IsDeleted)
             throw new InvalidOperationException("Organization is deleted.");
-        if (!State.Members.ContainsKey(requesterUserId))
-            throw new InvalidOperationException("Only org members can rename the organization.");
+
+        if (!await _authService.Check(requesterUserId, "manage_org_settings", State.OrgId))
+            throw new UnauthorizedAccessException("Only the owner can rename the organization.");
 
         if (State.Name == name)
             return;
@@ -100,8 +106,8 @@ public class OrgGrain : EventSourcedGrain<OrgState>, IOrgGrain
         if (State.IsDeleted)
             return;
 
-        if (!State.Members.TryGetValue(requesterUserId, out var role) || role != "Owner")
-            throw new InvalidOperationException("Only the owner can delete the organization.");
+        if (!await _authService.Check(requesterUserId, "delete_org", State.OrgId))
+            throw new UnauthorizedAccessException("Only the owner can delete the organization.");
 
         await EmitEvent(new OrgDeletedEvent(State.OrgId, requesterUserId, UtcNow));
     }
@@ -112,8 +118,10 @@ public class OrgGrain : EventSourcedGrain<OrgState>, IOrgGrain
             throw new InvalidOperationException("Organization does not exist.");
         if (State.IsDeleted)
             throw new InvalidOperationException("Organization is deleted.");
-        if (!State.Members.ContainsKey(requesterUserId))
-            throw new InvalidOperationException("Only org members can add members.");
+
+        if (!await _authService.Check(requesterUserId, "invite_member", State.OrgId))
+            throw new UnauthorizedAccessException("Only the owner can add members.");
+
         if (role != "Owner" && role != "Member")
             throw new ArgumentException("Role must be 'Owner' or 'Member'.", nameof(role));
 
@@ -130,8 +138,8 @@ public class OrgGrain : EventSourcedGrain<OrgState>, IOrgGrain
         if (State.IsDeleted)
             throw new InvalidOperationException("Organization is deleted.");
 
-        if (!State.Members.TryGetValue(requesterUserId, out var requesterRole) || requesterRole != "Owner")
-            throw new InvalidOperationException("Only the owner can remove members.");
+        if (!await _authService.Check(requesterUserId, "remove_member", State.OrgId))
+            throw new UnauthorizedAccessException("Only the owner can remove members.");
 
         if (!State.Members.ContainsKey(userId))
             return; // not a member
@@ -149,9 +157,8 @@ public class OrgGrain : EventSourcedGrain<OrgState>, IOrgGrain
         if (State.IsDeleted)
             throw new InvalidOperationException("Organization is deleted.");
 
-        // Check if inviter is a member
-        if (!State.Members.ContainsKey(inviterUserId))
-            throw new InvalidOperationException("Only org members can send invitations.");
+        if (!await _authService.Check(inviterUserId, "invite_member", State.OrgId))
+            throw new UnauthorizedAccessException("Only the owner can send invitations.");
 
         // Check if email already has a pending invitation
         var existing = State.Invitations.FirstOrDefault(i => i.Email == email && i.Status == "Pending");

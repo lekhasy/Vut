@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.TestingHost;
 using Velucid.ReadModel;
+using Velucid.Silo.Authorization;
 using Velucid.Silo.Events;
 using Velucid.Silo.Services;
 
@@ -30,6 +31,8 @@ public sealed class TestSiloConfigurator : ISiloConfigurator
     /// </summary>
     internal static IEmailVerificationStore? SharedEmailVerificationStore;
 
+    internal static InMemoryOpenFgaAuthorizationService? SharedAuthService;
+
     /// <inheritdoc/>
     public void Configure(ISiloBuilder siloBuilder)
     {
@@ -46,6 +49,9 @@ public sealed class TestSiloConfigurator : ISiloConfigurator
                 _ => SharedEmailVerificationStore
                      ?? throw new InvalidOperationException(
                          "SharedEmailVerificationStore must be set before starting the test cluster."));
+
+            var authService = SharedAuthService ?? new InMemoryOpenFgaAuthorizationService();
+            services.AddSingleton<IOpenFgaAuthorizationService>(authService);
 
             services.AddDbContext<ReadModelDbContext>(options =>
                 options.UseInMemoryDatabase("VelucidTestReadModel"));

@@ -2,6 +2,7 @@ using KurrentDB.Client;
 using Microsoft.EntityFrameworkCore;
 using Velucid.ProjectorService.Configuration;
 using Velucid.ProjectorService.Handlers;
+using Velucid.ProjectorService.Services;
 using Velucid.ReadModel;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -11,6 +12,8 @@ builder.Services.Configure<KurrentDbOptions>(
     builder.Configuration.GetSection(KurrentDbOptions.SectionName));
 builder.Services.Configure<PostgresOptions>(
     builder.Configuration.GetSection(PostgresOptions.SectionName));
+builder.Services.Configure<OpenFgaOptions>(
+    builder.Configuration.GetSection(OpenFgaOptions.SectionName));
 
 // KurrentDB client
 var kurrentDbConnectionString = builder.Configuration
@@ -29,6 +32,9 @@ var postgresConnectionString = builder.Configuration
 
 builder.Services.AddDbContext<ReadModelDbContext>(options =>
     options.UseNpgsql(postgresConnectionString));
+
+// OpenFGA tuple sync
+builder.Services.AddSingleton<OpenFgaTupleSync>();
 
 // Projectors
 builder.Services.AddHostedService<UserProjector>();

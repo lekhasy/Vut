@@ -10,6 +10,7 @@
     <PackageReference Include="KurrentDB.Client" Version="1.4.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.7" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="OpenFga.Sdk" Version="0.10.3" />
   </ItemGroup>
 
   <ItemGroup>

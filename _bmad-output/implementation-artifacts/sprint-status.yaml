@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-28T00:00:00Z
-last_updated: 2026-05-29T17:45:00Z
+last_updated: 2026-05-30T01:00:00Z
 project: Velucid
 project_key: NOKEY
 tracking_system: file-system
@@ -64,8 +64,8 @@ development_status:
 
   # Epic 3 — Authorization (OpenFGA)
   epic-3: in-progress
-  3-1-openfga-infrastructure: review
-  3-2-migrate-org-grain-auth: backlog
+  3-1-openfga-infrastructure: done
+  3-2-migrate-org-grain-auth: review
   3-3-migrate-user-grain-auth: backlog
   3-4-migrate-controller-auth: backlog
   3-5-remove-inline-auth-org-state: backlog

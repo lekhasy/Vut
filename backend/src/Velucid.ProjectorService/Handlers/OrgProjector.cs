@@ -3,6 +3,7 @@ using Grpc.Core;
 using KurrentDB.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Velucid.ProjectorService.Services;
 using Velucid.ReadModel;
 using Velucid.ReadModel.Entities;
 
@@ -21,21 +22,26 @@ public sealed class OrgProjector : BackgroundService
 
     private readonly KurrentDBPersistentSubscriptionsClient _psClient;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly OpenFgaTupleSync _tupleSync;
     private readonly ILogger<OrgProjector> _logger;
 
     public OrgProjector(
         KurrentDBPersistentSubscriptionsClient psClient,
         IServiceScopeFactory scopeFactory,
+        OpenFgaTupleSync tupleSync,
         ILogger<OrgProjector> logger)
     {
         _psClient = psClient;
         _scopeFactory = scopeFactory;
+        _tupleSync = tupleSync;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("OrgProjector starting, subscribing to persistent subscription {Group}", SubscriptionGroup);
+
+        await _tupleSync.InitializeAsync();
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -134,7 +140,7 @@ public sealed class OrgProjector : BackgroundService
         await db.SaveChangesAsync(ct);
     }
 
-    private static async Task ProjectOrgCreatedAsync(ReadModelDbContext db, ReadOnlyMemory<byte> data, CancellationToken ct)
+    private async Task ProjectOrgCreatedAsync(ReadModelDbContext db, ReadOnlyMemory<byte> data, CancellationToken ct)
     {
         var e = Deserialize<OrgCreatedPayload>(data);
 
@@ -184,6 +190,11 @@ public sealed class OrgProjector : BackgroundService
             };
             db.UserOrgProjections.Add(userOrg);
         }
+
+        // Sync owner tuple to OpenFGA
+        await _tupleSync.WriteTuplesAsync([
+            ($"user:{e.OwnerUserId}", "owner", $"organization:{e.OrgId}")
+        ]);
     }
 
     private static async Task ProjectOrgRenamedAsync(ReadModelDbContext db, ReadOnlyMemory<byte> data, CancellationToken ct)
@@ -208,7 +219,7 @@ public sealed class OrgProjector : BackgroundService
         org.UpdatedAt = e.Timestamp.DateTime;
     }
 
-    private static async Task ProjectMemberAddedAsync(ReadModelDbContext db, ReadOnlyMemory<byte> data, CancellationToken ct)
+    private async Task ProjectMemberAddedAsync(ReadModelDbContext db, ReadOnlyMemory<byte> data, CancellationToken ct)
     {
         var e = Deserialize<MemberAddedPayload>(data);
 
@@ -245,13 +256,20 @@ public sealed class OrgProjector : BackgroundService
         {
             existingUserOrg.Role = e.Role;
         }
+
+        // Sync member tuple to OpenFGA
+        await _tupleSync.WriteTuplesAsync([
+            ($"user:{e.UserId}", e.Role.ToLowerInvariant(), $"organization:{e.OrgId}")
+        ]);
     }
 
-    private static async Task ProjectMemberRemovedAsync(ReadModelDbContext db, ReadOnlyMemory<byte> data, CancellationToken ct)
+    private async Task ProjectMemberRemovedAsync(ReadModelDbContext db, ReadOnlyMemory<byte> data, CancellationToken ct)
     {
         var e = Deserialize<MemberRemovedPayload>(data);
 
         var member = await db.OrgMemberProjections.FindAsync([e.OrgId, e.UserId], ct);
+        var removedRole = member?.Role;
+
         if (member != null)
         {
             db.OrgMemberProjections.Remove(member);
@@ -261,6 +279,14 @@ public sealed class OrgProjector : BackgroundService
         if (userOrg != null)
         {
             db.UserOrgProjections.Remove(userOrg);
+        }
+
+        // Delete member tuple from OpenFGA
+        if (removedRole != null)
+        {
+            await _tupleSync.DeleteTuplesAsync([
+                ($"user:{e.UserId}", removedRole.ToLowerInvariant(), $"organization:{e.OrgId}")
+            ]);
         }
     }
 

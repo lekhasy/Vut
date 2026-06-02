@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Orleans.TestingHost;
+using Velucid.Silo.Authorization;
 using Velucid.Silo.Events;
 using Velucid.Silo.Grains;
 using Velucid.Silo.Models;
@@ -16,6 +17,7 @@ public sealed class OrgGrainTests : IAsyncLifetime
 {
     private TestCluster _cluster = null!;
     private InMemoryEventStreamClient _eventStore = null!;
+    private InMemoryOpenFgaAuthorizationService _authService = null!;
 
     public async Task InitializeAsync()
     {
@@ -31,6 +33,9 @@ public sealed class OrgGrainTests : IAsyncLifetime
         _eventStore = new InMemoryEventStreamClient();
         TestSiloConfigurator.SharedEventStreamClient = _eventStore;
 
+        _authService = new InMemoryOpenFgaAuthorizationService();
+        TestSiloConfigurator.SharedAuthService = _authService;
+
         var builder = new TestClusterBuilder();
         builder.AddSiloBuilderConfigurator<TestSiloConfigurator>();
         _cluster = builder.Build();
@@ -44,6 +49,13 @@ public sealed class OrgGrainTests : IAsyncLifetime
         await _cluster.DisposeAsync();
         EventTypeMapping.Reset();
     }
+
+    // Simulates projector tuple sync (in production, OrgProjector handles this)
+    private async Task SyncOwnerTuple(Guid orgId, Guid ownerUserId) =>
+        await _authService.WriteTuples([new AuthorizationTuple($"user:{ownerUserId}", "owner", $"organization:{orgId}")]);
+
+    private async Task SyncMemberTuple(Guid orgId, Guid userId, string role) =>
+        await _authService.WriteTuples([new AuthorizationTuple($"user:{userId}", role.ToLowerInvariant(), $"organization:{orgId}")]);
 
     // ==================== CreateOrg Tests ====================
 
@@ -121,6 +133,7 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
 
         // Act
         await grain.DeleteOrg(ownerUserId);
@@ -138,7 +151,7 @@ public sealed class OrgGrainTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task DeleteOrg_NonOwnerCalling_ThrowsInvalidOperationException()
+    public async Task DeleteOrg_NonOwnerCalling_ThrowsUnauthorizedAccessException()
     {
         // Arrange
         var orgId = Guid.NewGuid();
@@ -147,12 +160,13 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
 
         // Act
         var act = () => grain.DeleteOrg(nonOwnerUserId);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("*Only the owner can delete*");
     }
 
@@ -165,6 +179,7 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
         await grain.DeleteOrg(ownerUserId);
 
         // Act
@@ -187,7 +202,9 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
         await grain.AddMember(memberUserId, "Member", ownerUserId);
+        await SyncMemberTuple(orgId, memberUserId, "Member");
 
         // Act
         await grain.RemoveMember(memberUserId, ownerUserId);
@@ -211,6 +228,7 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
 
         // Act
         var act = () => grain.RemoveMember(ownerUserId, ownerUserId);
@@ -221,7 +239,7 @@ public sealed class OrgGrainTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RemoveMember_NonOwnerCalling_ThrowsInvalidOperationException()
+    public async Task RemoveMember_NonOwnerCalling_ThrowsUnauthorizedAccessException()
     {
         // Arrange
         var orgId = Guid.NewGuid();
@@ -231,13 +249,15 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
         await grain.AddMember(nonOwnerUserId, "Member", ownerUserId);
+        await SyncMemberTuple(orgId, nonOwnerUserId, "Member");
 
         // Act
         var act = () => grain.RemoveMember(memberUserId, nonOwnerUserId);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
             .WithMessage("*Only the owner can remove members*");
     }
 
@@ -251,6 +271,7 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
 
         // Act
         await grain.RemoveMember(nonMemberUserId, ownerUserId);
@@ -263,35 +284,34 @@ public sealed class OrgGrainTests : IAsyncLifetime
     // ==================== SendInvitation Tests ====================
 
     [Fact]
-    public async Task SendInvitation_MemberInviting_EmitsInvitationSentEvent()
+    public async Task SendInvitation_OwnerInviting_EmitsInvitationSentEvent()
     {
         // Arrange
         var orgId = Guid.NewGuid();
         var ownerUserId = Guid.NewGuid();
-        var memberUserId = Guid.NewGuid();
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var inviteEmail = $"invitee-{Guid.NewGuid():N}@example.com";
         var inviteRole = "Member";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
-        await grain.AddMember(memberUserId, "Member", ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
 
         // Act
-        await grain.SendInvitation(inviteEmail, inviteRole, memberUserId);
+        await grain.SendInvitation(inviteEmail, inviteRole, ownerUserId);
 
         // Assert
         var events = _eventStore.GetEvents($"org-{orgId}");
-        events.Should().HaveCount(3);
-        events[2].Should().BeOfType<InvitationSentEvent>();
-        var inviteEvent = (InvitationSentEvent)events[2];
+        events.Should().HaveCount(2);
+        events[1].Should().BeOfType<InvitationSentEvent>();
+        var inviteEvent = (InvitationSentEvent)events[1];
         inviteEvent.OrgId.Should().Be(orgId);
         inviteEvent.Email.Should().Be(inviteEmail);
         inviteEvent.Role.Should().Be(inviteRole);
-        inviteEvent.InviterUserId.Should().Be(memberUserId);
+        inviteEvent.InviterUserId.Should().Be(ownerUserId);
     }
 
     [Fact]
-    public async Task SendInvitation_NonMemberInviting_ThrowsInvalidOperationException()
+    public async Task SendInvitation_NonMemberInviting_ThrowsUnauthorizedAccessException()
     {
         // Arrange
         var orgId = Guid.NewGuid();
@@ -300,13 +320,14 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
 
         // Act
         var act = () => grain.SendInvitation("test@example.com", "Member", nonMemberUserId);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*Only org members can send invitations*");
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("*Only the owner can send invitations*");
     }
 
     [Fact]
@@ -319,6 +340,7 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var inviteEmail = $"dup-{Guid.NewGuid():N}@example.com";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
         await grain.SendInvitation(inviteEmail, "Member", ownerUserId);
 
         // Act
@@ -339,6 +361,7 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
 
         // Act — any role string is accepted by SendInvitation
         await grain.SendInvitation("test@example.com", "Admin", ownerUserId);
@@ -363,6 +386,7 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var newName = $"RenamedOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
 
         // Act
         await grain.RenameOrg(newName, ownerUserId);
@@ -378,7 +402,7 @@ public sealed class OrgGrainTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task RenameOrg_NonMemberRenaming_ThrowsInvalidOperationException()
+    public async Task RenameOrg_NonMemberRenaming_ThrowsUnauthorizedAccessException()
     {
         // Arrange
         var orgId = Guid.NewGuid();
@@ -387,13 +411,14 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
 
         // Act
         var act = () => grain.RenameOrg("New Name", nonMemberUserId);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*Only org members can rename*");
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("*Only the owner can rename*");
     }
 
     [Fact]
@@ -405,6 +430,7 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
 
         // Act
         await grain.RenameOrg(orgName, ownerUserId);
@@ -426,6 +452,7 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
 
         // Act
         await grain.AddMember(newMemberUserId, "Member", ownerUserId);
@@ -451,6 +478,7 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
 
         // Act
         var act = () => grain.AddMember(newMemberUserId, "Admin", ownerUserId);
@@ -470,7 +498,9 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
         await grain.AddMember(memberUserId, "Member", ownerUserId);
+        await SyncMemberTuple(orgId, memberUserId, "Member");
 
         // Act
         await grain.AddMember(memberUserId, "Member", ownerUserId);
@@ -572,12 +602,13 @@ public sealed class OrgGrainTests : IAsyncLifetime
         var orgName = $"TestOrg-{Guid.NewGuid():N}";
         var grain = _cluster.GrainFactory.GetGrain<IOrgGrain>(orgId);
         await grain.CreateOrg(orgName, ownerUserId);
+        await SyncOwnerTuple(orgId, ownerUserId);
 
         // Act
         var act = () => grain.SendInvitation("test@example.com", "Member", nonMemberUserId);
 
         // Assert
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*Only org members can send invitations*");
+        await act.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("*Only the owner can send invitations*");
     }
 }
