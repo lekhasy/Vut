@@ -58,6 +58,8 @@ spec:
                   key: POSTGRES_PASSWORD
             - name: ConnectionStrings__PostgreSQL
               value: "Host=velucid-postgresql;Database=velucid_readmodel;Username=$(POSTGRES_USERNAME);Password=$(POSTGRES_PASSWORD)"
+            - name: OpenFga__ApiUrl
+              value: "http://velucid-openfga:8080"
           resources:
             requests:
               cpu: 100m

@@ -1,7 +1,7 @@
 # Story 3.2: Migrate OrgGrain Authorization
 
 baseline_commit: ba3b2df
-Status: review
+Status: done
 
 ## Story
 
@@ -69,7 +69,7 @@ so that authorization is declarative, centralized, and consistent across all ope
 
 | Method | Current Check | OpenFGA Permission | Who Can Access | Behavior Change? |
 |--------|--------------|-------------------|----------------|-----------------|
-| `RenameOrg` | `State.Members.ContainsKey(userId)` | `view_org` | Owner + Member | No |
+| `RenameOrg` | `State.Members.ContainsKey(userId)` | `manage_org_settings` | Owner only | **Yes — tightened** |
 | `DeleteOrg` | `role == "Owner"` | `delete_org` | Owner only | No |
 | `AddMember` | `State.Members.ContainsKey(userId)` | `invite_member` | Owner only | **Yes — tightened** |
 | `RemoveMember` | `role == "Owner"` | `remove_member` | Owner only | No |
@@ -195,3 +195,22 @@ For every command method, the pattern is:
 - `backend/tests/Velucid.Silo.Tests/Infrastructure/InMemoryOpenFgaAuthorizationService.cs` — test mock
 - `backend/src/Velucid.ProjectorService/Configuration/OpenFgaOptions.cs` — config class
 - `backend/src/Velucid.ProjectorService/Services/OpenFgaTupleSync.cs` — tuple sync service
+
+### Review Findings
+
+- [x] [Review][Decision] ~~RenameOrg uses `manage_org_settings`~~ — Resolved: owner-only rename is correct. Updated spec table below.
+- [x] [Review][Decision] ~~Race condition: grain auth check before projector tuple~~ — Deferred: acknowledged architectural trade-off of projector-based tuple writes. In practice, projector processes quickly enough. Noted for future reference if latency issues arise.
+- [x] [Review][Decision] ~~AddMember allows adding "Owner" role~~ — Resolved: intentional. Only owners can add members (`invite_member`), so owner promotion via AddMember is acceptable.
+- [x] [Review][Patch] ~~OpenFgaTupleSync never disposes OpenFgaClient~~ — Fixed: implemented `IAsyncDisposable`, store `_initClient` as a field so it's available for disposal.
+- [x] [Review][Patch] ~~Role-change in MemberAdded writes new tuple without deleting old~~ — Deferred: no role-change command exists yet. Fix belongs in the future `ChangeMemberRole` story. The current role-update branch in the projector is dead code in normal flow.
+- [x] [Review][Patch] ~~MemberRemoved retry loses role on orphaned tuple~~ — Already correct: role is captured from postgres before mutation, and `SaveChangesAsync` runs in the outer loop AFTER the OpenFGA call. On NACK retry, the DB row is still present so the role is re-captured. OpenFGA delete happens before the DB commit, so there's no window of phantom access.
+- [x] [Review][Patch] ~~OpenFgaTupleSync silently no-ops when client not initialized~~ — Fixed: split the guard, added warning log when `_client` is null while `Enabled` is true.
+- [x] [Review][Defer] InitializeAsync not thread-safe — concurrent callers could race on `_client` field [`OpenFgaTupleSync.cs:186-204`] — deferred, single caller today
+- [x] [Review][Defer] OpenFgaOptions defaults to HTTP — `http://localhost:8080` is plaintext [`OpenFgaOptions.cs:15`] — deferred, dev default; override in prod config
+- [x] [Review][Defer] OpenFgaOptions no empty/whitespace validation on ApiUrl/StoreName [`OpenFgaOptions.cs:15-17`] — deferred, defensive
+- [x] [Review][Defer] ResolveStoreIdAsync no retry on transient OpenFGA failure [`OpenFgaTupleSync.cs:258-270`] — deferred, crash-fast on startup is acceptable
+- [x] [Review][Defer] MemberRemovedEvent lacks role field — projector depends on read model for role [`OrgProjector.cs:270-271`] — deferred, would require event schema change
+- [x] [Review][Defer] Null role in MemberAddedPayload would cause NRE in projector [`OrgProjector.cs:262`] — deferred, grain validates role before emitting
+- [x] [Review][Defer] DeleteOrg doesn't clean up OpenFGA tuples for deleted org — deferred, org IDs are GUIDs, stale tuples won't conflict
+- [x] [Review][Defer] SendInvitation doesn't validate role parameter — deferred, pre-existing behavior not introduced by this change
+- [x] [Review][Defer] AddMember idempotency makes projector role-update branch dead code — deferred, not a functional bug

@@ -267,6 +267,8 @@ public sealed class OrgProjector : BackgroundService
     {
         var e = Deserialize<MemberRemovedPayload>(data);
 
+        // Capture role before any mutation so it's available for the OpenFGA delete
+        // and remains available on NACK retry (DB save happens in outer loop).
         var member = await db.OrgMemberProjections.FindAsync([e.OrgId, e.UserId], ct);
         var removedRole = member?.Role;
 
@@ -281,7 +283,10 @@ public sealed class OrgProjector : BackgroundService
             db.UserOrgProjections.Remove(userOrg);
         }
 
-        // Delete member tuple from OpenFGA
+        // Delete OpenFGA tuple using the captured role. Doing this before the
+        // DB commit (which happens in the outer loop) means there's no window
+        // where the user is gone from postgres but still has OpenFGA access.
+        // On retry, removedRole is re-captured from the still-present row.
         if (removedRole != null)
         {
             await _tupleSync.DeleteTuplesAsync([

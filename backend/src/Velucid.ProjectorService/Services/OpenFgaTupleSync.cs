@@ -6,11 +6,15 @@ using Velucid.ProjectorService.Configuration;
 
 namespace Velucid.ProjectorService.Services;
 
-public sealed class OpenFgaTupleSync
+public sealed class OpenFgaTupleSync : IAsyncDisposable
 {
     private readonly OpenFgaOptions _options;
     private readonly ILogger<OpenFgaTupleSync> _logger;
     private OpenFgaClient? _client;
+    private OpenFgaClient? _initClient;
+
+    private OpenFgaClient Client =>
+        _client ?? throw new InvalidOperationException("OpenFGA tuple sync not initialized");
 
     public OpenFgaTupleSync(
         IOptions<OpenFgaOptions> options,
@@ -28,10 +32,9 @@ public sealed class OpenFgaTupleSync
             return;
         }
 
-        var configuration = new ClientConfiguration { ApiUrl = _options.ApiUrl };
-        var initClient = new OpenFgaClient(configuration);
+        _initClient = new OpenFgaClient(new ClientConfiguration { ApiUrl = _options.ApiUrl });
 
-        var storeId = await ResolveStoreIdAsync(initClient);
+        var storeId = await ResolveStoreIdAsync(_initClient);
 
         _client = new OpenFgaClient(new ClientConfiguration
         {
@@ -42,9 +45,16 @@ public sealed class OpenFgaTupleSync
         _logger.LogInformation("OpenFGA tuple sync initialized with store {StoreId}", storeId);
     }
 
+    public ValueTask DisposeAsync()
+    {
+        _initClient?.Dispose();
+        Client.Dispose();
+        return ValueTask.CompletedTask;
+    }
+
     public async Task WriteTuplesAsync(IEnumerable<(string User, string Relation, string Object)> tuples)
     {
-        if (!_options.Enabled || _client is null) return;
+        if (!_options.Enabled) return;
 
         var clientTuples = tuples.Select(t => new ClientTupleKey
         {
@@ -57,7 +67,7 @@ public sealed class OpenFgaTupleSync
 
         try
         {
-            await _client.Write(new ClientWriteRequest { Writes = clientTuples });
+            await Client.Write(new ClientWriteRequest { Writes = clientTuples });
             _logger.LogInformation("Wrote {Count} tuples to OpenFGA", clientTuples.Count);
         }
         catch (Exception ex)
@@ -69,7 +79,7 @@ public sealed class OpenFgaTupleSync
 
     public async Task DeleteTuplesAsync(IEnumerable<(string User, string Relation, string Object)> tuples)
     {
-        if (!_options.Enabled || _client is null) return;
+        if (!_options.Enabled) return;
 
         var clientTuples = tuples.Select(t => new ClientTupleKeyWithoutCondition
         {
@@ -82,7 +92,7 @@ public sealed class OpenFgaTupleSync
 
         try
         {
-            await _client.Write(new ClientWriteRequest { Deletes = clientTuples });
+            await Client.Write(new ClientWriteRequest { Deletes = clientTuples });
             _logger.LogInformation("Deleted {Count} tuples from OpenFGA", clientTuples.Count);
         }
         catch (Exception ex)
