@@ -82,7 +82,12 @@ jobs:
         run: bunx nx format:check
 
       - name: Lint, typecheck, and test
-        run: bunx nx run-many -t lint typecheck test --parallel
+        # `--exclude web` keeps the Playwright e2e suite out of nx-verify — it
+        # needs a live Auth0 + silo + KurrentDB + Postgres stack that a fresh
+        # runner doesn't have. Unit tests (silo's dotnet test, projector's
+        # bun test, the 4 lib smoke tests) still run. The web e2e suite gets
+        # its own infra job in Story 4.6.
+        run: bunx nx run-many -t lint typecheck test --parallel --exclude web
 
   # ── Build & push silo image (.NET 10) ───────────────────────────────
   build-silo:

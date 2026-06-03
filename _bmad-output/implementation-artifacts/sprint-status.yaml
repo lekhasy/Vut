@@ -85,4 +85,5 @@ development_status:
   4-3-wire-local-first-read-path: backlog
   4-4-nx-cloud-ci-integration: backlog
   4-5-local-dev-deploy-updates: backlog
+  4-6-ci-web-e2e-infra-job: backlog
   epic-4-retrospective: optional
