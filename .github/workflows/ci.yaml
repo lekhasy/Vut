@@ -1,8 +1,23 @@
-# Velocit Platform — CI/CD Pipeline
-# Builds Docker images for silo and frontend, pushes to ghcr.io,
-# and updates K8s manifest image tags so ArgoCD can deploy.
+# Velucid Platform — CI/CD Pipeline
 #
-# Triggers on pushes to main that change backend or frontend source.
+# Pipeline order:
+#   1. nx-verify      — Bun + Nx: format check, lint, typecheck, unit tests
+#   2. build-silo     — .NET 10 Orleans silo (context: backend/src, Dockerfile in
+#                        Velucid.Silo). apps/silo is an Nx wrapper; the image
+#                        still builds from the legacy Dockerfile until 4.5
+#                        consolidates everything under apps/silo.
+#   3. build-projector — TypeScript projector (Fastify + Bun). Replaces the
+#                        .NET projector-service image. The k8s deployment's main
+#                        container is repointed to this image in update-manifests.
+#                        The old projector-service Dockerfile stays in the repo
+#                        untouched until 4.5 deletes it.
+#   4. build-migrations — Drizzle/EF migrations image (unchanged from before the
+#                        monorepo migration).
+#   5. build-web      — Astro SSR web client (was `frontend/` pre-4.0).
+#   6. update-manifests — rewrites the new image tags into the k8s deployment
+#                        files so ArgoCD picks them up.
+#
+# Triggers on pushes to main that change apps, libs, backend, or infra.
 # Uses the built-in GITHUB_TOKEN for ghcr.io auth (no extra secrets needed).
 
 name: CI
@@ -11,9 +26,18 @@ on:
   push:
     branches: [main]
     paths:
-      - "backend/**"
-      - "frontend/**"
-      - ".github/workflows/ci.yaml"
+      - 'apps/**'
+      - 'libs/**'
+      - 'backend/**'
+      - 'infrastructure/**'
+      - '.github/workflows/ci.yaml'
+      - 'package.json'
+      - 'bun.lock'
+      - 'nx.json'
+      - 'tsconfig.base.json'
+      - 'eslint.config.cjs'
+      - '.prettierrc'
+      - '.prettierignore'
   workflow_dispatch:
 
 env:
@@ -25,8 +49,29 @@ permissions:
   packages: write
 
 jobs:
-  # ── Build & push silo image ──────────────────────────────────────
+  # ── Nx verify: format / lint / typecheck / unit tests ───────────────
+  nx-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Install workspace dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Format check
+        run: bunx nx format:check
+
+      - name: Lint, typecheck, and test
+        run: bunx nx run-many -t lint typecheck test --parallel
+
+  # ── Build & push silo image (.NET 10) ───────────────────────────────
   build-silo:
+    needs: [nx-verify]
     runs-on: ubuntu-latest
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
@@ -58,8 +103,14 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # ── Build & push projector-service image ─────────────────────────
-  build-projector-service:
+  # ── Build & push projector image (TypeScript / Bun / Fastify) ───────
+  # The .NET projector-service image is intentionally not built anymore —
+  # the k8s deployment's main container is repointed at this new TS image
+  # (see update-manifests → Update projector image tag below). The legacy
+  # .NET projector-service source under backend/src/Velucid.ProjectorService
+  # is left in the tree untouched for reference and is deleted in 4.5.
+  build-projector:
+    needs: [nx-verify]
     runs-on: ubuntu-latest
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
@@ -77,7 +128,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_PREFIX }}/projector-service
+          images: ${{ env.IMAGE_PREFIX }}/projector
           tags: |
             type=sha,prefix=
             type=raw,value=latest
@@ -85,14 +136,15 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: backend/src
-          file: backend/src/Velucid.ProjectorService/Dockerfile
+          context: apps/projector
+          file: apps/projector/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # ── Build & push migrations image ─────────────────────────────────
+  # ── Build & push migrations image ───────────────────────────────────
   build-migrations:
+    needs: [nx-verify]
     runs-on: ubuntu-latest
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
@@ -124,8 +176,9 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # ── Build & push frontend image ─────────────────────────────────
-  build-frontend:
+  # ── Build & push web image (Astro SSR) ──────────────────────────────
+  build-web:
+    needs: [nx-verify]
     runs-on: ubuntu-latest
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
@@ -143,7 +196,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_PREFIX }}/frontend
+          images: ${{ env.IMAGE_PREFIX }}/web
           tags: |
             type=sha,prefix=
             type=raw,value=latest
@@ -151,17 +204,17 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: frontend
-          file: frontend/Dockerfile
+          context: apps/web
+          file: apps/web/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # ── Update K8s manifests with new image tags ─────────────────────
+  # ── Update K8s manifests with new image tags ────────────────────────
   update-manifests:
     runs-on: ubuntu-latest
-    needs: [build-silo, build-projector-service, build-migrations, build-frontend]
-    if: always() && (needs.build-silo.result == 'success' || needs.build-projector-service.result == 'success' || needs.build-migrations.result == 'success' || needs.build-frontend.result == 'success')
+    needs: [build-silo, build-projector, build-migrations, build-web]
+    if: always() && (needs.build-silo.result == 'success' || needs.build-projector.result == 'success' || needs.build-migrations.result == 'success' || needs.build-web.result == 'success')
     steps:
       - uses: actions/checkout@v4
         with:
@@ -174,11 +227,15 @@ jobs:
           sed -i "s|image: ghcr.io/lekhasy/vut/silo:.*|image: ghcr.io/lekhasy/vut/silo:${SHA}|" \
             infrastructure/k8s/silo/deployment.yaml
 
-      - name: Update projector-service image tag
-        if: needs.build-projector-service.result == 'success'
+      - name: Update projector image tag (main container)
+        if: needs.build-projector.result == 'success'
         run: |
           SHA="${GITHUB_SHA::7}"
-          sed -i "s|image: ghcr.io/lekhasy/vut/projector-service:.*|image: ghcr.io/lekhasy/vut/projector-service:${SHA}|" \
+          # The main container in the projector-service deployment is now
+          # the new TypeScript `projector` image (replaces the .NET
+          # projector-service image). The init container (migrations)
+          # below is updated by the migrations step.
+          sed -i "s|image: ghcr.io/lekhasy/vut/projector-service:.*|image: ghcr.io/lekhasy/vut/projector:${SHA}|" \
             infrastructure/k8s/projector-service/deployment.yaml
 
       - name: Update migrations image tag
@@ -188,11 +245,14 @@ jobs:
           sed -i "s|image: ghcr.io/lekhasy/vut/migrations:.*|image: ghcr.io/lekhasy/vut/migrations:${SHA}|" \
             infrastructure/k8s/projector-service/deployment.yaml
 
-      - name: Update frontend image tag
-        if: needs.build-frontend.result == 'success'
+      - name: Update web image tag
+        if: needs.build-web.result == 'success'
         run: |
           SHA="${GITHUB_SHA::7}"
-          sed -i "s|image: ghcr.io/lekhasy/vut/frontend:.*|image: ghcr.io/lekhasy/vut/frontend:${SHA}|" \
+          # The frontend deployment file is unchanged in name; the image
+          # inside it switches from `frontend:` to `web:`. The deployment
+          # resource (velucid-frontend) keeps its name until 4.5 renames it.
+          sed -i "s|image: ghcr.io/lekhasy/vut/frontend:.*|image: ghcr.io/lekhasy/vut/web:${SHA}|" \
             infrastructure/k8s/frontend/deployment.yaml
 
       - name: Commit manifest changes

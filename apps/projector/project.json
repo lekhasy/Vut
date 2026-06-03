@@ -1,0 +1,45 @@
+{
+  "name": "projector",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/projector/src",
+  "projectType": "application",
+  "tags": ["type:app", "scope:projector"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run build",
+        "cwd": "apps/projector"
+      },
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun run serve",
+        "cwd": "apps/projector"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bun test",
+        "cwd": "apps/projector"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --noEmit",
+        "cwd": "apps/projector"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "bunx tsc --noEmit",
+        "cwd": "apps/projector"
+      }
+    }
+  }
+}

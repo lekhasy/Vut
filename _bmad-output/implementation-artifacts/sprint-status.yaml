@@ -38,7 +38,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-28T00:00:00Z
-last_updated: 2026-06-03T16:30:00Z
+last_updated: 2026-06-03T15:00:00Z
 project: Velucid
 project_key: NOKEY
 tracking_system: file-system
@@ -79,7 +79,7 @@ development_status:
   # See: _bmad-output/planning-artifacts/epic-4-nx-monorepo-projector-migration.md
   # See: _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-03.md
   epic-4: in-progress
-  4-0-nx-monorepo-bootstrap: ready-for-dev
+  4-0-nx-monorepo-bootstrap: review
   4-1-shared-typescript-libraries: backlog
   4-2-port-projector-to-node-typescript: backlog
   4-3-wire-local-first-read-path: backlog

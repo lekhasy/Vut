@@ -42,3 +42,15 @@ packages/
 publish/
 frontend/playwright-report/*
 frontend/test-results/*
+apps/web/playwright-report/*
+apps/web/test-results/*
+
+# Nx
+.nx/
+nx-cloud.env
+*.tsbuildinfo
+tmp/
+
+# Bun
+bun.lockb
+

@@ -1,0 +1,40 @@
+{
+  "name": "silo",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "tags": ["type:app", "scope:silo"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "dotnet build backend/src/Velucid.Silo/Velucid.Silo.csproj -c Release",
+        "cwd": "."
+      },
+      "outputs": ["{projectRoot}/dist"]
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "dotnet test backend/tests/Velucid.Silo.Tests/Velucid.Silo.Tests.csproj -c Release"
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "dotnet run --project backend/src/Velucid.Silo/Velucid.Silo.csproj"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "dotnet format backend/src/Velucid.Silo --verify-no-changes --severity warn"
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "dotnet build backend/src/Velucid.Silo/Velucid.Silo.csproj -c Release --no-restore"
+      }
+    }
+  }
+}

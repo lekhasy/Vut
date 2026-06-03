@@ -185,7 +185,7 @@ public sealed class OpenFgaInitializer : IOpenFgaInitializer
                     }
                 }
             }
-        });
+            });
 
         _logger.LogInformation("Created new authorization model with ID: {ModelId}", model.AuthorizationModelId);
         return model.AuthorizationModelId;
