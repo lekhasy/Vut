@@ -51,6 +51,21 @@ bun install --frozen-lockfile
 
 `bun install --frozen-lockfile` before any `make` / `nx` target that rebuilds the project — keeps the lockfile honest.
 
+### 0.3.1 Pre-push hook (auto-installed)
+
+`bun install` triggers the `prepare` script in the root `package.json`, which runs `git config core.hooksPath scripts/hooks`. From then on, every `git push` runs the tracked hook at `scripts/hooks/pre-push` automatically.
+
+The hook runs the same gate as the CI `nx-verify` job — `bunx nx format:check` + `bunx nx run-many -t lint typecheck build --parallel` — so a green pre-push guarantees a green CI nx-verify. It does **not** run `test` (the Playwright e2e suite needs live Auth0 + silo + KurrentDB + Postgres; CI runs that separately, locally you use `bun run preflight` or `bunx nx run-many -t test --exclude web`).
+
+| What you want to run              | Command                                                                |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| Same gate as the hook (fast)      | `bash scripts/hooks/pre-push`                                          |
+| Full coverage including e2e tests | `bun run preflight`                                                    |
+| Unit tests only (skip e2e)        | `bunx nx run-many -t test --exclude web`                               |
+| Bypass the hook for a hotfix      | `git push --no-verify` (you'll get a red CI nx-verify and fix forward) |
+
+If the hook ever needs to be re-installed manually (e.g. you nuked `.git/config`): `bun run prepare` does it in one command.
+
 ### 0.4 Repository layout
 
 ```
@@ -73,7 +88,7 @@ infrastructure/ ← k8s manifests, docker-compose, secrets; unchanged
 - **Astro production runs under Bun**: the Dockerfile at `apps/web/Dockerfile` builds with `oven/bun:1.3.14-alpine` and the runtime image starts with `bun ./dist/server/entry.mjs`. No Node runtime in the web container.
 - **KurrentDB Node client (`@kurrent/kurrentdb-client@^1.3.0`)** ships a NAPI native bridge with a `linux-x64-musl` prebuilt, so it loads under the Alpine Bun image without needing build tools.
 - **Fallback (only if a future dependency lacks a musl prebuilt)**: switch just that one container's base from `oven/bun:1.3.14-alpine` to `oven/bun:1.3.14` (Debian) or to `node:20-alpine`. **Do not silently fall back** — flag it and confirm with the team first.
-- **Nx Cloud wiring is a Story 4.4 task.** `nx.json` has a `TODO_NX_CLOUD_ID` placeholder; the local `.nx/cache` works without it. When 4.4 lands, set the real workspace ID and add `NX_CLOUD_ACCESS_TOKEN` as a CI secret.
+- **Nx Cloud wiring is a Story 4.4 task.** The workspace is currently local-cache only (no `nxCloudId` in `nx.json`); the local `.nx/cache` works without it. When 4.4 lands, run `bunx nx connect`, set the real workspace ID in `nx.json`, and add `NX_CLOUD_ACCESS_TOKEN` as a CI secret.
 
 ---
 

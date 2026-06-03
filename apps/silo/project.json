@@ -33,7 +33,7 @@
     "typecheck": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "dotnet build backend/src/Velucid.Silo/Velucid.Silo.csproj -c Release --no-restore"
+        "command": "dotnet build backend/src/Velucid.Silo/Velucid.Silo.csproj -c Release"
       }
     }
   }

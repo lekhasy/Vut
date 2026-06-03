@@ -231,6 +231,7 @@ Claude Opus 4.7 (`claude-opus-4-7`).
 - **Nx Cloud 401 (`Invalid Credentials`) on every run**. Root cause: `nx.json` had `"nxCloudId": "TODO_NX_CLOUD_ID"` as a placeholder per AC #10; Nx was trying to authenticate to Nx Cloud on every command. The error was informational but noisy. **Fix**: removed the `nxCloudId` field entirely. The workspace is now local-cache only. Nx Cloud can be wired up in Story 4.4 with `bunx nx connect` + `NX_CLOUD_ACCESS_TOKEN`. Note: AC #10 said the field should be a placeholder with a TODO comment — interpretation revised: local-cache-only is fine until Story 4.4 actually wires Nx Cloud, and the placeholder was actively harmful (noise on every run).
 - **TS diagnostic `Comments are not permitted in JSON` on `nx.json`**. Resolved by removing the `// TODO` comment along with the `nxCloudId` field.
 - **Stash/restore mishap during development** dropped `apps/web/node_modules`. Recovered by re-running `bun install` at the workspace root; Bun re-hoists `apps/web/node_modules` from the workspace manifest.
+- **CI `silo:typecheck` failure with `NETSDK1004: Assets file '...obj/project.assets.json' not found`** on a fresh CI runner. Root cause: the typecheck target in `apps/silo/project.json` was using `dotnet build ... --no-restore`, which is fast on a warm cache but breaks on a clean checkout (no `obj/project.assets.json` to read). The build target was already correct (`dotnet build ... -c Release`, no `--no-restore`); typecheck was the outlier. **Fix**: dropped `--no-restore` from the typecheck command so it auto-restores. Verified with a `rm -rf obj bin && bunx nx run silo:typecheck --skip-nx-cache` from a clean state. **Follow-up (out of scope of original 4.0 work but landed in the same change)**: added a tracked `scripts/hooks/pre-push` + `core.hooksPath` `prepare` script so a local push catches the same gate as the CI `nx-verify` job before the commit lands in CI. The hook runs `format:check` + `lint typecheck build` (skips `test` because the Playwright e2e suite needs Auth0 + silo + KurrentDB + Postgres infra; `bun run preflight` runs the full set including `test` when the user wants it).
 
 ### Completion Notes List
 
@@ -245,6 +246,7 @@ Claude Opus 4.7 (`claude-opus-4-7`).
 - **CI workflow** rewritten: new `nx-verify` job (Bun + Nx + format:check + run-many), image builds now target `apps/silo`, `apps/projector`, `apps/web` contexts; old `projector-service` image build is dropped (the k8s deployment's main container is repointed to the new `projector` image in `update-manifests`).
 - **Docs** updated: `docs/new-machine-setup.md` gets a new "0. Local Development with Bun + Nx" section at the top; `CLAUDE.md` was a 0-line stub and is now populated with the 3-line repo summary, the day-to-day `bunx nx` command reference, the apps/libs layout, the architectural guardrails, and the Story 4.4 Nx Cloud note.
 - **Nx Cloud** left unwired for now — `nx.json` has no `nxCloudId`, so the workspace is local-cache only. Nx Cloud wiring is Story 4.4 (will need `bunx nx connect` + the `NX_CLOUD_ACCESS_TOKEN` CI secret). Local cache works — second `bunx nx build web` reported "Nx read the output from the cache".
+- **Pre-push gate** added (landed in the same change as the `--no-restore` fix). `scripts/hooks/pre-push` is tracked, executable, and installed automatically by `bun install` via the root `package.json`'s `prepare` script (`git config core.hooksPath scripts/hooks`). Runs `bunx nx format:check` + `bunx nx run-many -t lint typecheck build --parallel` — the same gate as the CI `nx-verify` job, plus `build` (so future `--no-restore`-class regressions are caught at the developer machine instead of in CI). Excludes `test` because the e2e suite needs infra; `bun run preflight` runs the full set. Verified by injecting a syntax error into `libs/events/src/index.ts` — the hook exits 1 and prints the failing target, blocking the push.
 - **Format pass** complete (`bunx nx format:write` + `bunx nx format:check` is green).
 - **Web e2e test status**: 2/9 e2e tests pass without infra; 7/9 fail because the auth fixture needs real Auth0 + silo + KurrentDB + Postgres (pre-existing requirement, identical to the original `frontend/` setup). Story 4.0 is layout-only; the auth fixture's infra dependency is out of scope. The web e2e test target IS runnable end-to-end (dev server starts via `bun run dev`, all 9 tests execute, the 2 that don't depend on auth pass).
 
@@ -252,7 +254,7 @@ Claude Opus 4.7 (`claude-opus-4-7`).
 
 **CREATED:**
 
-- `package.json` (workspace root — bun 1.3.14, workspaces `apps/* libs/*`)
+- `package.json` (workspace root — bun 1.3.14, workspaces `apps/* libs/*`, scripts include `preflight` and `prepare`)
 - `bun.lock` (text format)
 - `bun.lockb` gitignored (binary lockfile never committed)
 - `nx.json` (22.7.5, packageManager bun, targetDefaults; no nxCloudId — local cache only)
@@ -260,13 +262,14 @@ Claude Opus 4.7 (`claude-opus-4-7`).
 - `eslint.config.cjs` (@nx/enforce-module-boundaries with type:lib → only type:lib)
 - `.prettierrc` (printWidth:100, singleQuote:true, trailingComma:all)
 - `.prettierignore` (excludes \_bmad-output/, .nx/, node_modules/, dist/)
+- `scripts/hooks/pre-push` (tracked git pre-push hook: `bunx nx format:check` + `bunx nx run-many -t lint typecheck build --parallel`; bypass with `git push --no-verify`; auto-installed by `bun install` via the `prepare` script in the root `package.json` which sets `git config core.hooksPath scripts/hooks`)
 - `apps/projector/package.json` (name @velucid/projector, deps pinned)
 - `apps/projector/project.json` (build/serve/test/lint/typecheck via nx:run-commands)
 - `apps/projector/src/main.ts` (Fastify skeleton + GET /health)
 - `apps/projector/src/health.test.ts` (bun:test smoke)
 - `apps/projector/Dockerfile` (oven/bun:1.3.14-alpine, multi-stage)
 - `apps/projector/tsconfig.{json,app.json,spec.json}` (Nx-generated)
-- `apps/silo/project.json` (Nx wrapper: build/test/serve/lint/typecheck)
+- `apps/silo/project.json` (Nx wrapper: build/test/serve/lint/typecheck; typecheck uses `dotnet build ... -c Release` with no `--no-restore` so a clean CI checkout auto-restores)
 - `apps/silo/README.md` (explains wrapper design; 4.5 cleans up)
 - `libs/events/{package.json,project.json,tsconfig.json,tsconfig.lib.json,tsconfig.spec.json,src/index.ts,src/index.test.ts}` (@velucid/events)
 - `libs/projection/{package.json,project.json,tsconfig.json,tsconfig.lib.json,tsconfig.spec.json,src/index.ts,src/index.test.ts}` (@velucid/projection)
@@ -312,6 +315,7 @@ Claude Opus 4.7 (`claude-opus-4-7`).
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-06-03 | Story created from epic-4 + sprint-change-proposal-2026-06-03. Package manager/runtime changed from pnpm to Bun 1.3.14 per user direction ("Bun everywhere"). Nx version pinned to 22.7.5 (not 23 beta). `@nx-dotnet/core` (archived 2026-04-27) replaced with `@nx/dotnet`. Frontend runs under Bun in production per explicit user choice.                                                                                                                                                                                                                                                                                                                                                                        |
 | 2026-06-03 | Story implementation complete. Workspace bootstrapped with 7 Nx projects (apps: web, projector, silo; libs: events, projection, read-model, kurrent-client). All `bunx nx run-many -t build lint typecheck` pass. All unit tests pass (4 lib smoke tests, projector /health test, silo 46/46). Web e2e target is runnable; 2/9 tests pass without infra, 7/9 fail because the auth fixture needs real Auth0 + silo + KurrentDB + Postgres (pre-existing requirement, identical to the original `frontend/` setup). CI workflow updated to use `oven-sh/setup-bun@v2` and a new `nx-verify` job; image build contexts now point at `apps/{silo,projector,web}`. Docs (new-machine-setup.md) and CLAUDE.md populated. |
+| 2026-06-03 | Post-review fix: dropped `--no-restore` from `apps/silo/project.json` typecheck target — was failing on fresh CI runners with `NETSDK1004: Assets file not found`. Added tracked `scripts/hooks/pre-push` + `core.hooksPath` setup in `package.json`'s `prepare` script so `git push` runs the same gate as CI's `nx-verify` job (format:check + lint typecheck build) and catches this class of failure locally before it reaches CI. `bun run preflight` runs the full set including `test` for when the user wants it.                                                                                                                                                                                           |
 
 ## Out of Scope (carried to follow-up stories)
 

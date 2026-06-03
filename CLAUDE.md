@@ -27,6 +27,7 @@ runtime) · Nx 22.7.5 monorepo.
 | Render the dep graph                 | `bunx nx graph`                                      |
 | Format-check (CI does this)          | `bunx nx format:check`                               |
 | Format-fix (local)                   | `bunx nx format:write`                               |
+| Pre-push gate (mirrors CI nx-verify) | `bun run preflight`                                  |
 
 > **Bun is the only JS toolchain.** `bunx nx ...`, never `npx nx ...`. The web
 > container runs under `bun ./dist/server/entry.mjs` in production.
@@ -73,6 +74,26 @@ local `.nx/cache` and is fully reproducible. If/when you want to share cache
 across machines (CI + local), run `bunx nx connect`, set the resulting
 `nxCloudId` in `nx.json`, and add `NX_CLOUD_ACCESS_TOKEN` as a CI secret.
 That's a Story 4.4 task — flag it when we get there.
+
+## Pre-push hook (catch CI failures before they land)
+
+A git `pre-push` hook lives in `scripts/hooks/pre-push` and is wired up via
+`git config core.hooksPath scripts/hooks` (the `prepare` script in the root
+`package.json` sets this automatically after `bun install`, so anyone who
+clones the repo and installs gets the hook).
+
+The hook runs `bunx nx format:check` + `bunx nx run-many -t lint typecheck
+build --parallel` — the same gate the CI `nx-verify` job runs, plus `build`
+(to catch regressions like a `--no-restore` flag in a dotnet typecheck target
+that would fail on a clean CI checkout). It does **not** run `test` because
+`apps/web:test` (Playwright e2e) needs a live Auth0 + silo + KurrentDB +
+Postgres stack that almost never exists locally.
+
+- `bun run preflight` — the same set + `test`. Use this when you want full
+  coverage locally; it will fail on the e2e suite without infra (expected).
+- `git push --no-verify` — bypass the hook for a WIP push; you'll get a red
+  CI nx-verify and have to fix forward, but it's faster than fighting the
+  hook for a hotfix.
 
 ## Story workflow reminder
 

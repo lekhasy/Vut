@@ -21,7 +21,9 @@
     "graph": "nx graph",
     "affected:build": "nx affected -t build",
     "affected:test": "nx affected -t test",
-    "affected:lint": "nx affected -t lint"
+    "affected:lint": "nx affected -t lint",
+    "preflight": "nx run-many -t lint typecheck test build --parallel && bunx nx format:check",
+    "prepare": "git config core.hooksPath scripts/hooks"
   },
   "devDependencies": {
     "@nx/dotnet": "22.7.5",
