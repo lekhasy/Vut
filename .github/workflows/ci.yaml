@@ -155,8 +155,13 @@ jobs:
 
       - name: Build and push
         uses: docker/build-push-action@v6
+        # Build context is the repo root because apps/projector/Dockerfile
+        # copies the workspace-root `package.json` + `bun.lock` first
+        # (so `bun install --frozen-lockfile` resolves the workspace) and
+        # then copies `apps/projector/` under that. A narrower context
+        # (e.g. `apps/projector`) breaks the COPY paths.
         with:
-          context: apps/projector
+          context: .
           file: apps/projector/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -223,8 +228,12 @@ jobs:
 
       - name: Build and push
         uses: docker/build-push-action@v6
+        # Build context is the repo root for the same reason as the
+        # projector build above — apps/web/Dockerfile copies the
+        # workspace-root `package.json` + `bun.lock` first, then
+        # `apps/web/` under that. A narrower context breaks the COPY paths.
         with:
-          context: apps/web
+          context: .
           file: apps/web/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
