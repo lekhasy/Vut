@@ -281,7 +281,7 @@ jobs:
           # The frontend deployment file is unchanged in name; the image
           # inside it switches from `frontend:` to `web:`. The deployment
           # resource (velucid-frontend) keeps its name until 4.5 renames it.
-          sed -i "s|image: ghcr.io/lekhasy/vut/\(frontend\|web\):.*|image: ghcr.io/lekhasy/vut/web:${SHA}|" \
+          sed -i "s#image: ghcr.io/lekhasy/vut/\(frontend\|web\):.*#image: ghcr.io/lekhasy/vut/web:${SHA}#" \
             infrastructure/k8s/frontend/deployment.yaml
 
       - name: Commit manifest changes
