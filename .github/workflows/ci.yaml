@@ -264,7 +264,7 @@ jobs:
           # the new TypeScript `projector` image (replaces the .NET
           # projector-service image). The init container (migrations)
           # below is updated by the migrations step.
-          sed -i "s|image: ghcr.io/lekhasy/vut/projector-service:.*|image: ghcr.io/lekhasy/vut/projector:${SHA}|" \
+          sed -i "s|image: ghcr.io/lekhasy/vut/projector:.*|image: ghcr.io/lekhasy/vut/projector:${SHA}|" \
             infrastructure/k8s/projector-service/deployment.yaml
 
       - name: Update migrations image tag
