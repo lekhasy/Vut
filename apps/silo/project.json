@@ -14,6 +14,7 @@
     },
     "test": {
       "executor": "nx:run-commands",
+      "dependsOn": ["build"],
       "options": {
         "command": "dotnet test backend/tests/Velucid.Silo.Tests/Velucid.Silo.Tests.csproj -c Release"
       }
@@ -32,8 +33,9 @@
     },
     "typecheck": {
       "executor": "nx:run-commands",
+      "dependsOn": ["build"],
       "options": {
-        "command": "dotnet build backend/src/Velucid.Silo/Velucid.Silo.csproj -c Release"
+        "command": "dotnet build backend/src/Velucid.Silo/Velucid.Silo.csproj -c Release --no-restore"
       }
     }
   }
