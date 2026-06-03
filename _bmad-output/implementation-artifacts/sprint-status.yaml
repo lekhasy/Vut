@@ -10,10 +10,13 @@
 # Epic Status:
 #   - backlog: Epic not yet started
 #   - in-progress: Epic actively being worked on
+#   - paused: Epic work is intentionally on hold (e.g., awaiting a prerequisite epic)
 #   - done: All stories in epic completed
 #
 # Epic Status Transitions:
 #   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → paused: Manually when work is blocked on a prerequisite (e.g., migration epic)
+#   - paused → in-progress: Manually when the blocking epic completes
 #   - in-progress → done: Manually when all stories reach 'done' status
 #
 # Story Status:
@@ -35,15 +38,15 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-28T00:00:00Z
-last_updated: 2026-06-02T00:00:00Z
+last_updated: 2026-06-03T16:30:00Z
 project: Velucid
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 
 development_status:
-  # Epic 1 — Core Platform Kanban MVP
-  epic-1: in-progress
+  # Epic 1 — Core Platform Kanban MVP (paused pending Epic 4)
+  epic-1: paused
   1-0-react-foundation: done
   1-1-organizations: done
   1-2-products: backlog
@@ -52,8 +55,8 @@ development_status:
   1-5-forecast-tab-gathering-data-state: backlog
   epic-1-retrospective: optional
 
-  # Epic 2 — Flow Features
-  epic-2: backlog
+  # Epic 2 — Flow Features (paused pending Epic 4)
+  epic-2: paused
   2-1-tags: backlog
   2-2-saved-views: backlog
   2-3-forecast-engine-monte-carlo: backlog
@@ -62,8 +65,8 @@ development_status:
   2-6-forecast-tag-based-filtering: backlog
   epic-2-retrospective: optional
 
-  # Epic 3 — Authorization (OpenFGA)
-  epic-3: in-progress
+  # Epic 3 — Authorization (OpenFGA) (paused pending Epic 4; grain-side unaffected, projector-side OpenFGA code ported in Story 4.2)
+  epic-3: paused
   3-1-openfga-infrastructure: done
   3-2-migrate-org-grain-auth: done
   3-3-migrate-user-grain-auth: backlog
@@ -71,3 +74,15 @@ development_status:
   3-5-remove-inline-auth-org-state: backlog
   3-6-authorization-test-suite: backlog
   epic-3-retrospective: optional
+
+  # Epic 4 — Nx Monorepo + Projector Migration (NEW — runs first)
+  # See: _bmad-output/planning-artifacts/epic-4-nx-monorepo-projector-migration.md
+  # See: _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-03.md
+  epic-4: in-progress
+  4-0-nx-monorepo-bootstrap: ready-for-dev
+  4-1-shared-typescript-libraries: backlog
+  4-2-port-projector-to-node-typescript: backlog
+  4-3-wire-local-first-read-path: backlog
+  4-4-nx-cloud-ci-integration: backlog
+  4-5-local-dev-deploy-updates: backlog
+  epic-4-retrospective: optional

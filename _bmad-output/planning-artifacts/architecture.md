@@ -125,6 +125,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 | Client state | nanostores | 0.11.4 | Lightweight framework-agnostic store for cross-component state. |
 | Styling | Tailwind CSS | 3.4.17 | Utility-first. Design system tokens per project. |
 | Auth (client) | Astro middleware | — | Cookie validated server-side in Astro `middleware.ts`. Session data attached to `context.locals`. |
+| Local-first read model | Kurrent TypeScript sync engine + shared `@velucid/projection` | — | Web client maintains its own read model by projecting events from the event log in the browser. The same projection code runs in `apps/projector` (backend Node worker) and in `apps/web` (frontend bundle) — no drift. Writes still flow through Astro BFF → Silo → KurrentDB. Backend projector is the source of truth for the Postgres read model; the browser store is a derived cache. Forward-looking: requires Epic 4 (Nx monorepo migration) and the upcoming Kurrent TypeScript sync engine release. |
 
 ### Infrastructure & Deployment
 
@@ -532,6 +533,16 @@ ProjectorService subscribes to $ce stream from last checkpointed sequence
   → map event to entity (e.g., OrgProjection row UPDATE/INSERT)
   → upsert to PostgreSQL via EF Core
 ```
+
+**Frontend → Kurrent → Local Read Model (post-Epic-4, post-Kurrent-sync-engine):**
+```
+KurrentDB event log
+  → Kurrent TypeScript sync engine (running in browser)
+  → apps/web consumes `@velucid/projection` (same functions as ProjectorService)
+  → updates nanostores local store
+  → React components render from local state
+```
+Writes bypass this path: React component → Astro BFF → Silo controller → grain → KurrentDB. The local store is a derived cache; the backend projector remains the source of truth for the Postgres read model.
 
 **Silo API reads PostgreSQL:**
 - Silo API controllers query read model directly via `ReadModelDbContext`

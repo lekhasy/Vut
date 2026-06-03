@@ -49,6 +49,7 @@ The philosophy is simple: count work, track status transitions, model the uncert
 - Deliver a single report -- a probabilistic forecast powered by Monte Carlo simulation -- that replaces the need for velocity charts, burn-downs, and story points. Every forecast is expressed as a probability distribution, never a single date.
 - Support multi-tenant, multi-org usage via GitHub SSO, following GitHub's organization model.
 - Build on an event-sourced architecture so that all state changes are auditable, replayable, and suitable for the analytical needs of the probabilistic forecast.
+- **Local-first, instantly responsive UI:** The web client keeps the data it needs to render at hand, so the UI feels instant -- navigating, filtering, and opening tasks have no loading spinners and no perceptible network wait. Writes still flow through the BFF; reads feel local.
 - **Self-hostable on developer machines:** The entire stack (frontend, backend, event store, read model, messaging) must be hostable on the team's own machines with no dependency on any cloud provider. This is a cost constraint -- the team must be able to develop, demo, and run Velucid without paying for cloud infrastructure. Availability and redundancy details are left to the architecture.
 - Ship an MVP that is immediately useful for a single team managing a product backlog and kanban board.
 
@@ -434,7 +435,7 @@ The following architectural decisions are **product-level constraints** that sha
 - **Self-hostable on developer machines:** The entire stack must be hostable on the team's own machines with no cloud provider or managed service required. This keeps operating costs at zero during development and early adoption. Deployment topology and availability details are defined in `architecture.md`.
 - **Every event captures who and when:** All events must include the actor who triggered it and a UTC timestamp. No exceptions.
 - **Eventual consistency:** The read model (used for backlog, kanban, and reports) is derived from the event stream and may lag slightly behind writes. The product uses optimistic UI updates to mask this delay.
-- **No direct database access by clients:** All data access goes through the API layer to enforce tenant isolation and authorization.
+- **No direct database access by clients:** All data access goes through the API layer (writes) or the local projection (reads) to enforce tenant isolation and authorization. The frontend's local projection is populated only from KurrentDB events emitted by the backend; clients never query PostgreSQL directly.
 - **HTTPS only:** All communication is over TLS.
 - **No secrets in events:** Events never contain authentication tokens or sensitive credentials.
 
