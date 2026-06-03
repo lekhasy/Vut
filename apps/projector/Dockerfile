@@ -19,9 +19,15 @@ RUN bun run build
 
 FROM oven/bun:1.3.14-alpine AS runtime
 WORKDIR /app
-COPY --from=build /app/apps/projector/dist ./dist
-COPY --from=build /app/apps/projector/package.json ./
-COPY --from=build /app/apps/projector/node_modules ./node_modules
+
+# Bun workspaces use symlinks: apps/projector/node_modules/X → ../../node_modules/.bun/<hash>/node_modules/X
+# We must preserve both the app's node_modules (symlinks) and the root .bun store (targets).
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps/projector/node_modules ./apps/projector/node_modules
+COPY --from=build /app/apps/projector/dist ./apps/projector/dist
+COPY --from=build /app/apps/projector/package.json ./apps/projector/
+
+WORKDIR /app/apps/projector
 ENV PORT=3001
 EXPOSE 3001
 CMD ["bun", "run", "dist/main.js"]

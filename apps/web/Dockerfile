@@ -1,6 +1,6 @@
 # Velucid Web (Astro SSR) — multi-stage Docker build
-# Stage 1: Build the Astro SSR app with Bun
-# Stage 2: Run with Bun on port 3000 (Bun everywhere — see Story 4.0)
+# Build:  install all deps, run astro check + astro build, produce dist/
+# Runtime: production-only install (no devDeps) + the compiled dist/
 
 FROM oven/bun:1.3.14-alpine AS build
 WORKDIR /app
@@ -19,9 +19,15 @@ RUN bun run build
 
 FROM oven/bun:1.3.14-alpine AS runtime
 WORKDIR /app
-COPY --from=build /app/apps/web/dist ./dist
-COPY --from=build /app/apps/web/package.json ./
-COPY --from=build /app/apps/web/node_modules ./node_modules
+
+# Bun workspaces use symlinks: apps/web/node_modules/react-dom → ../../node_modules/.bun/<hash>/node_modules/react-dom
+# We must preserve both the app's node_modules (symlinks) and the root .bun store (targets).
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/apps/web/node_modules ./apps/web/node_modules
+COPY --from=build /app/apps/web/dist ./apps/web/dist
+COPY --from=build /app/apps/web/package.json ./apps/web/
+
+WORKDIR /app/apps/web
 ENV HOST=0.0.0.0
 ENV PORT=3000
 EXPOSE 3000
