@@ -24,6 +24,22 @@ if ! command -v bun >/dev/null 2>&1; then
   exit 1
 fi
 
+# Pre-warm dotnet's first-time-config BEFORE Nx spins up parallel dotnet
+# invocations. On a fresh CI runner (and occasionally on a local checkout
+# that has never run dotnet) the parallel `dotnet build` / `dotnet test` /
+# `dotnet format` calls from `bunx nx run-many --parallel` race on the
+# `NuGet-Migrations` named mutex, and the per-session shm directory under
+# /tmp/.dotnet/shm/session{N} gets created twice — the second mkdir fails
+# with EEXIST and the build aborts with:
+#   System.IO.IOException: The system cannot open the device or file
+#   specified. : 'NuGet-Migrations'.
+# A single serial `dotnet --info` completes the migration once, so the
+# parallel invocations skip it entirely.
+if command -v dotnet >/dev/null 2>&1; then
+  echo "pre-push: pre-warming dotnet (avoid NuGet-Migrations mutex race)..."
+  dotnet --info > /dev/null 2>&1 || true
+fi
+
 echo "pre-push: format:check..."
 if ! bunx nx format:check; then
   echo "pre-push: format:check failed. Run \`bunx nx format:write\` and re-stage." >&2

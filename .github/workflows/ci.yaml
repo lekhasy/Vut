@@ -63,6 +63,21 @@ jobs:
       - name: Install workspace dependencies
         run: bun install --frozen-lockfile
 
+      # Pre-warm dotnet's first-time-config serially before Nx fans out
+      # parallel `dotnet build` / `dotnet test` / `dotnet format` calls.
+      # Without this, fresh runners race on the `NuGet-Migrations` named
+      # mutex and the build aborts with EEXIST on the per-session shm dir:
+      #   System.IO.IOException: The system cannot open the device or file
+      #   specified. : 'NuGet-Migrations'.
+      # Mirrors the pre-warm in scripts/hooks/pre-push so local and CI agree.
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Pre-warm dotnet first-time-config
+        run: dotnet --info > /dev/null
+
       - name: Format check
         run: bunx nx format:check
 
