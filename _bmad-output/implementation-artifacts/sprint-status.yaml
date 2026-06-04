@@ -38,7 +38,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-05-28T00:00:00Z
-last_updated: 2026-06-03T15:00:00Z
+last_updated: 2026-06-03T18:20:00Z
 project: Velucid
 project_key: NOKEY
 tracking_system: file-system
@@ -78,6 +78,8 @@ development_status:
   # Epic 4 — Nx Monorepo + Projector Migration (NEW — runs first)
   # See: _bmad-output/planning-artifacts/epic-4-nx-monorepo-projector-migration.md
   # See: _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-03.md
+  # Note: 4-1 → 4-6 backlog deferred until Epic 5 ships.
+  # See: _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-03-marketing.md
   epic-4: in-progress
   4-0-nx-monorepo-bootstrap: review
   4-1-shared-typescript-libraries: backlog
@@ -87,3 +89,12 @@ development_status:
   4-5-local-dev-deploy-updates: backlog
   4-6-ci-web-e2e-infra-job: backlog
   epic-4-retrospective: optional
+
+  # Epic 5 — Marketing Site Refresh (NEW — takes priority over Epic 4 backlog)
+  # Source of truth for landing-page, README, email, and any other public copy:
+  # marketing_strategy.md at repo root.
+  # Reference shots for visual register: _bmad-output/planning-artifacts/marketing-research/
+  # See: _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-03-marketing.md
+  epic-5: in-progress
+  5-0-landing-page-redesign: review
+  epic-5-retrospective: optional
