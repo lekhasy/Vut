@@ -66,6 +66,16 @@ _bmad-output/  BMad planning + implementation artifacts. Source of truth for
   `type:lib` may only import from `type:lib`. `type:app` may import from
   `type:lib` or `type:app`. Libs **never** import apps.
 
+## Voice & brand
+
+`marketing_strategy.md` (repo root) is the source of truth for landing-page,
+README, email, changelog, and any other public-facing copy. It defines brand
+voice (dbrand × Palantir register), banned words, spice levels, and the
+credibility framing. Deviating from it — including in tone, in copy, or in
+visual register — requires explicit instruction. Visual reference shots for
+the landing-page redesign live in
+`_bmad-output/planning-artifacts/marketing-research/`.
+
 ## Nx Cloud (opt-in, Story 4.4)
 
 The workspace is currently **local-cache only** — no `nxCloudId` is set, so
