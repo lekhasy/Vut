@@ -23,7 +23,7 @@ Velucid's forecasting is built on techniques with decades of real-world validati
 
 ## The Credibility Problem — and How We Solve It
 
-Skeptical managers and founders have one core objection: *"This sounds new and unproven."*
+Skeptical managers and founders have one core objection: _"This sounds new and unproven."_
 
 The real answer is the opposite of new. The forecasting methodology behind Velucid has been used in finance, engineering, and logistics for decades. Software teams are late to adopt it — not early. But we never say this by naming the methodology. Named methodologies have Wikipedia pages, critics, and community arguments. We let the framing do the work instead.
 
@@ -34,6 +34,7 @@ Story points were invented in the early 2000s. They have no basis in statistics 
 Every piece of public-facing content should make this inversion felt, not stated. The reader should finish a page thinking: "Why are we still doing it the old way?" They should not be Googling a term we gave them.
 
 **Approved framings for credibility (use freely in copy):**
+
 - "The forecasting method behind Velucid has been used in financial modeling, supply chain, and engineering for decades. We applied it to software delivery."
 - "Probability-based forecasting isn't new. Attaching it to a project management tool is."
 - "Other industries stopped guessing at timelines a long time ago. Software is catching up."
@@ -41,6 +42,7 @@ Every piece of public-facing content should make this inversion felt, not stated
 - "The math doesn't care about your story points. It never did."
 
 **What to never reference by name:**
+
 - Any online community or movement around estimation practices (they carry baggage and invite arguments)
 - The Spotify Model or any named organizational framework
 - SAFe, LeSS, or any Agile variant
@@ -50,7 +52,7 @@ Every piece of public-facing content should make this inversion felt, not stated
 
 ## Brand Persona
 
-Velucid's voice is built from two real-world references. What makes both work is *restraint* — neither plasters personality everywhere. It shows up in small, well-placed moments.
+Velucid's voice is built from two real-world references. What makes both work is _restraint_ — neither plasters personality everywhere. It shows up in small, well-placed moments.
 
 **dbrand:** Blunt, self-deprecating, funny without trying. Their tagline is "overpriced electronic tape that looks cool." The wit is light and consistent — it lives in a product description line, a tweet reply, one sentence in a confirmation email. Never a wall of manifesto copy.
 
@@ -65,6 +67,7 @@ Not a movement. Not a philosophy. A tool that works, explained by people who are
 ## Voice & Tone Rules
 
 ### Always:
+
 - **Be direct.** No filler words, no corporate softening, no "we believe that..."
 - **Be funny without trying.** Dry wit beats exclamation points. Deadpan beats enthusiasm.
 - **Stay lean.** Short sentences. Short paragraphs. If a line can be cut, cut it.
@@ -72,6 +75,7 @@ Not a movement. Not a philosophy. A tool that works, explained by people who are
 - **Punch at systems, not people.** Sprint planning culture, planning theater, process-for-process's-sake — these are fair targets. Individuals and named companies are not.
 
 ### Never:
+
 - Use the word "journey" in any context.
 - Say "we're passionate about" anything.
 - Use "empower," "unlock potential," or "transform the way you work."
@@ -111,24 +115,29 @@ Ask: "Does the rest of this piece earn this line?" One sharp line in a restraine
 ## Core Messaging
 
 ### Positioning Statement (internal use, not for copy)
+
 Velucid gives software teams honest delivery forecasts based on how their work actually flows — not how they wish it would go. No planning ceremonies. No invented metrics. Just the data your team already generates, turned into probabilities you can actually use.
 
 ### Taglines (pick contextually, match to spice level)
-- *"Project management that tells you the truth."* — (level 3)
-- *"Ship it. Not your story points."* — (level 4)
-- *"Delivery forecasting built on math, not meetings."* — (level 4)
-- *"Your project will finish when the data says it will."* — (level 5)
-- *"Your burndown chart is lying to you. We thought you should know."* — (level 6)
-- *"Forecasting that works the way every other industry's forecasting works."* — (level 4, credibility framing)
-- *"We were warned this could cause layoffs. We shipped it anyway."* — (level 8, use once, sparingly, never on homepage)
+
+- _"Project management that tells you the truth."_ — (level 3)
+- _"Ship it. Not your story points."_ — (level 4)
+- _"Delivery forecasting built on math, not meetings."_ — (level 4)
+- _"Your project will finish when the data says it will."_ — (level 5)
+- _"Your burndown chart is lying to you. We thought you should know."_ — (level 6)
+- _"Forecasting that works the way every other industry's forecasting works."_ — (level 4, credibility framing)
+- _"We were warned this could cause layoffs. We shipped it anyway."_ — (level 8, use once, sparingly, never on homepage)
 
 ### Elevator Pitch (level 3–4, for landing pages, README)
+
 > Velucid is a project management tool built on probability-based forecasting. You track work. Velucid tracks how fast your team actually moves, builds a model from that data, and tells you when things will ship — not as a single date, but as a range of outcomes with real probabilities. No planning sessions required. No story points. Just your data, doing what data is supposed to do.
 
 ### The Sharp Version (level 5–6, for social, edgier contexts)
+
 > Every other PM tool asks you to guess, then holds you to it. Velucid watches what actually happens and tells you what it means. There's a difference between a date and a forecast. We're the forecast.
 
 ### The One Dark Line (level 7–8, once per piece, never on homepage)
+
 > Some roles exist to manage the uncertainty that bad forecasting creates. Velucid removes the uncertainty. What happens to those roles is between you and your org chart.
 
 ---
@@ -136,9 +145,13 @@ Velucid gives software teams honest delivery forecasts based on how their work a
 ## Content Pillars
 
 ### 1. Planning Theater
+
 Content that names the absurdity of ceremony-heavy software delivery — without being preachy or aligning with any named movement. Tone: dry, observational, "we're just describing what everyone already knows."
 
+**Platform:** Social, blog, changelog. Never on the landing page or homepage — the homepage sells outcomes, not criticism.
+
 **Examples (level 3–5):**
+
 - "Story points: agreed on by everyone, understood by no one, trusted by nobody who's been around long enough."
 - "Three days of planning for a feature that shipped in an afternoon. The planning was very thorough."
 - "A fibonacci sequence walks into a sprint planning meeting. Nobody leaves for two hours."
@@ -147,47 +160,58 @@ Content that names the absurdity of ceremony-heavy software delivery — without
 **What to avoid:** Framing this as being part of or reacting to any online debate about estimation. The tone is observational, not polemical.
 
 ### 2. The Honest Product
+
 What Velucid does and doesn't do. No hype. No vision statements. Facts delivered with quiet confidence.
 
 **Examples (level 3–4):**
+
 - Changelog entries that say what changed, why, and whether it broke anything.
 - Feature announcements that open with the problem, not the feature name.
 - "We built [X] because [Y] was causing [Z]. It does this: [description]. That's it."
 
 ### 3. Developer Solidarity
+
 Acknowledges the shared experience of working in environments obsessed with process over output. Not prescriptive — validating.
 
 **Examples (level 4–5):**
+
 - "If your delivery date was accurate, it was an accident."
 - "Not all heroes ship on the date they estimated."
 - "Your team didn't miss the deadline. The deadline missed the reality."
 
 ### 4. The Honest Forecast
+
 The probability forecast is the hero feature. Every other tool gives you a date. Velucid gives you a probability distribution. One of those is honest.
 
 **Examples (level 4–6):**
+
 - "Every PM tool shows a completion date. Velucid shows a probability. Guess which one you'll actually hit."
 - "70% confident by March 20. 95% by April 3. Those numbers come from your data, not a meeting."
 - "We don't tell you when it will ship. We tell you the odds. That's a more honest answer."
 
 ### 5. The Math, Not the Meetings
+
 Content that establishes credibility by positioning Velucid's approach as the way every serious industry handles uncertainty — without naming the methodology. This is the credibility pillar.
 
 **Examples (level 3–5):**
+
 - "Financial institutions don't forecast with gut feel. Supply chains don't. Aerospace doesn't. Software has been the outlier."
 - "Probability-based forecasting has been used in high-stakes industries for decades. We just built a PM tool around it."
 - "Other fields decided a long time ago that guessing wasn't a forecasting strategy. Software is catching up."
 
 ### 6. The Dark Flash
+
 One-line moments that acknowledge Velucid's harder organizational implications. Calm, unafraid, never elaborated on. This is the Palantir register.
 
 **Examples (level 7–8):**
+
 - "Honest delivery data has organizational consequences. So does dishonest delivery data. You've been living with one of those for years."
 - "Some tools make teams more productive. Some tools make it obvious they already were."
 - "We were told this product could reduce the need for certain management layers. We considered that carefully. Then we shipped it."
 - "Clarity has costs. So does the alternative."
 
 **Rules — non-negotiable:**
+
 - One line only per piece. Never explain or justify it afterward.
 - Surrounding content must be at level 3–4. The flash earns its weight through contrast.
 - Never on the homepage hero. Reserve for About page, standalone tweets, conference talks, blog posts.
@@ -197,14 +221,19 @@ One-line moments that acknowledge Velucid's harder organizational implications. 
 ## Platform-Specific Notes
 
 ### Landing Page / Velucid.app
-- Level 3–4 throughout.
-- Hero leads with the problem or the outcome — not the product name or a philosophy.
+
+- Level 3 throughout. Quiet confidence. No edge on the homepage.
+- **Sell the sizzle, not the steak.** Lead with outcomes (what the user gets). Never explain the methodology in detail. The reader should feel "this works" without needing to understand how.
+- Hero leads with the outcome — not the problem, not an attack on alternatives.
+- No rejection framing ("What's not here", listing things we don't have). An established company states what it does; it doesn't define itself by what it isn't.
+- Show the product's output (the forecast) as early as possible. The probability range IS the sizzle.
 - No stock photos of smiling people in open-plan offices.
-- CTAs are direct: "Try it." / "See how it works." / "Get in." Never "Start your free journey."
-- One level 5–6 line acceptable on the About or Philosophy page. Not in the hero.
-- The credibility framing ("this method has been used in other industries for decades") belongs in the middle of the page, after the pain and before the CTA.
+- CTAs are direct: "Try Velucid →" / "See the forecast" / "Start using Velucid →". Never "Start your free journey."
+- Credibility framing ("this method has been used in other industries for decades") belongs in a brief section — one paragraph max, stated once.
+- End with a CTA, not a punchline.
 
 ### Twitter / X
+
 - Under 200 characters when possible.
 - Most tweets: level 4–5.
 - Dark Flash works as a standalone tweet at level 7–8. Post it straight. No follow-up explanation.
@@ -212,17 +241,20 @@ One-line moments that acknowledge Velucid's harder organizational implications. 
 - Do not engage with online debates about estimation methodologies. Velucid is not a side in that argument.
 
 ### README / GitHub
+
 - Level 3–4 throughout. Tone stays consistent — not suddenly formal.
 - Does not start with "Welcome to Velucid."
 - Assumes the reader is competent.
 - One sentence on what Velucid is, one sentence on what makes it different, then how to run it.
 
 ### Changelogs
+
 - Level 3–4. What changed, why, and if anything broke.
 - No "minor improvements and bug fixes" without specifics.
 - Dry personality is fine in one line: "Fixed a bug that made the forecast look more optimistic than your data warranted. We fixed it. You're welcome."
 
 ### Emails / Announcements
+
 - Subject lines are statements, not questions or hype.
 - Opens with the point.
 - Level 3–4. One sharper line if the content earns it.
@@ -241,60 +273,62 @@ One-line moments that acknowledge Velucid's harder organizational implications. 
 
 ## Landing Page: Hero Section Reference Draft
 
-*This draft is a reference for agents. Spice level is 3–5 throughout, with one level-6 line at the end. Do not deviate from this calibration without explicit instruction.*
+_This draft is a reference for agents. Spice level is 3 throughout — calm, confident, outcome-focused. No attacks. No rejection framing. Show what the product delivers._
 
 ---
 
 **HERO**
 
-### Your last delivery date was wrong.
-### So was the one before it.
+### Know when it ships.
 
-Every project management tool asks you to predict the future. Then it tracks how wrong you were. Then it asks you to predict again.
+Velucid turns your team's real delivery data into probability-based forecasts — continuously updated, always honest about uncertainty.
 
-Velucid works differently. It watches how your team actually delivers work, builds a model from that data, and gives you the odds — not a date someone invented in a planning session.
+Not a date. A confidence range.
 
-Not a guess. A forecast. There's a difference.
-
-**[Try Velucid →]** **[See how it works]**
+**[Try Velucid →]** **[See the forecast]**
 
 ---
 
-**SECTION: What's not here**
+**SECTION: The Forecast**
 
-Story points. Sprint planning. Velocity charts. Burndown graphs. Three-hour meetings to assign numbers to work before it starts.
+_Show the output. The forecast IS the product proof._
 
-These aren't missing features. They're deliberate decisions.
+Example forecast · 14-item backlog
 
----
+| 50% likely by | 70% likely by | 95% likely by |
+| Jun 8 | Jun 20 | Jul 3 |
 
-**SECTION: What is here**
-
-A board to track your work. A backlog to organize it. And a forecasting engine that measures how fast work actually flows through your team.
-
-Ask it when a feature will ship. It gives you a range: 70% likely by March 20, 95% by April 3. Those numbers come from your team's real data — not a meeting.
+Continuously updated from your team's actual throughput. Give stakeholders confidence ranges, not guesses.
 
 ---
 
-**SECTION: Why this works**
+**SECTION: What you get**
 
-Probability-based forecasting isn't a new idea. Financial institutions use it to model risk. Supply chains use it to predict delivery windows. Engineering projects in every other industry use it to manage uncertainty honestly.
+Manage the work. See the forecast.
 
-Software teams are late to adopt it. Velucid is the tool that brings it to your backlog.
+Backlog, board, tags, and delivery forecasting in one focused workspace. Track work, get probabilities.
 
----
-
-**SECTION: For the skeptic**
-
-There's no methodology to buy into here. No certification. No consultants. No philosophy to debate.
-
-You track work. The model learns from it. You get forecasts that are honest about uncertainty instead of pretending it doesn't exist.
-
-The only thing Velucid asks you to give up is the part that was never working anyway.
+No estimation sessions. No ceremony. Your team's actual delivery history is the only input the model needs.
 
 ---
 
-*Agent note: "The only thing Velucid asks you to give up is the part that was never working anyway." is level 6 — the sharpest line on this page. It earns its place by being last. Do not add anything sharper. Do not follow it with another line.*
+**SECTION: Proven**
+
+The forecasting behind Velucid draws on techniques used in finance, supply chain, and aerospace — fields where uncertainty is expensive and guessing isn't an option.
+
+We applied the same approach to software delivery.
+
+---
+
+**BOTTOM CTA**
+
+Make scope and risk visible before the deadline slips.
+
+**[Start using Velucid →]**
+
+---
+
+_Agent note: This page does not attack alternatives, does not list things Velucid doesn't have, does not explain methodology in detail. It states outcomes and lets the product speak. "Planning Theater" content belongs on social and blog — never the homepage._
 
 ---
 
