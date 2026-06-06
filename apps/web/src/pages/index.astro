@@ -11,13 +11,14 @@ import '../styles/global.css';
       name="description"
       content="Velucid gives your team probability-based delivery forecasts — continuously updated from real throughput data. Know when it ships."
     />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=Share+Tech+Mono&display=swap"
       rel="stylesheet"
     />
+    <script is:inline>document.documentElement.classList.add('js');</script>
     <title>Velucid — Know when it ships.</title>
     <style>
       /* ── Industrial UI typography per design-artifacts/D-Design-System/DesignGuideline.html
@@ -97,6 +98,17 @@ import '../styles/global.css';
         line-height: 1;
         text-transform: uppercase;
         color: var(--text-muted);
+      }
+
+      /* Top bar: a notch larger than the default label/eyebrow so
+         the brand + CTA read at a glance, but stays small enough
+         to feel like a header rather than a nav. Footer/columns
+         that also use .t-label stay at the base size. */
+      header.top-bar .t-label {
+        font-size: 0.875rem;
+      }
+      header.top-bar .t-eyebrow {
+        font-size: 0.75rem;
       }
 
       .t-subhead {
@@ -279,34 +291,53 @@ import '../styles/global.css';
       }
       .footer-link:hover { color: var(--text-primary); }
 
-      /* ── Typewriter cursor ── */
-      [data-typewriter] { display: inline-block; }
-      .tw-cursor {
+      /* ── Animated text reveal (gradient sweep) ──
+         No width measurement. The text shape is filled by a
+         solid background that grows from 0% to 100% in N steps.
+         The animation is driven from JS via the Web Animations
+         API (see <script> at the end of <body>) — CSS @keyframes
+         is intentionally avoided because var()-based step counts
+         and the parent .js class are awkward in scoped styles.
+         :global(.js) keeps the parent selector unscoped so it
+         matches <html>, which has no data-astro-cid attribute. */
+      .tw {
         display: inline-block;
-        width: 2px;
-        height: 0.85em;
-        background: currentColor;
-        margin-left: 2px;
-        vertical-align: text-bottom;
-        animation: tw-blink 0.65s step-end infinite;
       }
-      @keyframes tw-blink {
-        0%, 100% { opacity: 1; }
-        50%       { opacity: 0; }
+      :global(.js) .tw {
+        color: transparent;
+        background-image: linear-gradient(
+          to right,
+          var(--text-primary) 0%,
+          var(--text-primary) 100%
+        );
+        background-size: 0% 100%;
+        background-repeat: no-repeat;
+        background-position: 0% 0%;
+        -webkit-background-clip: text;
+        background-clip: text;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        :global(.js) .tw {
+          color: currentColor;
+          background-image: none;
+          -webkit-background-clip: border-box;
+          background-clip: border-box;
+        }
       }
     </style>
   </head>
   <body class="landing-body min-h-screen overflow-x-hidden">
 
     <!-- ── TOP BAR ── -->
-    <header class="border-b hairline">
-      <div class="mx-auto max-w-6xl flex items-center justify-between px-5 sm:px-8 py-5" style="position:relative">
-        <a href="/" class="t-label" style="color: var(--text-primary)" aria-label="Velucid home">
+    <header class="border-b hairline top-bar">
+      <div class="mx-auto max-w-6xl flex items-center justify-between px-5 sm:px-8 py-6" style="position:relative">
+        <a href="/" class="t-label flex items-center gap-2" style="color: var(--text-primary)" aria-label="Velucid home">
+          <img src="/icon.svg" alt="" width="32" height="32" aria-hidden="true" style="flex-shrink:0;display:block" />
           Velucid
         </a>
         <span class="t-eyebrow" style="position:absolute;left:50%;transform:translateX(-50%)">Delivery Forecasting / v0.1</span>
         <a href="/auth/login" class="t-label" style="color: var(--text-primary)">
-          Try Velucid →
+          Start Using Velucid →
         </a>
       </div>
     </header>
@@ -316,7 +347,7 @@ import '../styles/global.css';
       <div class="mx-auto max-w-4xl">
         <div class="t-eyebrow mb-10">Delivery forecasting</div>
         <h1 class="t-hero">
-          <span data-typewriter data-tw-speed="80" data-tw-delay="200">Know</span> when<br />it <span data-typewriter data-tw-speed="80" data-tw-delay="900">ships</span>.
+          <span class="tw" data-typewriter data-tw-speed="80" data-tw-delay="200">Know</span> when<br />it <span class="tw" data-typewriter data-tw-speed="80" data-tw-delay="200">ships</span>.
         </h1>
         <div class="mt-10 max-w-2xl t-subhead space-y-5">
           <p>
@@ -327,7 +358,7 @@ import '../styles/global.css';
           </p>
         </div>
         <div class="mt-14 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <a href="/auth/login" class="cta cta-primary">Try Velucid →</a>
+          <a href="/auth/login" class="cta cta-primary">Start Using Velucid →</a>
           <a href="#the-forecast" class="cta cta-secondary">See the forecast</a>
         </div>
       </div>
@@ -363,7 +394,7 @@ import '../styles/global.css';
     <!-- ── SECTION 02: What you get ── -->
     <section class="hairline border-t px-5 sm:px-8 py-20 sm:py-28">
       <div class="mx-auto max-w-4xl">
-        <h2 class="t-h2">Manage the <span data-typewriter data-tw-speed="70" data-tw-delay="0">work</span>.<br />See the <span data-typewriter data-tw-speed="70" data-tw-delay="400">forecast</span>.</h2>
+        <h2 class="t-h2">Manage the <span class="tw" data-typewriter data-tw-speed="70" data-tw-delay="0">work</span>.<br />See the <span class="tw" data-typewriter data-tw-speed="70" data-tw-delay="400">forecast</span>.</h2>
         <div class="mt-10 t-subhead space-y-8 max-w-2xl">
           <p>
             Backlog, board, tags, and delivery forecasting in one focused workspace. Track work, get probabilities.
@@ -378,7 +409,7 @@ import '../styles/global.css';
     <!-- ── SECTION 03: Proven ── -->
     <section class="hairline border-t px-5 sm:px-8 py-20 sm:py-28">
       <div class="mx-auto max-w-4xl">
-        <h2 class="t-h2"><span data-typewriter data-tw-speed="70" data-tw-delay="0">Decades</span> of <span data-typewriter data-tw-speed="70" data-tw-delay="600">proof</span></h2>
+        <h2 class="t-h2"><span class="tw" data-typewriter data-tw-speed="70" data-tw-delay="0">Decades</span> of <span class="tw" data-typewriter data-tw-speed="70" data-tw-delay="600">proof</span></h2>
         <div class="mt-10 t-subhead space-y-8 max-w-2xl">
           <p>
             The forecasting behind Velucid draws on techniques used in finance, supply chain, and aerospace — fields where uncertainty is expensive and guessing isn't an option.
@@ -393,7 +424,7 @@ import '../styles/global.css';
     <!-- ── BOTTOM CTA ── -->
     <section class="hairline border-t px-5 sm:px-8 py-24 sm:py-32">
       <div class="mx-auto max-w-4xl text-center">
-        <p class="t-h2 mb-10">Make scope and risk <span data-typewriter data-tw-speed="70" data-tw-delay="0">visible</span><br />before the deadline <span data-typewriter data-tw-speed="70" data-tw-delay="600">slips</span>.</p>
+        <p class="t-h2 mb-10">Do you have enough <span class="tw" data-typewriter data-tw-speed="70" data-tw-delay="0">runway</span> to <span class="tw" data-typewriter data-tw-speed="70" data-tw-delay="500">ship it</span>?</p>
         <a href="/auth/login" class="cta cta-primary">Start using Velucid →</a>
       </div>
     </section>
@@ -468,82 +499,44 @@ import '../styles/global.css';
 
     <script>
       (function () {
-        type TwToken = { type: 'char'; value: string } | { type: 'br' };
-
-        // Walk DOM child nodes — no HTML string parsing, no regex fragility
-        function tokenizeEl(el: Element): TwToken[] {
-          const tokens: TwToken[] = [];
-          el.childNodes.forEach(child => {
-            if (child.nodeType === 3 /* TEXT_NODE */) {
-              for (const ch of child.textContent ?? '') {
-                tokens.push({ type: 'char', value: ch });
-              }
-            } else if (child.nodeName === 'BR') {
-              tokens.push({ type: 'br' });
-            }
-          });
-          return tokens;
+        const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (REDUCE_MOTION) return; // CSS @media query handles the visible state
+        const els = document.querySelectorAll<HTMLElement>('[data-typewriter]');
+        function reveal(el: HTMLElement) {
+          const chars = (el.textContent ?? '').trim().length;
+          if (chars === 0) return;
+          const dur = chars * (parseInt(el.dataset.twSpeed ?? '80', 10));
+          const delay = parseInt(el.dataset.twDelay ?? '0', 10);
+          el.animate(
+            [{ backgroundSize: '0% 100%' }, { backgroundSize: '100% 100%' }],
+            {
+              duration: dur,
+              delay: delay,
+              fill: 'forwards',
+              easing: `steps(${chars}, end)`,
+            },
+          );
         }
-
-        function typewrite(el: HTMLElement, tokens: TwToken[]) {
-          const speed = parseInt(el.dataset.twSpeed ?? '60');
-          const delay = parseInt(el.dataset.twDelay ?? '0');
-          let idx = 0;
-
-          const cursor = document.createElement('span');
-          cursor.className = 'tw-cursor';
-          cursor.setAttribute('aria-hidden', 'true');
-          el.appendChild(cursor);
-
-          function tick() {
-            if (idx >= tokens.length) {
-              setTimeout(() => {
-                cursor.style.transition = 'opacity 500ms ease-out';
-                cursor.style.animation  = 'none';
-                cursor.style.opacity    = '0';
-                setTimeout(() => cursor.remove(), 500);
-              }, 1500);
-              return;
-            }
-            const t = tokens[idx++];
-            if (t.type === 'br') {
-              el.insertBefore(document.createElement('br'), cursor);
-              setTimeout(tick, speed * 4);
-            } else {
-              el.insertBefore(document.createTextNode(t.value), cursor);
-              setTimeout(tick, speed);
-            }
-          }
-
-          setTimeout(tick, delay);
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-          const els = document.querySelectorAll<HTMLElement>('[data-typewriter]');
-
-          // Tokenize from live DOM nodes before clearing content
-          const tokenMap = new Map<HTMLElement, TwToken[]>();
-          els.forEach(el => {
-            tokenMap.set(el, tokenizeEl(el));
-            // Reserve inline width before clearing to prevent layout shift
-            el.style.minWidth = el.offsetWidth + 'px';
-            el.innerHTML = '';
-          });
-
-          const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-              const target = entry.target as HTMLElement;
-              if (entry.isIntersecting && !target.dataset.twFired) {
-                target.dataset.twFired = '1';
-                observer.unobserve(target);
-                const tokens = tokenMap.get(target);
-                if (tokens) typewrite(target, tokens);
+        const io = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((e) => {
+              if (e.isIntersecting) {
+                const el = e.target as HTMLElement;
+                reveal(el);
+                io.unobserve(el);
               }
             });
-          }, { threshold: 0.3 });
-
-          els.forEach(el => observer.observe(el));
-        });
+          },
+          { threshold: 0.3 },
+        );
+        els.forEach((el) => io.observe(el));
+        // Safety net: if anything prevents the Web Animations path
+        // from completing (rare browser bug, etc.), force-reveal after 5s.
+        setTimeout(() => {
+          els.forEach((el) => {
+            el.style.backgroundSize = '100% 100%';
+          });
+        }, 5000);
       })();
     </script>
   </body>
