@@ -35,7 +35,7 @@ spec:
       terminationGracePeriodSeconds: 180
       containers:
         - name: silo
-          image: ghcr.io/lekhasy/vut/silo:6459d1e
+          image: ghcr.io/lekhasy/vut/silo:bf8f383
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
