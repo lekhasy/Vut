@@ -1,9 +1,14 @@
-# generated: 2026-05-28T00:00:00Z
-# last_updated: 2026-05-28T23:55:00Z
+# generated: 2026-06-07T00:00:00Z
+# last_updated: 2026-06-07T00:00:00Z
 # project: Velucid
 # project_key: NOKEY
 # tracking_system: file-system
 # story_location: _bmad-output/implementation-artifacts
+#
+# NOTE — 2026-06-07: Reset as part of the aggregate redesign (Workspace / User /
+# Account / Initiative / Team / WorkItem / Label). All prior stories and epics
+# have been removed; the new PRD will drive fresh sprint planning via
+# bmad-sprint-planning.
 
 # STATUS DEFINITIONS:
 # ==================
@@ -37,64 +42,12 @@
 # - Developer typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-05-28T00:00:00Z
-last_updated: 2026-06-07T00:07:54Z
+generated: 2026-06-07T00:00:00Z
+last_updated: 2026-06-07T00:00:00Z
 project: Velucid
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 
 development_status:
-  # Epic 1 — Core Platform Kanban MVP (paused pending Epic 4)
-  epic-1: paused
-  1-0-react-foundation: done
-  1-1-organizations: done
-  1-2-products: backlog
-  1-3-tasks-kanban: backlog
-  1-4-basic-navigation-dashboard: backlog
-  1-5-forecast-tab-gathering-data-state: backlog
-  epic-1-retrospective: optional
-
-  # Epic 2 — Flow Features (paused pending Epic 4)
-  epic-2: paused
-  2-1-tags: backlog
-  2-2-saved-views: backlog
-  2-3-forecast-engine-monte-carlo: backlog
-  2-4-forecast-ui-stat-cards-s-curve: backlog
-  2-5-forecast-ui-progress-forecast-dual-cone: backlog
-  2-6-forecast-tag-based-filtering: backlog
-  epic-2-retrospective: optional
-
-  # Epic 3 — Authorization (OpenFGA) (paused pending Epic 4; grain-side unaffected, projector-side OpenFGA code ported in Story 4.2)
-  epic-3: paused
-  3-1-openfga-infrastructure: done
-  3-2-migrate-org-grain-auth: done
-  3-3-migrate-user-grain-auth: backlog
-  3-4-migrate-controller-auth: backlog
-  3-5-remove-inline-auth-org-state: backlog
-  3-6-authorization-test-suite: backlog
-  epic-3-retrospective: optional
-
-  # Epic 4 — Nx Monorepo + Projector Migration (NEW — runs first)
-  # See: _bmad-output/planning-artifacts/epic-4-nx-monorepo-projector-migration.md
-  # See: _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-03.md
-  # Note: 4-1 → 4-6 backlog deferred until Epic 5 ships.
-  # See: _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-03-marketing.md
-  epic-4: in-progress
-  4-0-nx-monorepo-bootstrap: done
-  4-1-shared-typescript-libraries: backlog
-  4-2-port-projector-to-node-typescript: backlog
-  4-3-wire-local-first-read-path: backlog
-  4-4-nx-cloud-ci-integration: backlog
-  4-5-local-dev-deploy-updates: backlog
-  4-6-ci-web-e2e-infra-job: backlog
-  epic-4-retrospective: optional
-
-  # Epic 5 — Marketing Site Refresh (NEW — takes priority over Epic 4 backlog)
-  # Source of truth for landing-page, README, email, and any other public copy:
-  # marketing_strategy.md at repo root.
-  # Reference shots for visual register: _bmad-output/planning-artifacts/marketing-research/
-  # See: _bmad-output/planning-artifacts/sprint-change-proposal-2026-06-03-marketing.md
-  epic-5: done
-  5-0-landing-page-redesign: done
-  epic-5-retrospective: optional
+  # Awaiting new PRD + epics from the 2026-06-07 aggregate redesign.
