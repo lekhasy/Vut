@@ -123,12 +123,14 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # ── Build & push projector image (TypeScript / Bun / Fastify) ───────
-  # The .NET projector-service image is intentionally not built anymore —
-  # the k8s deployment's main container is repointed at this new TS image
-  # (see update-manifests → Update projector image tag below). The legacy
-  # .NET projector-service source under backend/src/Velucid.ProjectorService
-  # is left in the tree untouched for reference and is deleted in 4.5.
+  # ── Build & push projector-service image (.NET 10) ────────────────
+  # The TypeScript projector at apps/projector/ is a skeleton and is not
+  # built or deployed. The .NET projector-service is the production
+  # projector — it subscribes to KurrentDB, projects to Postgres, and
+  # syncs OpenFGA tuples (see Program.cs at
+  # backend/src/Velucid.ProjectorService/Program.cs). The TS port in
+  # apps/projector/ is left in the tree as future work and is not
+  # removed.
   build-projector:
     needs: [nx-verify]
     runs-on: ubuntu-latest
@@ -148,21 +150,16 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_PREFIX }}/projector
+          images: ${{ env.IMAGE_PREFIX }}/projector-service
           tags: |
             type=sha,prefix=
             type=raw,value=latest
 
       - name: Build and push
         uses: docker/build-push-action@v6
-        # Build context is the repo root because apps/projector/Dockerfile
-        # copies the workspace-root `package.json` + `bun.lock` first
-        # (so `bun install --frozen-lockfile` resolves the workspace) and
-        # then copies `apps/projector/` under that. A narrower context
-        # (e.g. `apps/projector`) breaks the COPY paths.
         with:
-          context: .
-          file: apps/projector/Dockerfile
+          context: backend/src
+          file: backend/src/Velucid.ProjectorService/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -260,11 +257,10 @@ jobs:
         if: needs.build-projector.result == 'success'
         run: |
           SHA="${GITHUB_SHA::7}"
-          # The main container in the projector-service deployment is now
-          # the new TypeScript `projector` image (replaces the .NET
-          # projector-service image). The init container (migrations)
+          # Main container points at the .NET projector-service image
+          # (built by build-projector). The init container (migrations)
           # below is updated by the migrations step.
-          sed -i "s|image: ghcr.io/lekhasy/vut/projector:.*|image: ghcr.io/lekhasy/vut/projector:${SHA}|" \
+          sed -i "s|image: ghcr.io/lekhasy/vut/projector-service:.*|image: ghcr.io/lekhasy/vut/projector-service:${SHA}|" \
             infrastructure/k8s/projector-service/deployment.yaml
 
       - name: Update migrations image tag
