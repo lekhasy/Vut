@@ -1,10 +1,4 @@
-# ArgoCD Application — watches infrastructure/k8s/ for manifest changes.
-# Install ArgoCD in K3s first:
-#   kubectl create namespace argocd
-#   kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-#
-# Then apply this manifest:
-#   kubectl apply -f infrastructure/k8s/argocd/application.yaml
+# Velucid app — lives in the velucid namespace; uses the velucid Infisical project.
 
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -14,9 +8,9 @@ metadata:
   labels:
     app.kubernetes.io/part-of: velucid
 spec:
-  project: default
+  project: apps
   source:
-    repoURL: https://github.com/lekhasy/Vut.git
+    repoURL: https://github.com/lekhasy/Velucid
     targetRevision: main
     path: infrastructure/k8s
     directory:

@@ -1,0 +1,26 @@
+# Platform observability stack — shared by all apps on the cluster.
+# Lives in the platform-observability namespace; uses the "platform" Infisical project.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-observability
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: platform-observability
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/lekhasy/Vut
+    targetRevision: main
+    path: infrastructure/k8s/observability
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform-observability
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true

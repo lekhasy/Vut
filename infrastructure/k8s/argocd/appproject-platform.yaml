@@ -1,0 +1,26 @@
+# AppProject for the platform's own resources.
+# Source: this repo only.
+# Destinations: the platform's own namespaces.
+
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: platform
+spec:
+  description: Platform-level services (observability, etc.)
+  sourceRepos:
+    - https://github.com/lekhasy/Vut
+  destinations:
+    - namespace: platform-observability
+      server: https://kubernetes.default.svc
+    - namespace: argocd
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

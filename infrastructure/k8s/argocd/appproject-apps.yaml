@@ -1,0 +1,29 @@
+# AppProject for application workloads (one app per namespace).
+# Source: any app repo that has been whitelisted.
+# Destinations: only the matching app namespace.
+
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apps
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: platform
+spec:
+  description: Per-app workloads (each in their own namespace and Infisical project)
+  sourceRepos:
+    - https://github.com/lekhasy/Velucid
+    # Add future app repos here as they are onboarded, e.g.:
+    # - https://github.com/lekhasy/<app-name>
+  destinations:
+    - namespace: velucid
+      server: https://kubernetes.default.svc
+    # Add future app namespaces here, e.g.:
+    # - namespace: <app-name>
+    #   server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
