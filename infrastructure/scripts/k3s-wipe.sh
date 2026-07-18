@@ -33,13 +33,15 @@ if [[ "$CONFIRM" != "yes-delete-everything" ]]; then
 fi
 
 echo ""
-echo "[1/5] Deleting all namespaced resources..."
-$KUBECTL delete all --all --all-namespaces 2>/dev/null || true
-$KUBECTL delete crd --all 2>/dev/null || true
+echo "[1/5] Deleting all namespaces (lets CRD finalizers fire cleanly)..."
 $KUBECTL delete namespace --all 2>/dev/null || true
+# Give controllers time to process finalizers before we rip out the CRDs
+echo "  Waiting 30s for namespace finalizers..."
+sleep 30
 
 echo ""
-echo "[2/5] Deleting all PVCs..."
+echo "[2/5] Deleting all namespaced resources..."
+$KUBECTL delete all --all --all-namespaces 2>/dev/null || true
 $KUBECTL delete pvc --all --all-namespaces 2>/dev/null || true
 
 echo ""
@@ -56,7 +58,8 @@ if [[ -d "$STORAGE_DIR" ]]; then
 fi
 
 echo ""
-echo "[5/5] Cleaning up remaining kube system artifacts..."
+echo "[5/5] Deleting all CRDs and remaining kube-system artifacts..."
+$KUBECTL delete crd --all 2>/dev/null || true
 $KUBECTL delete pods,svc,cm,secret --all -n kube-system 2>/dev/null || true
 
 echo ""
