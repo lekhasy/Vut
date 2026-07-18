@@ -1,9 +1,15 @@
-# Velucid Platform - Infrastructure
+# Platform - Infrastructure
 
-Local infrastructure for the Velucid project management SaaS platform.
+This directory hosts the shared platform infrastructure for a personal K3s
+cluster (ArgoCD + observability stack + scripts). Individual apps — e.g.
+Velucid — live in their own repositories and are managed as ArgoCD leaf
+Applications from this repo's App-of-Apps root.
 
-- **Docker Compose** — local development on your dev machine (Windows/macOS/Linux)
-- **K3s + ArgoCD** — staging and production on a WSL2 machine (see `docs/new-machine-setup.md`)
+- **K3s + ArgoCD (App-of-Apps)** — staging and production on a WSL2 machine.
+- **Observability** — Grafana / Loki / Tempo / Prometheus / otel-collector
+  in the `platform-observability` namespace, shared by all apps.
+
+For app-specific setup (Velucid), see the app's own repository.
 
 ## Architecture Overview
 
