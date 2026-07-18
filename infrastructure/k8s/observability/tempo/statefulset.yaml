@@ -1,24 +1,24 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: velucid-tempo
-  namespace: velucid
+  name: platform-tempo
+  namespace: platform-observability
   labels:
-    app.kubernetes.io/part-of: velucid
+    app.kubernetes.io/part-of: platform-observability
     app.kubernetes.io/component: observability
     app.kubernetes.io/name: tempo
 spec:
-  serviceName: velucid-tempo
+  serviceName: platform-tempo
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/part-of: velucid
+      app.kubernetes.io/part-of: platform-observability
       app.kubernetes.io/component: observability
       app.kubernetes.io/name: tempo
   template:
     metadata:
       labels:
-        app.kubernetes.io/part-of: velucid
+        app.kubernetes.io/part-of: platform-observability
         app.kubernetes.io/component: observability
         app.kubernetes.io/name: tempo
     spec:
@@ -73,12 +73,12 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: velucid-tempo-config
+            name: platform-tempo-config
   volumeClaimTemplates:
     - metadata:
         name: data
         labels:
-          app.kubernetes.io/part-of: velucid
+          app.kubernetes.io/part-of: platform-observability
           app.kubernetes.io/component: observability
       spec:
         accessModes: ["ReadWriteOnce"]

@@ -1,10 +1,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: velucid-grafana
-  namespace: velucid
+  name: platform-grafana
+  namespace: platform-observability
   labels:
-    app.kubernetes.io/part-of: velucid
+    app.kubernetes.io/part-of: platform-observability
     app.kubernetes.io/component: observability
     app.kubernetes.io/name: grafana
 spec:
@@ -12,13 +12,13 @@ spec:
   revisionHistoryLimit: 2
   selector:
     matchLabels:
-      app.kubernetes.io/part-of: velucid
+      app.kubernetes.io/part-of: platform-observability
       app.kubernetes.io/component: observability
       app.kubernetes.io/name: grafana
   template:
     metadata:
       labels:
-        app.kubernetes.io/part-of: velucid
+        app.kubernetes.io/part-of: platform-observability
         app.kubernetes.io/component: observability
         app.kubernetes.io/name: grafana
     spec:
@@ -36,7 +36,7 @@ spec:
             - name: GF_SECURITY_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: velucid-grafana-secret
+                  name: platform-grafana-secret
                   key: GRAFANA_ADMIN_PASSWORD
             - name: GF_USERS_ALLOW_SIGN_UP
               value: "false"
@@ -76,22 +76,22 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: velucid-grafana-datasources-datasource
+            name: platform-grafana-datasources-datasource
         - name: dashboard-provider
           configMap:
-            name: velucid-grafana-dashboard-provider
+            name: platform-grafana-dashboard-provider
         - name: dashboards
           configMap:
-            name: velucid-grafana-dashboard-overview
+            name: platform-grafana-dashboard-overview
 
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: velucid-grafana-datasources-datasource
-  namespace: velucid
+  name: platform-grafana-datasources-datasource
+  namespace: platform-observability
   labels:
-    app.kubernetes.io/part-of: velucid
+    app.kubernetes.io/part-of: platform-observability
     app.kubernetes.io/component: observability
     app.kubernetes.io/name: grafana
 data:
@@ -101,18 +101,18 @@ data:
       - name: Prometheus
         type: prometheus
         access: proxy
-        url: http://velucid-prometheus:9090
+        url: http://platform-prometheus:9090
         isDefault: true
         editable: false
       - name: Loki
         type: loki
         access: proxy
-        url: http://velucid-loki:3100
+        url: http://platform-loki:3100
         editable: false
       - name: Tempo
         type: tempo
         access: proxy
-        url: http://velucid-tempo:3100
+        url: http://platform-tempo:3100
         editable: false
         jsonData:
           httpMethod: GET

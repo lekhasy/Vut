@@ -1,19 +1,19 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: velucid-otel-collector
-  namespace: velucid
+  name: platform-otel-collector
+  namespace: platform-observability
   labels:
-    app.kubernetes.io/part-of: velucid
+    app.kubernetes.io/part-of: platform-observability
     app.kubernetes.io/component: observability
     app.kubernetes.io/name: otel-collector
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: velucid-otel-collector
+  name: platform-otel-collector
   labels:
-    app.kubernetes.io/part-of: velucid
+    app.kubernetes.io/part-of: platform-observability
     app.kubernetes.io/component: observability
     app.kubernetes.io/name: otel-collector
 rules:
@@ -27,16 +27,16 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: velucid-otel-collector
+  name: platform-otel-collector
   labels:
-    app.kubernetes.io/part-of: velucid
+    app.kubernetes.io/part-of: platform-observability
     app.kubernetes.io/component: observability
     app.kubernetes.io/name: otel-collector
 subjects:
   - kind: ServiceAccount
-    name: velucid-otel-collector
-    namespace: velucid
+    name: platform-otel-collector
+    namespace: platform-observability
 roleRef:
   kind: ClusterRole
-  name: velucid-otel-collector
+  name: platform-otel-collector
   apiGroup: rbac.authorization.k8s.io

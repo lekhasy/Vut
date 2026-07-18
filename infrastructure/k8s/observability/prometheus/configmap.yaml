@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: velucid-prometheus-config
-  namespace: velucid
+  name: platform-prometheus-config
+  namespace: platform-observability
   labels:
-    app.kubernetes.io/part-of: velucid
+    app.kubernetes.io/part-of: platform-observability
     app.kubernetes.io/component: observability
     app.kubernetes.io/name: prometheus
 data:
@@ -29,19 +29,19 @@ data:
 
       - job_name: 'otel-collector'
         static_configs:
-          - targets: ['velucid-otel-collector:8889']
+          - targets: ['platform-otel-collector:8889']
 
       - job_name: 'loki'
         static_configs:
-          - targets: ['velucid-loki:3100']
+          - targets: ['platform-loki:3100']
 
       - job_name: 'grafana'
         static_configs:
-          - targets: ['velucid-grafana:3000']
+          - targets: ['platform-grafana:3000']
 
       - job_name: 'tempo'
         static_configs:
-          - targets: ['velucid-tempo:3100']
+          - targets: ['platform-tempo:3100']
 
       - job_name: 'kubernetes-apiservers'
         kubernetes_sd_configs:
@@ -51,9 +51,6 @@ data:
           ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
         relabel_configs:
-          - source_labels: [__meta_kubernetes_namespace]
-            action: keep
-            regex: velucid
           - source_labels: [__meta_kubernetes_service_name]
             action: keep
             regex: kubernetes

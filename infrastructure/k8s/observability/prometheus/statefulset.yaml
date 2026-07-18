@@ -1,65 +1,66 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: velucid-loki
-  namespace: velucid
+  name: platform-prometheus
+  namespace: platform-observability
   labels:
-    app.kubernetes.io/part-of: velucid
+    app.kubernetes.io/part-of: platform-observability
     app.kubernetes.io/component: observability
-    app.kubernetes.io/name: loki
+    app.kubernetes.io/name: prometheus
 spec:
-  serviceName: velucid-loki
+  serviceName: platform-prometheus
   replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/part-of: velucid
+      app.kubernetes.io/part-of: platform-observability
       app.kubernetes.io/component: observability
-      app.kubernetes.io/name: loki
+      app.kubernetes.io/name: prometheus
   template:
     metadata:
       labels:
-        app.kubernetes.io/part-of: velucid
+        app.kubernetes.io/part-of: platform-observability
         app.kubernetes.io/component: observability
-        app.kubernetes.io/name: loki
+        app.kubernetes.io/name: prometheus
     spec:
       terminationGracePeriodSeconds: 30
       containers:
-        - name: loki
-          image: grafana/loki:3.0.0
+        - name: prometheus
+          image: prom/prometheus:v2.51.2
           imagePullPolicy: IfNotPresent
           args:
-            - -config.file=/etc/loki/loki.yaml
+            - --config.file=/etc/prometheus/prometheus.yaml
+            - --storage.tsdb.path=/var/prometheus/data
+            - --storage.tsdb.retention.time=15d
+            - --storage.tsdb.retention.size=5GB
+            - --web.enable-lifecycle
           ports:
             - name: http
-              containerPort: 3100
-              protocol: TCP
-            - name: grpc
-              containerPort: 9096
+              containerPort: 9090
               protocol: TCP
           volumeMounts:
             - name: config
-              mountPath: /etc/loki
+              mountPath: /etc/prometheus
             - name: data
-              mountPath: /var/loki
+              mountPath: /var/prometheus
           resources:
             requests:
-              cpu: 100m
-              memory: 512Mi
+              cpu: 250m
+              memory: 1Gi
             limits:
               cpu: "1"
-              memory: 2Gi
+              memory: 4Gi
           readinessProbe:
             httpGet:
-              path: /ready
-              port: 3100
+              path: /-/ready
+              port: 9090
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 5
           livenessProbe:
             httpGet:
-              path: /ready
-              port: 3100
+              path: /-/healthy
+              port: 9090
             initialDelaySeconds: 30
             periodSeconds: 15
             timeoutSeconds: 5
@@ -67,12 +68,12 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: velucid-loki-config
+            name: platform-prometheus-config
   volumeClaimTemplates:
     - metadata:
         name: data
         labels:
-          app.kubernetes.io/part-of: velucid
+          app.kubernetes.io/part-of: platform-observability
           app.kubernetes.io/component: observability
       spec:
         accessModes: ["ReadWriteOnce"]

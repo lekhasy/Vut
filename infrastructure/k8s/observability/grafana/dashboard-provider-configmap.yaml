@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: velucid-grafana-dashboard-provider
-  namespace: velucid
+  name: platform-grafana-dashboard-provider
+  namespace: platform-observability
   labels:
-    app.kubernetes.io/part-of: velucid
+    app.kubernetes.io/part-of: platform-observability
     app.kubernetes.io/component: observability
     app.kubernetes.io/name: grafana
 data:
