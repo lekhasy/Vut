@@ -1,6 +1,6 @@
 # ArgoCD UI — exposed at argo.velucid.app via Traefik ingress.
-# This file is excluded from ArgoCD auto-sync (argocd/* is excluded
-# in application.yaml) and is applied by k3s-start.sh instead.
+# Not managed by ArgoCD (the root app only watches argocd/apps/);
+# applied by k3s-start.sh instead.
 
 apiVersion: networking.k8s.io/v1
 kind: Ingress

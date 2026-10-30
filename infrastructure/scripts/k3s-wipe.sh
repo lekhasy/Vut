@@ -1,73 +1,52 @@
 #!/usr/bin/env bash
-# K3s Cluster Wipe Script
-# WARNING: This deletes ALL resources including PersistentVolumes and their data.
-# Use only when you want a completely fresh start.
+# Platform — K3s wipe.
+#
+# Resets the cluster to an empty state by deleting the K3s datastore and all
+# local-path volume data. K3s itself (binary, certs, node config, cached
+# container images) is kept, so the next k3s-start.sh run rebuilds everything
+# from git without re-downloading images.
+#
+# WARNING: destroys ALL cluster state and ALL PersistentVolume data.
+#
+# Usage:
+#   sudo ./infrastructure/scripts/k3s-wipe.sh
 
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
+require_root "$@"
 
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
+KILLALL="/usr/local/bin/k3s-killall.sh"
 
-warn() { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+header "WARNING: K3s Cluster Wipe"
+cat <<EOF
+This will DELETE:
+  - All Kubernetes objects (datastore: $K3S_DATA_DIR/server/db)
+  - All PersistentVolume data      ($K3S_DATA_DIR/storage)
 
-KUBECTL="sudo k3s kubectl"
+EOF
+read -rp "Type 'yes-delete-everything' to confirm: " confirm
+[[ "$confirm" == "yes-delete-everything" ]] || { echo "Aborted."; exit 1; }
+echo
 
-echo ""
-echo "=========================================="
-echo " WARNING: K3s Cluster Wipe"
-echo "=========================================="
-echo ""
-echo "This will DELETE:"
-echo "  - All namespaces and resources"
-echo "  - All PersistentVolumeClaims"
-echo "  - All PersistentVolumes (DATA LOSS)"
-echo "  - All storage on local-path provisioner"
-echo ""
-echo -n "Type 'yes-delete-everything' to confirm: "
-read -r CONFIRM
+[[ -x "$KILLALL" ]] || fail "$KILLALL not found — is K3s installed via the official installer?"
 
-if [[ "$CONFIRM" != "yes-delete-everything" ]]; then
-    echo "Aborted."
-    exit 1
+info "[1/3] Stopping K3s..."
+if has_systemd; then
+    systemctl stop k3s
 fi
+# Stops the server (if not under systemd), all pods/containers, and unmounts volumes.
+"$KILLALL" >/dev/null
+ok "K3s stopped"
 
-echo ""
-echo "[1/5] Deleting all namespaces (lets CRD finalizers fire cleanly)..."
-$KUBECTL delete namespace --all 2>/dev/null || true
-# Give controllers time to process finalizers before we rip out the CRDs
-echo "  Waiting 30s for namespace finalizers..."
-sleep 30
+info "[2/3] Deleting datastore..."
+rm -rf "$K3S_DATA_DIR/server/db"
+ok "Datastore deleted"
 
-echo ""
-echo "[2/5] Deleting all namespaced resources..."
-$KUBECTL delete all --all --all-namespaces 2>/dev/null || true
-$KUBECTL delete pvc --all --all-namespaces 2>/dev/null || true
+info "[3/3] Deleting local-path volume data..."
+rm -rf "$K3S_DATA_DIR/storage"
+mkdir -p "$K3S_DATA_DIR/storage"
+ok "Volume data deleted"
 
-echo ""
-echo "[3/5] Deleting all PVs..."
-$KUBECTL delete pv --all 2>/dev/null || true
-
-echo ""
-echo "[4/5] Cleaning up local-path provisioner data..."
-# K3s local-path-provisioner stores data in /var/lib/rancher/k3s/storage
-STORAGE_DIR="/var/lib/rancher/k3s/storage"
-if [[ -d "$STORAGE_DIR" ]]; then
-    warn "Wiping $STORAGE_DIR..."
-    sudo rm -rf "$STORAGE_DIR"/*
-fi
-
-echo ""
-echo "[5/5] Deleting all CRDs and remaining kube-system artifacts..."
-$KUBECTL delete crd --all 2>/dev/null || true
-$KUBECTL delete pods,svc,cm,secret --all -n kube-system 2>/dev/null || true
-
-echo ""
-echo "=========================================="
-echo " Cluster wiped successfully"
-echo "=========================================="
-echo ""
-echo "Next steps:"
-echo "  1. Restart k3s:     sudo systemctl restart k3s"
-echo "  2. Run startup:     ./scripts/k3s-start.sh"
-echo ""
+header "Cluster wiped"
+echo "Next: sudo ./infrastructure/scripts/k3s-start.sh"
+echo
